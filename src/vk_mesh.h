@@ -27,6 +27,9 @@ struct Vertex {
 
 struct Mesh {
     std::vector<Vertex> _vertices;
-
     AllocatedBuffer _vertexBuffer;
+    std::vector<uint32_t> _indices;
+    AllocatedBuffer _indexBuffer;
+
+    static Mesh create_cube_mesh();
 };

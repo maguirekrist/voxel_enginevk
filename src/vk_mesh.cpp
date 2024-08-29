@@ -38,3 +38,62 @@ VertexInputDescription Vertex::get_vertex_description()
 	description.attributes.push_back(colorAttribute);
 	return description;
 }
+
+Mesh Mesh::create_cube_mesh()
+{
+    Mesh cubeMesh;
+
+    // Define the color green (R = 0, G = 1, B = 0)
+    glm::vec3 greenColor(0.0f, 1.0f, 0.0f);
+
+    // Define the vertices for a cube (2 triangles per face, 6 vertices per face)
+    cubeMesh._vertices = {
+        // Front face
+        {{-0.5f, -0.5f,  0.5f}, {0.0f, 0.0f,  1.0f}, greenColor},  // Bottom-left
+        {{ 0.5f, -0.5f,  0.5f}, {0.0f, 0.0f,  1.0f}, greenColor},  // Bottom-right
+        {{ 0.5f,  0.5f,  0.5f}, {0.0f, 0.0f,  1.0f}, greenColor},  // Top-right
+        {{-0.5f,  0.5f,  0.5f}, {0.0f, 0.0f,  1.0f}, greenColor},  // Top-left
+
+        // Back face
+        {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, greenColor},  // Bottom-left
+        {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, greenColor},  // Bottom-right
+        {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, greenColor},  // Top-right
+        {{-0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, greenColor},  // Top-left
+
+        // Left face
+        {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f,  0.0f}, greenColor}, // Bottom-left
+        {{-0.5f, -0.5f,  0.5f}, {-1.0f, 0.0f,  0.0f}, greenColor}, // Bottom-right
+        {{-0.5f,  0.5f,  0.5f}, {-1.0f, 0.0f,  0.0f}, greenColor}, // Top-right
+        {{-0.5f,  0.5f, -0.5f}, {-1.0f, 0.0f,  0.0f}, greenColor}, // Top-left
+
+        // Right face
+        {{ 0.5f, -0.5f, -0.5f}, { 1.0f, 0.0f,  0.0f}, greenColor}, // Bottom-left
+        {{ 0.5f, -0.5f,  0.5f}, { 1.0f, 0.0f,  0.0f}, greenColor}, // Bottom-right
+        {{ 0.5f,  0.5f,  0.5f}, { 1.0f, 0.0f,  0.0f}, greenColor}, // Top-right
+        {{ 0.5f,  0.5f, -0.5f}, { 1.0f, 0.0f,  0.0f}, greenColor}, // Top-left
+
+        // Top face
+        {{-0.5f,  0.5f,  0.5f}, {0.0f,  1.0f, 0.0f}, greenColor},  // Bottom-left
+        {{ 0.5f,  0.5f,  0.5f}, {0.0f,  1.0f, 0.0f}, greenColor},  // Bottom-right
+        {{ 0.5f,  0.5f, -0.5f}, {0.0f,  1.0f, 0.0f}, greenColor},  // Top-right
+        {{-0.5f,  0.5f, -0.5f}, {0.0f,  1.0f, 0.0f}, greenColor},  // Top-left
+
+        // Bottom face
+        {{-0.5f, -0.5f,  0.5f}, {0.0f, -1.0f, 0.0f}, greenColor},  // Bottom-left
+        {{ 0.5f, -0.5f,  0.5f}, {0.0f, -1.0f, 0.0f}, greenColor},  // Bottom-right
+        {{ 0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, greenColor},  // Top-right
+        {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, greenColor},  // Top-left
+    };
+
+    // Define the indices for the cube (two triangles per face)
+    cubeMesh._indices = {
+        0, 1, 2, 2, 3, 0,   // Front face
+        4, 5, 6, 6, 7, 4,   // Back face
+        8, 9, 10, 10, 11, 8, // Left face
+        12, 13, 14, 14, 15, 12, // Right face
+        16, 17, 18, 18, 19, 16, // Top face
+        20, 21, 22, 22, 23, 20  // Bottom face
+    };
+
+    return cubeMesh;
+}

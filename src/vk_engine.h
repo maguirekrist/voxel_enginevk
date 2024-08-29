@@ -5,6 +5,33 @@
 
 #include <vk_types.h>
 #include <vk_mesh.h>
+#include <camera.h>
+#include <world.h>
+
+using Clock = std::chrono::high_resolution_clock;
+using TimePoint = std::chrono::time_point<Clock>;
+using Duration = std::chrono::duration<float>;
+
+struct Material {
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+};
+
+struct RenderObject {
+	Mesh* mesh;
+
+	Material* material;
+
+	glm::mat4 transformMatrix;
+};
+
+struct FrameData {
+	VkSemaphore _presentSemaphore, _renderSemaphore;
+	VkFence _renderFence;
+
+	VkCommandPool _commandPool;
+	VkCommandBuffer _mainCommandBuffer;
+};
 
 class DeletionQueue {
 public:
@@ -25,6 +52,8 @@ public:
 private:
 	std::deque<std::function<void()>> deletors;
 };
+
+constexpr unsigned int FRAME_OVERLAP = 1;
 
 class VulkanEngine {
 public:
@@ -48,26 +77,45 @@ public:
 	VkQueue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
 
-	VkCommandPool _commandPool;
-	VkCommandBuffer _mainCommandBuffer;
-
 	VkRenderPass _renderPass;
 	std::vector<VkFramebuffer> _framebuffers;
 
-	VkSemaphore _presentSemaphore, _renderSemaphore;
-	VkFence _renderFence;
+	World _world{32};
+	std::vector<RenderObject> _renderables;
+	std::unordered_map<std::string, Material> _materials;
+	std::unordered_map<std::string, Mesh> _meshes;
+	Camera _camera{glm::vec3(0.0f)};
 
-	VkPipelineLayout _meshPipelineLayout;
-	VkPipeline _meshPipeline;
-	Mesh _triangleMesh;
+	float _deltaTime;
+	TimePoint _lastFrameTime;
+	TimePoint _lastFpsTime;
+
+	VkImageView _depthImageView;
+	AllocatedImage _depthImage;
+	VkFormat _depthFormat;
 
 	DeletionQueue _mainDeletionQueue;
-
 	VmaAllocator _allocator;
+
+	FrameData _frames[FRAME_OVERLAP];
 
 	VkExtent2D _windowExtent{ 1700 , 900 };
 
 	struct SDL_Window* _window{ nullptr };
+
+	FrameData& get_current_frame();
+
+	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
+
+	Material* get_material(const std::string& name);
+
+	Mesh* get_mesh(const std::string& name);
+
+	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
+
+	float _fps;
+
+	void calculate_fps();
 
 	//initializes everything in the engine
 	void init();
@@ -89,6 +137,7 @@ private:
 	void init_framebuffers();
 	void init_sync_structures();
 	void init_pipelines();
+	void init_scene();
 
 	void load_meshes();
 	void upload_mesh(Mesh& mesh);
@@ -105,6 +154,7 @@ public:
 	VkRect2D _scissor;
 	VkPipelineRasterizationStateCreateInfo _rasterizer;
 	VkPipelineColorBlendAttachmentState _colorBlendAttachment;
+	VkPipelineDepthStencilStateCreateInfo _depthStencil;
 	VkPipelineMultisampleStateCreateInfo _multisampling;
 	VkPipelineLayout _pipelineLayout;
 
