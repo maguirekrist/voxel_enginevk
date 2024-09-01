@@ -1,162 +1,133 @@
 
 #include "world.h"
 
-//Precondition: Chunk size should be a area value
-static void ds_generate(std::vector<int>& map, int count, int maxHeight) {
-    float magnitude_multiplier = std::pow(2, -(0.5 * count));
+template <typename T>
+concept Arithmetic = std::is_arithmetic_v<T>;
 
-    std::random_device dev;
-    std::mt19937 rng(dev());
-    std::uniform_int_distribution<int> dist6(-7 * magnitude_multiplier,7 * magnitude_multiplier);
-
-    int mapSize = std::sqrt(map.size());
-    int iterations = std::pow(4, count);
-    int squares_per_height = std::pow(2, count);
-
-    int distance  = ((mapSize-1) / squares_per_height);
-
-    if(distance <= 1)
-        return;
-
-    //keep track of iteration
-    //4^n represents number of iterations
-
-    //Iterate through the chunks! Diamond Step
-    int yLevel = 0;
-    int xLevel = 0;
-    for(int i = 0; i < iterations; i++)
-    {
-        int x1 = xLevel * distance;
-        int y1 = (yLevel * distance);
-
-        int x2 = (xLevel+1) * distance;
-        int y2 = (yLevel * distance) + distance;
-
-        //For each chunk, we need to compute the diamond step first
-        int bottomLeft = map[(y1 * mapSize) + x1]; //bottomLeft
-        int bottomRight = map[(y1 * mapSize) + x2]; //bottomRight
-
-        int topRight = map[(y2 * mapSize) + x2]; //topRight
-        int topLeft = map[(y2 * mapSize) + x1]; //topLeft
-
-        int diamondValue = ((topLeft + topRight + bottomLeft + bottomRight) / 4) + (dist6(rng));
-
-        int midX = ((x2 - x1) / 2) + x1;
-        int midY = ((y2 - y1) / 2) + y1;
-
-        //Diamond step
-        map[(midY * mapSize) + midX] = diamondValue;
-
-        yLevel = xLevel == squares_per_height - 1 ? yLevel + 1 : yLevel;
-        xLevel = xLevel == squares_per_height - 1 ? 0 : xLevel + 1;
+template <Arithmetic T>
+void median_filter(std::vector<T>& map, int mapSize, int kernel_size)
+{
+    if (kernel_size % 2 == 0) {
+        throw std::invalid_argument("Kernel size must be odd.");
     }
 
+    int edge = kernel_size / 2;
 
-    yLevel = 0;
-    xLevel = 0;
-    for(int i = 0; i < iterations; i++)
-    {
-        int x1 = xLevel * distance;
-        int y1 = (yLevel * distance);
+    auto get_ordered_list = [&](int x, int y) -> std::vector<T> {
+        std::vector<T> pixels;
 
-        int x2 = (xLevel+1) * distance;
-        int y2 = (yLevel * distance) + distance;
+        for (int i = -edge; i <= edge; i++) {
+            for (int j = -edge; j <= edge; j++) {
+                int nx = x + j;
+                int ny = y + i;
 
-        int midX = ((x2 - x1) / 2) + x1;
-        int midY = ((y2 - y1) / 2) + y1;
-        int mid_distance = (x2-x1)/2;
+                // Clamp coordinates to be within bounds
+                if (nx < 0) nx = 0;
+                if (ny < 0) ny = 0;
+                if (nx >= mapSize) nx = mapSize - 1;
+                if (ny >= mapSize) ny = mapSize - 1;
 
-        int diamondValue = map[(midY * mapSize) + midX];
+                pixels.push_back(map[(mapSize * ny) + nx]);
+            }
+        }
 
-        int bottomLeft = map[(y1 * mapSize) + x1]; //bottomLeft
-        int bottomRight = map[(y1 * mapSize) + x2]; //bottomRight
+        std::ranges::sort(pixels);
 
-        int topRight = map[(y2 * mapSize) + x2]; //topRight
-        int topLeft = map[(y2 * mapSize) + x1]; //topLeft
+        return pixels;
+    };
 
-        // Calculate and clamp the left value
-        float farLeft = x1 - mid_distance < (mapSize - 1) ? map[(midY * mapSize) + x1 + mid_distance] : map[(midY * mapSize) + x1 - mid_distance];
-        int leftValue = ((diamondValue + topLeft + bottomLeft + farLeft) / 4.0f) + (dist6(rng));
-        map[(midY * mapSize) + x1] = std::clamp(leftValue, 0, maxHeight);
+    std::vector<T> original_map = map; // Copy the original map to use for non-edge areas
 
-        // Calculate and clamp the right value
-        float farRight = x2 + mid_distance > (mapSize - 1) ? map[(midY * mapSize) + x2 - mid_distance] : map[(midY * mapSize) + x2 + mid_distance];
-        int rightValue = ((diamondValue + bottomLeft + bottomRight + farRight) / 4) + (dist6(rng));
-        map[(midY * mapSize) + x2] = std::clamp(rightValue, 0, maxHeight);
-
-        // Calculate and clamp the bottom value
-        float farBottom = y1 - mid_distance < (mapSize - 1) ? map[((y2 - mid_distance) * mapSize) + midX] : map[((y1 - mid_distance) * mapSize) + midX];
-        int bottomValue = ((diamondValue + topLeft + topRight + farBottom) / 4) + (dist6(rng));
-        map[(y1 * mapSize) + midX] = std::clamp(bottomValue, 0, maxHeight);
-
-        // Calculate and clamp the top value
-        float farTop = y2 + mid_distance > (mapSize - 1) ? map[((y1 + mid_distance) * mapSize) + midX] : map[((y2 + mid_distance) * mapSize) + midX];
-        int topValue = ((diamondValue + topRight + bottomRight + farTop) / 4) + (dist6(rng));
-        map[(y2 * mapSize) + midX] = std::clamp(topValue, 0, maxHeight);
-
-        yLevel = xLevel == squares_per_height - 1 ? yLevel + 1 : yLevel;
-        xLevel = xLevel == squares_per_height - 1 ? 0 : xLevel + 1;
+    // Filter the inner part of the map
+    for (int i = edge; i < (mapSize - edge); i++) {
+        for (int j = edge; j < (mapSize - edge); j++) {
+            // Construct an ordered list of the pixels in the kernel window
+            auto olist = get_ordered_list(j, i);
+            map[(mapSize * i) + j] = olist[olist.size() / 2]; // Set the pixel to the median value
+        }
     }
 
-    //recursive call to ds_generate but on smaller chunks
-    ds_generate(map, ++count, maxHeight);
+    // Handle the borders (optional based on your application)
+    for (int i = 0; i < mapSize; i++) {
+        for (int j = 0; j < mapSize; j++) {
+            if (i < edge || i >= (mapSize - edge) || j < edge || j >= (mapSize - edge)) {
+                // Optionally, handle borders differently if required
+                // For now, copying the original map values (optional)
+                map[(mapSize * i) + j] = original_map[(mapSize * i) + j];
+            }
+        }
+    }
 }
 
-World::World(int size)
+World::World()
 {
     fmt::println("World Generation Starting...");
-    _size = size;
+    _seed = Random::generate(1, 1337);
+    auto perlin = FastNoise::New<FastNoise::Perlin>();
+    _generator.base = perlin;
 
-    generate_height_map(size);
-    update_chunk();
-    chunk.generate_chunk_mesh();
+
+    //Test setup, generate a bunch of centered around the origin (0, 0, 0)
+    int world_size_chunks = 32; //4 chunks in each direction, n/s/e/w
+
+    //std::vector<glm::ivec2> direction_offsets = { { 0, CHUNK_SIZE }, { 0, -CHUNK_SIZE }, { -CHUNK_SIZE, 0 }, { CHUNK_SIZE, 0 } };
+
+    for (int x = 0; x < world_size_chunks; x++)
+    {
+        for (int y = 0; y < world_size_chunks; y++)
+        {
+            auto xstart = x * CHUNK_SIZE;
+            auto ystart = y * CHUNK_SIZE;
+            generate_chunk(xstart, ystart);
+        }
+    }
+
+    //generate_chunk(0, 0);
+
+    fmt::println("World Generation Completed...");
 }
 
-void World::generate_height_map(int dim)
+void World::generate_chunk(int xStart, int yStart)
 {
-    _heightMap.resize(dim * dim);
-    //Step 1, initialize the corners
-    auto topLeft = Random::generate(1, dim);
-    auto topRight = Random::generate(1, dim);
-    auto bottomLeft = Random::generate(1, dim);
-    auto bottomRight = Random::generate(1, dim);
+    std::vector<float> heightMap(CHUNK_SIZE * CHUNK_SIZE);
+    _generator.base->GenUniformGrid2D(heightMap.data(), xStart, yStart, CHUNK_SIZE, CHUNK_SIZE, 0.2f, _seed);
 
-
-    _heightMap[(0 * dim) + 0] = bottomLeft; //bottomLeft
-    _heightMap[(0 * dim) + (dim-1)] = bottomRight; //bottomRight
-
-    _heightMap[((dim-1) * dim) + (dim-1)] = topRight; //topRight
-    _heightMap[((dim-1) * dim) + 0] = topLeft; //topLeft
-
-    ds_generate(_heightMap, 0, dim);
-    //heightMap[22] = 255;
-
-
-    std::cout << "max height in map: " << *std::max_element(_heightMap.begin(), _heightMap.end()) << std::endl;
-    std::cout << "min height in map: " << *std::min_element(_heightMap.begin(), _heightMap.end()) << std::endl;
+    auto chunk = std::make_unique<Chunk>(glm::ivec2(xStart, yStart));
+    update_chunk(*chunk, heightMap);
+    _chunks.push_back(std::move(chunk));
 }
 
-void World::update_chunk()
+float get_normalized_height(std::vector<float>& map, int yScale, int xScale, int x, int y)
+{
+    float height = map[(y * xScale) + x];
+    float normalized = (height + 1.0f) / 2.0f;
+    float scaled_value = normalized * yScale;
+    return scaled_value;
+}
+
+void World::update_chunk(Chunk& chunk, std::vector<float>& heightMap)
 {
     //Given the height map, we're going to update the blocks in our default chunk.
-    for(int x = 0; x < _size; x++)
+    for(int x = 0; x < CHUNK_SIZE; x++)
     {
-        for(int y = 0; y < _size; y++)
+        for(int z = 0; z < CHUNK_SIZE; z++)
         {
-            int height = _heightMap[(y * _size) + x];
-            for(int z = 0; z < _size; z++)
+            auto height = get_normalized_height(heightMap, CHUNK_HEIGHT, CHUNK_SIZE, x, z);
+            for (int y = 0; y < CHUNK_HEIGHT; y++)
             {
-                Block& block = chunk._blocks[x][z][y];
-                block._position = glm::vec3(x, z, y);
+                Block& block = chunk._blocks[x][y][z];
+                block._position = glm::vec3(x, y, z);
                 float colorVal = 0.5f;
                 block._color = glm::vec3(colorVal, colorVal, colorVal);
-                if(z <= height)
+                if (y <= height)
                 {
                     block._solid = true;
-                } else {
+                }
+                else {
                     block._solid = false;
                 }
             }
         }
     }
+
 }

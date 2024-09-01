@@ -1,4 +1,5 @@
 #include <vk_mesh.h>
+#include <block.h>
 
 VertexInputDescription Vertex::get_vertex_description()
 {
@@ -42,48 +43,15 @@ VertexInputDescription Vertex::get_vertex_description()
 Mesh Mesh::create_cube_mesh()
 {
     Mesh cubeMesh;
-
-    // Define the color green (R = 0, G = 1, B = 0)
-    glm::vec3 greenColor(0.0f, 1.0f, 0.0f);
-
-    // Define the vertices for a cube (2 triangles per face, 6 vertices per face)
-    cubeMesh._vertices = {
-        // Front face
-        {{-0.5f, -0.5f,  0.5f}, {0.0f, 0.0f,  1.0f}, greenColor},  // Bottom-left
-        {{ 0.5f, -0.5f,  0.5f}, {0.0f, 0.0f,  1.0f}, greenColor},  // Bottom-right
-        {{ 0.5f,  0.5f,  0.5f}, {0.0f, 0.0f,  1.0f}, greenColor},  // Top-right
-        {{-0.5f,  0.5f,  0.5f}, {0.0f, 0.0f,  1.0f}, greenColor},  // Top-left
-
-        // Back face
-        {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, greenColor},  // Bottom-left
-        {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, greenColor},  // Bottom-right
-        {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, greenColor},  // Top-right
-        {{-0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, greenColor},  // Top-left
-
-        // Left face
-        {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f,  0.0f}, greenColor}, // Bottom-left
-        {{-0.5f, -0.5f,  0.5f}, {-1.0f, 0.0f,  0.0f}, greenColor}, // Bottom-right
-        {{-0.5f,  0.5f,  0.5f}, {-1.0f, 0.0f,  0.0f}, greenColor}, // Top-right
-        {{-0.5f,  0.5f, -0.5f}, {-1.0f, 0.0f,  0.0f}, greenColor}, // Top-left
-
-        // Right face
-        {{ 0.5f, -0.5f, -0.5f}, { 1.0f, 0.0f,  0.0f}, greenColor}, // Bottom-left
-        {{ 0.5f, -0.5f,  0.5f}, { 1.0f, 0.0f,  0.0f}, greenColor}, // Bottom-right
-        {{ 0.5f,  0.5f,  0.5f}, { 1.0f, 0.0f,  0.0f}, greenColor}, // Top-right
-        {{ 0.5f,  0.5f, -0.5f}, { 1.0f, 0.0f,  0.0f}, greenColor}, // Top-left
-
-        // Top face
-        {{-0.5f,  0.5f,  0.5f}, {0.0f,  1.0f, 0.0f}, greenColor},  // Bottom-left
-        {{ 0.5f,  0.5f,  0.5f}, {0.0f,  1.0f, 0.0f}, greenColor},  // Bottom-right
-        {{ 0.5f,  0.5f, -0.5f}, {0.0f,  1.0f, 0.0f}, greenColor},  // Top-right
-        {{-0.5f,  0.5f, -0.5f}, {0.0f,  1.0f, 0.0f}, greenColor},  // Top-left
-
-        // Bottom face
-        {{-0.5f, -0.5f,  0.5f}, {0.0f, -1.0f, 0.0f}, greenColor},  // Bottom-left
-        {{ 0.5f, -0.5f,  0.5f}, {0.0f, -1.0f, 0.0f}, greenColor},  // Bottom-right
-        {{ 0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, greenColor},  // Top-right
-        {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, greenColor},  // Top-left
-    };
+    
+    for (auto face : faceDirections)
+    {
+        //4 vertices per face
+        for (int i = 0; i < 4; i++)
+        {
+            cubeMesh._vertices.push_back({ faceVertices[face][i], glm::vec3(0.0f), faceColors[face]});
+        }
+    }
 
     // Define the indices for the cube (two triangles per face)
     cubeMesh._indices = {

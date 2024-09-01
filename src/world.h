@@ -3,15 +3,16 @@
 #include <vk_types.h>
 #include <random.h>
 #include <chunk.h>
+#include <FastNoise/FastNoise.h>
 
 class World {
 public:
-    int _size;
-    std::vector<int> _heightMap;
-    Chunk chunk;
+    std::vector<std::unique_ptr<Chunk>> _chunks;
+    int _seed;
+    FastNoise::GeneratorSource _generator;
 
-    World(int size);
-
-    void generate_height_map(int dim);
-    void update_chunk();
+    World();
+private:
+    void generate_chunk(int xStart, int yStart);
+    void update_chunk(Chunk& chunk, std::vector<float>& heightMap);
 };

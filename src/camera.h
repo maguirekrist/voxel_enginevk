@@ -15,7 +15,7 @@ public:
     bool _firstMouse = true;
     float _lastMouseX;
     float _lastMouseY;
-    float _yaw = -90.0f;
+    float _yaw = 90.0f;
     float _pitch;
 
     Camera(glm::vec3 defaultPos);
@@ -25,5 +25,6 @@ public:
     void moveLeft();
     void moveRight();
     void update_view();
+    void handle_mouse_move_v2(float xChange, float yChange);
     void handle_mouse_move(double xpos, double ypos);
 };

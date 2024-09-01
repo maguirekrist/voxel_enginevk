@@ -111,7 +111,7 @@ void VulkanEngine::draw()
 	//make a clear-color from frame number. This will flash with a 120*pi frame period.
 	VkClearValue clearValue;
 	float flash = abs(sin(_frameNumber / 120.f));
-	clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
+	clearValue.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
 
 	//clear depth at 1
 	VkClearValue depthClear;
@@ -218,6 +218,7 @@ void VulkanEngine::run()
 						case SDLK_ESCAPE:
 							bFocused = false;
 							SDL_SetWindowGrab(_window, SDL_FALSE);
+							SDL_SetRelativeMouseMode(SDL_FALSE);
 							SDL_ShowCursor(SDL_TRUE);
 							break;
 					}
@@ -228,13 +229,15 @@ void VulkanEngine::run()
 						fmt::println("Mouse Button down");
 						bFocused = true;
 						SDL_SetWindowGrab(_window, SDL_TRUE);
+						SDL_SetRelativeMouseMode(SDL_TRUE);
 						SDL_ShowCursor(SDL_FALSE);
 					}
 					break;
 				case SDL_MOUSEMOTION:
 					if (bFocused == true)
 					{
-						_camera.handle_mouse_move(e.motion.x, e.motion.y);
+						//_camera.handle_mouse_move(e.motion.x, e.motion.y);
+						_camera.handle_mouse_move_v2(e.motion.xrel, e.motion.yrel);
 					}
 					break;
 				case SDL_QUIT:
@@ -550,10 +553,19 @@ void VulkanEngine::init_sync_structures()
 	}
 }
 
+std::string getShaderPath(const std::string& shaderName) {
+	// Get the executable path
+	std::filesystem::path exePath = std::filesystem::current_path();
+
+	// Navigate to the shaders directory
+	return (exePath.parent_path() / "shaders" / shaderName).string();
+}
+
 void VulkanEngine::init_pipelines()
 {	
 	VkShaderModule trimeshFragShader;
-	if (!load_shader_module("../shaders/tri_mesh.frag.spv", &trimeshFragShader))
+
+	if (!load_shader_module(getShaderPath("tri_mesh.frag.spv"), &trimeshFragShader))
 	{
 		fmt::println("Error when building the triangle fragment shader module");
 	}
@@ -562,7 +574,7 @@ void VulkanEngine::init_pipelines()
 	}
 
 	VkShaderModule trimeshVertexShader;
-	if (!load_shader_module("../shaders/tri_mesh.vert.spv", &trimeshVertexShader))
+	if (!load_shader_module(getShaderPath("tri_mesh.vert.spv"), &trimeshVertexShader))
 	{
 		fmt::println("Error when building the triangle vertex shader module");
 
@@ -666,30 +678,35 @@ void VulkanEngine::init_pipelines()
 
 void VulkanEngine::init_scene()
 {
-	RenderObject obj;
-	obj.mesh = &_world.chunk._mesh;
-	obj.material = get_material("defaultmesh");
-	obj.transformMatrix = glm::mat4{1.0};
-	_renderables.push_back(obj);
-	for (int x = 0; x <= 20; x++)
+	for (auto& chunk : _world._chunks)
 	{
-		for(int y = 0; y <= 20; y++)
-		{
-			RenderObject cube;
-			cube.mesh = get_mesh("cube");
-			cube.material = get_material("defaultmesh");
-			glm::mat4 translation = glm::translate( glm::mat4{ 1.0 }, glm::vec3(x, 0, y) );
-			glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(0.2, 0.2, 0.2));
-			cube.transformMatrix = translation * scale;
-
-			_renderables.push_back(cube);
-		}
+		RenderObject obj;
+		obj.mesh = &chunk->_mesh;
+		obj.material = get_material("defaultmesh");
+		glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_origin.x, 0, chunk->_origin.y));
+		obj.transformMatrix = translate;
+		_renderables.push_back(obj);
 	}
+
+	//for (int x = 0; x <= 20; x++)
+	//{
+	//	for(int z = 0; z <= 40; z++)
+	//	{
+	//		RenderObject cube;
+	//		cube.mesh = get_mesh("cube");
+	//		cube.material = get_material("defaultmesh");
+	//		glm::mat4 translation = glm::translate( glm::mat4{ 1.0 }, glm::vec3(x, 0, z) );
+	//		glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(0.2, 0.2, 0.2));
+	//		cube.transformMatrix = translation * scale;
+
+	//		_renderables.push_back(cube);
+	//	}
+	//}
 
 
 }
 
-bool VulkanEngine::load_shader_module(const char* filePath, VkShaderModule* outShaderModule)
+bool VulkanEngine::load_shader_module(const std::string& filePath, VkShaderModule* outShaderModule)
 {
 	//open the file. With cursor at the end
 	std::ifstream file(filePath, std::ios::ate | std::ios::binary);
@@ -795,7 +812,6 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
 
 void VulkanEngine::load_meshes()
 {
-	upload_mesh(_world.chunk._mesh);
 	// //make the array 3 vertices long
 	// Mesh triangleMesh;
 	// triangleMesh._vertices.resize(3);
@@ -833,6 +849,13 @@ void VulkanEngine::load_meshes()
 
 	// upload_mesh(quadMesh);
 	// _meshes["quad"] = quadMesh;
+
+	for (auto& chunk : _world._chunks)
+	{
+		chunk->generate_chunk_mesh();
+		upload_mesh(chunk->_mesh);
+	}
+
 
 	Mesh cubeMesh = Mesh::create_cube_mesh();
 	upload_mesh(cubeMesh);
@@ -922,7 +945,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject *first, int co
 	//camera view
 	glm::mat4 view = _camera._view;
 	//camera projection
-	glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+	glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 10000.0f);
 	projection[1][1] *= -1;
 
 	Mesh* lastMesh = nullptr;

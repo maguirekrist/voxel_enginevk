@@ -5,7 +5,7 @@ cmake_minimum_required (VERSION 3.8)
 
 project ("vulkan_guide")
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 find_package(Vulkan REQUIRED)
 
@@ -43,3 +43,5 @@ add_custom_target(
     Shaders 
     DEPENDS ${SPIRV_BINARY_FILES}
     )
+
+source_group("Shaders" FILES ${GLSL_SOURCE_FILES})

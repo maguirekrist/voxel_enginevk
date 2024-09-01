@@ -58,7 +58,7 @@ constexpr unsigned int FRAME_OVERLAP = 1;
 class VulkanEngine {
 public:
 	bool _isInitialized{ false };
-	bool bUseValidationLayers{ true };
+	bool bUseValidationLayers{ false };
 	int _frameNumber {0};
 	
 	VkInstance _instance;
@@ -80,11 +80,11 @@ public:
 	VkRenderPass _renderPass;
 	std::vector<VkFramebuffer> _framebuffers;
 
-	World _world{32};
+	World _world;
 	std::vector<RenderObject> _renderables;
 	std::unordered_map<std::string, Material> _materials;
 	std::unordered_map<std::string, Mesh> _meshes;
-	Camera _camera{glm::vec3(0.0f)};
+	Camera _camera{glm::vec3(0.0f, static_cast<float>(CHUNK_HEIGHT), 0.0f)};
 
 	float _deltaTime;
 	TimePoint _lastFrameTime;
@@ -142,7 +142,7 @@ private:
 	void load_meshes();
 	void upload_mesh(Mesh& mesh);
 
-	bool load_shader_module(const char* filePath, VkShaderModule* outShaderModule);
+	bool load_shader_module(const std::string& filePath, VkShaderModule* outShaderModule);
 };
 
 class PipelineBuilder {
