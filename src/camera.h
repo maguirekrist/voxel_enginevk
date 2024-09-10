@@ -1,30 +1,27 @@
 
 #pragma once
 #include <vk_types.h>
+#include <block.h>
+#include <world.h>
+#include <player.h>
+
+struct RaycastResult {
+    Block* _block;
+    FaceDirection _blockFace;
+    Chunk* _chunk;
+    glm::ivec3 _worldPos;
+    float _distance;
+};
 
 class Camera
 {
 public:
-    glm::vec3 _position;
-    glm::vec3 _front;
-    glm::vec3 _up;
-
     glm::mat4 _view;
-    float _cameraSpeed = 10.0f;
+	//camera projection
+	glm::mat4 _projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 10000.0f);
 
-    bool _firstMouse = true;
-    float _lastMouseX;
-    float _lastMouseY;
-    float _yaw = 90.0f;
-    float _pitch;
+    Camera();
 
-    Camera(glm::vec3 defaultPos);
-
-    void moveForward();
-    void moveBackward();
-    void moveLeft();
-    void moveRight();
-    void update_view();
-    void handle_mouse_move_v2(float xChange, float yChange);
-    void handle_mouse_move(double xpos, double ypos);
+    void update_view(const glm::vec3& position, const glm::vec3& front, const glm::vec3& up);
+    std::optional<RaycastResult> get_target_block(World& world, Player& player);
 };

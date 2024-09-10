@@ -18,7 +18,15 @@ add_executable(vulkan_guide
     chunk.h
     chunk.cpp
     block.h
-    block.cpp)
+    block.cpp
+    chunk_mesher.h
+    chunk_mesher.cpp
+    chunk_manager.h
+    chunk_manager.cpp
+    cube_engine.h
+    cube_engine.cpp
+    player.h
+    player.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")

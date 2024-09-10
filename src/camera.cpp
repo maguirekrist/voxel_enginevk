@@ -1,114 +1,73 @@
 #include "camera.h"
 
-Camera::Camera(glm::vec3 defaultPos)
+Camera::Camera()
 {
-    _position = defaultPos;
-    _front = glm::vec3(0.0f, 0.0f, 1.0f);
-    _up = glm::vec3(0.0f, 1.0f, 0.0f);
     _view = glm::mat4(1.0f);
-    update_view();
+    _projection[1][1] *= -1;
 }
 
-void Camera::moveForward()
+void Camera::update_view(const glm::vec3& position, const glm::vec3& front, const glm::vec3& up)
 {
-    _position += _front * _cameraSpeed;
-    update_view();
+    _view = glm::lookAt(position, position + front, up);
 }
 
-void Camera::moveBackward()
+std::optional<RaycastResult> Camera::get_target_block(World& world, Player& player)
 {
-    _position -= _front * _cameraSpeed;
-    update_view();
-}
+    glm::vec3 rayStart = player._position;
+    glm::vec3 rayDir = glm::normalize(player._front);
 
-void Camera::moveLeft()
-{
-    _position -= glm::normalize(glm::cross(_front, _up)) * _cameraSpeed;
-    update_view();
-}
+    glm::vec3 stepSize = glm::sign(rayDir);
+    glm::vec3 tDelta = glm::abs(1.0f / rayDir);
 
-void Camera::moveRight()
-{
-    _position += glm::normalize(glm::cross(_front, _up)) * _cameraSpeed;
-    update_view();
-}
+    glm::ivec3 voxelPos = glm::floor(rayStart);
+    // Calculate initial tMax values
+    glm::vec3 tMax = (stepSize * (glm::vec3(voxelPos) - rayStart) + (stepSize * 0.5f) + 0.5f) * tDelta;
 
-void Camera::update_view()
-{
-    _view = glm::lookAt(_position, _position + _front, _up);
-}
+    // Initialize the face normal
+    glm::ivec3 faceNormal(0);
+    float distance = 0.0f;
 
-void Camera::handle_mouse_move_v2(float xChange, float yChange)
-{
-    fmt::println("Mouse x: {}, y: {}", xChange, yChange);
-
-    float sensitivity = 0.1f;
-    xChange *= sensitivity;
-    yChange *= -sensitivity;
-
-    _yaw += xChange;
-    _pitch += yChange;
-
-    if (_pitch > 89.0f)
-        _pitch = 89.0f;
-    if (_pitch < -89.0f)
-        _pitch = -89.0f;
-
-
-    fmt::println("Pitch: {}", _pitch);
-
-    glm::vec3 direction;
-    direction.x = cos(glm::radians(_yaw)) * cos(glm::radians(_pitch));
-    direction.y = sin(glm::radians(_pitch));
-    direction.z = sin(glm::radians(_yaw)) * cos(glm::radians(_pitch));
-
-    fmt::println("Direction, x: {}, y: {}, z: {}", direction.x, direction.y, direction.z);
-
-    _front = glm::normalize(direction);
-    update_view();
-
-}
-
-void Camera::handle_mouse_move(double xpos, double ypos)
-{
-    if (_firstMouse)
+    while (distance < CHUNK_SIZE)
     {
-        _lastMouseX = xpos;
-        _lastMouseY = ypos;
-        _firstMouse = false;
+        //Get the current chunk we're in
+        //voxel pos is worldPos
+        Chunk* current_chunk = world.get_chunk(voxelPos);
+        if(distance == 0.0f)
+            fmt::println("Voxel Position: x:{}, y:{}, z:{}", voxelPos.x, voxelPos.y, voxelPos.z);
+        if (current_chunk)
+        {
+            fmt::println("Current chunk: x:{}, y: {}", current_chunk->_position.x, current_chunk->_position.y);
+            auto localPos = World::get_local_coordinates(voxelPos);
+            auto block = current_chunk->get_block(localPos);
+            if (block && block->_solid) {
+                
+                auto worldPos = current_chunk->get_world_pos(block->_position);
+                auto faceDir = get_face_direction(faceNormal);
+                return RaycastResult{ block, faceDir.has_value() ? faceDir.value() : FaceDirection::FRONT_FACE, current_chunk, worldPos, distance };
+            }
+        }
+
+        // Advance to next voxel
+        if (tMax.x < tMax.y && tMax.x < tMax.z) {
+            voxelPos.x += stepSize.x;
+            distance = tMax.x;
+            tMax.x += tDelta.x;
+            faceNormal = glm::ivec3(-stepSize.x, 0, 0);
+        }
+        else if (tMax.y < tMax.z) {
+            voxelPos.y += stepSize.y;
+            distance = tMax.y;
+            tMax.y += tDelta.y;
+            faceNormal = glm::ivec3(0, -stepSize.y, 0);
+        }
+        else {
+            voxelPos.z += stepSize.z;
+            distance = tMax.z;
+            tMax.z += tDelta.z;
+            faceNormal = glm::ivec3(0, 0, -stepSize.z);
+        }
     }
 
-    fmt::println("Mouse x: {}, y: {}", xpos, ypos);
-  
-    float xoffset = xpos - _lastMouseX;
-    float yoffset = _lastMouseY - ypos; 
-    _lastMouseX = xpos;
-    _lastMouseY = ypos;
-
-    float sensitivity = 0.1f;
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
-
-    fmt::println("Pitch: {}, yoffset, {}", _pitch, yoffset);
-
-    _yaw   += xoffset;
-    _pitch += yoffset;
-
-    if(_pitch > 89.0f)
-        _pitch = 89.0f;
-    if(_pitch < -89.0f)
-        _pitch = -89.0f;
-
-
-    fmt::println("Pitch: {}", _pitch);
-
-    glm::vec3 direction;
-    direction.x = cos(glm::radians(_yaw)) * cos(glm::radians(_pitch));
-    direction.y = sin(glm::radians(_pitch));
-    direction.z = sin(glm::radians(_yaw)) * cos(glm::radians(_pitch));
-
-    fmt::println("Direction, x: {}, y: {}, z: {}", direction.x, direction.y, direction.z);
-
-    _front = glm::normalize(direction);
-    update_view();
+    // No voxel hit within maxDistance
+    return std::nullopt;
 }

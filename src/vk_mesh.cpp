@@ -40,6 +40,32 @@ VertexInputDescription Vertex::get_vertex_description()
 	return description;
 }
 
+VertexInputDescription PointVertex::get_vertex_description()
+{
+	VertexInputDescription description;
+
+    //we will have just 1 vertex buffer binding, with a per-vertex rate
+	VkVertexInputBindingDescription mainBinding = {};
+	mainBinding.binding = 0;
+	mainBinding.stride = sizeof(PointVertex);
+	mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	description.bindings.push_back(mainBinding);
+
+	//Position will be stored at Location 0
+	VkVertexInputAttributeDescription positionAttribute = {};
+	positionAttribute.binding = 0;
+	positionAttribute.location = 0;
+	positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+	positionAttribute.offset = offsetof(PointVertex, position);
+
+
+
+	description.attributes.push_back(positionAttribute);
+
+	return description;
+}
+
 Mesh Mesh::create_cube_mesh()
 {
     Mesh cubeMesh;
@@ -49,7 +75,7 @@ Mesh Mesh::create_cube_mesh()
         //4 vertices per face
         for (int i = 0; i < 4; i++)
         {
-            cubeMesh._vertices.push_back({ faceVertices[face][i], glm::vec3(0.0f), faceColors[face]});
+            cubeMesh._vertices.push_back({ faceVertices[face][i], glm::vec3(0.0f), glm::vec3(1.0f, 1.0f, 1.0f) });
         }
     }
 

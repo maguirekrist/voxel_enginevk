@@ -11,12 +11,14 @@
 #include <array>
 #include <functional>
 #include <deque>
+#include <queue>
 #include <fstream>
 #include <iostream>
 #include <chrono>
 #include <random>
 #include <filesystem>
 #include <ranges>
+#include <unordered_map>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
@@ -37,6 +39,23 @@ struct AllocatedBuffer {
 struct AllocatedImage {
     VkImage _image;
     VmaAllocation _allocation;
+};
+
+using Clock = std::chrono::high_resolution_clock;
+using TimePoint = std::chrono::time_point<Clock>;
+using Duration = std::chrono::duration<float>;
+
+struct Material {
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+};
+
+struct FrameData {
+	VkSemaphore _presentSemaphore, _renderSemaphore;
+	VkFence _renderFence;
+
+	VkCommandPool _commandPool;
+	VkCommandBuffer _mainCommandBuffer;
 };
 
 

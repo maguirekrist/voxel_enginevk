@@ -14,6 +14,7 @@ namespace vkinit {
 	VkPipelineRasterizationStateCreateInfo rasterization_state_create_info(VkPolygonMode polygonMode);
 	VkPipelineMultisampleStateCreateInfo multisampling_state_create_info();
 	VkPipelineColorBlendAttachmentState color_blend_attachment_state();
+	VkPipelineColorBlendAttachmentState color_blend_attachment_state_blending();
 	VkPipelineDepthStencilStateCreateInfo depth_stencil_create_info(bool bDepthTest, bool bDepthWrite, VkCompareOp compareOp);
 	VkPipelineLayoutCreateInfo pipeline_layout_create_info();
 

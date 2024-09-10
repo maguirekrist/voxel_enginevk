@@ -1,100 +1,108 @@
 
 #include "world.h"
 
-template <typename T>
-concept Arithmetic = std::is_arithmetic_v<T>;
-
-template <Arithmetic T>
-void median_filter(std::vector<T>& map, int mapSize, int kernel_size)
-{
-    if (kernel_size % 2 == 0) {
-        throw std::invalid_argument("Kernel size must be odd.");
-    }
-
-    int edge = kernel_size / 2;
-
-    auto get_ordered_list = [&](int x, int y) -> std::vector<T> {
-        std::vector<T> pixels;
-
-        for (int i = -edge; i <= edge; i++) {
-            for (int j = -edge; j <= edge; j++) {
-                int nx = x + j;
-                int ny = y + i;
-
-                // Clamp coordinates to be within bounds
-                if (nx < 0) nx = 0;
-                if (ny < 0) ny = 0;
-                if (nx >= mapSize) nx = mapSize - 1;
-                if (ny >= mapSize) ny = mapSize - 1;
-
-                pixels.push_back(map[(mapSize * ny) + nx]);
-            }
-        }
-
-        std::ranges::sort(pixels);
-
-        return pixels;
-    };
-
-    std::vector<T> original_map = map; // Copy the original map to use for non-edge areas
-
-    // Filter the inner part of the map
-    for (int i = edge; i < (mapSize - edge); i++) {
-        for (int j = edge; j < (mapSize - edge); j++) {
-            // Construct an ordered list of the pixels in the kernel window
-            auto olist = get_ordered_list(j, i);
-            map[(mapSize * i) + j] = olist[olist.size() / 2]; // Set the pixel to the median value
-        }
-    }
-
-    // Handle the borders (optional based on your application)
-    for (int i = 0; i < mapSize; i++) {
-        for (int j = 0; j < mapSize; j++) {
-            if (i < edge || i >= (mapSize - edge) || j < edge || j >= (mapSize - edge)) {
-                // Optionally, handle borders differently if required
-                // For now, copying the original map values (optional)
-                map[(mapSize * i) + j] = original_map[(mapSize * i) + j];
-            }
-        }
-    }
-}
-
 World::World()
 {
-    fmt::println("World Generation Starting...");
     _seed = Random::generate(1, 1337);
     auto perlin = FastNoise::New<FastNoise::Perlin>();
     _generator.base = perlin;
+}
 
 
-    //Test setup, generate a bunch of centered around the origin (0, 0, 0)
-    int world_size_chunks = 32; //4 chunks in each direction, n/s/e/w
+Block* World::get_block(const glm::ivec3& worldPos)
+{
+    Chunk* chunk = get_chunk(worldPos);
 
-    //std::vector<glm::ivec2> direction_offsets = { { 0, CHUNK_SIZE }, { 0, -CHUNK_SIZE }, { -CHUNK_SIZE, 0 }, { CHUNK_SIZE, 0 } };
-
-    for (int x = 0; x < world_size_chunks; x++)
+    if (chunk == nullptr)
     {
-        for (int y = 0; y < world_size_chunks; y++)
-        {
-            auto xstart = x * CHUNK_SIZE;
-            auto ystart = y * CHUNK_SIZE;
-            generate_chunk(xstart, ystart);
-        }
+        return nullptr;
     }
 
-    //generate_chunk(0, 0);
+    auto localPos = get_local_coordinates(worldPos);
 
-    fmt::println("World Generation Completed...");
+    if (Chunk::is_outside_chunk(localPos))
+    {
+        return nullptr;
+    }
+
+    return &chunk->_blocks[localPos.x][localPos.y][localPos.z];
+}
+
+//pos == worldPos
+bool World::is_position_solid(const glm::ivec3& pos)
+{
+    Block* block = get_block(pos);
+    if(block != nullptr)
+    {
+        return block->_solid;
+    }
+
+    return false;
+}
+
+Chunk* World::get_chunk(glm::vec3 worldPos)
+{
+    auto chunkOrigin = get_chunk_origin(worldPos);
+    auto chunkKey = get_chunk_key(chunkOrigin);
+
+    if(_chunkMap.contains(chunkKey))
+    {
+        return _chunkMap[chunkKey].get();
+    }
+
+    return nullptr;
+}
+
+std::string World::get_chunk_key(const glm::ivec2& worldPos)
+{
+    return fmt::format("({},{})", worldPos.x, worldPos.y);
 }
 
 void World::generate_chunk(int xStart, int yStart)
 {
-    std::vector<float> heightMap(CHUNK_SIZE * CHUNK_SIZE);
-    _generator.base->GenUniformGrid2D(heightMap.data(), xStart, yStart, CHUNK_SIZE, CHUNK_SIZE, 0.2f, _seed);
+    auto chunkKey = get_chunk_key({ xStart, yStart });
+    if(_chunkMap.contains(chunkKey))
+    {
+        return;
+    }
 
-    auto chunk = std::make_unique<Chunk>(glm::ivec2(xStart, yStart));
+
+    fmt::println("Generating chunk ({}, {})", xStart, yStart);
+
+    std::vector<float> heightMap(CHUNK_SIZE * CHUNK_SIZE);
+    _generator.base->GenUniformGrid2D(heightMap.data(), xStart, yStart, CHUNK_SIZE, CHUNK_SIZE, 0.001f, _seed);
+    //median_filter(heightMap, CHUNK_SIZE, 5);
+    auto chunk = std::make_unique<Chunk>(glm::ivec2(xStart, yStart), chunkKey);
     update_chunk(*chunk, heightMap);
-    _chunks.push_back(std::move(chunk));
+    _chunkMap[chunkKey] = std::move(chunk);
+    //_chunks.push_back(std::move(chunk));
+    fmt::println("Completed chunk generation.");
+}
+
+glm::ivec2 World::get_chunk_coordinates(const glm::vec3 &worldPos)
+{
+    return glm::ivec2(
+        static_cast<int>(std::floor(worldPos.x / CHUNK_SIZE)),
+        static_cast<int>(std::floor(worldPos.z / CHUNK_SIZE))
+    );
+}
+
+glm::ivec2 World::get_chunk_origin(const glm::vec3 &worldPos)
+{
+    auto chunkCords = get_chunk_coordinates(worldPos);
+    return glm::ivec2(
+        chunkCords.x * CHUNK_SIZE,
+        chunkCords.y * CHUNK_SIZE
+    );
+}
+
+glm::ivec3 World::get_local_coordinates(const glm::vec3 &worldPos)
+{
+    return glm::ivec3(
+        static_cast<int>(std::floor(worldPos.x)) & (CHUNK_SIZE - 1),
+        static_cast<int>(std::floor(worldPos.y)) & (CHUNK_HEIGHT - 1),
+        static_cast<int>(std::floor(worldPos.z)) & (CHUNK_SIZE - 1)
+    );
 }
 
 float get_normalized_height(std::vector<float>& map, int yScale, int xScale, int x, int y)
@@ -103,6 +111,24 @@ float get_normalized_height(std::vector<float>& map, int yScale, int xScale, int
     float normalized = (height + 1.0f) / 2.0f;
     float scaled_value = normalized * yScale;
     return scaled_value;
+}
+
+void init_sunlight(Chunk& chunk)
+{
+    for (int x = 0; x < CHUNK_SIZE; x++) {
+        for (int z = 0; z < CHUNK_SIZE; z++) {
+            int y = CHUNK_HEIGHT - 1;
+            while (y >= 0 && !chunk._blocks[x][y][z]._solid) {
+                chunk._blocks[x][y][z]._sunlight = MAX_LIGHT_LEVEL;
+                --y;
+            }
+
+            while (y >= 0) {
+                chunk._blocks[x][y][z]._sunlight = 0;
+                --y;
+            }
+        }
+    }
 }
 
 void World::update_chunk(Chunk& chunk, std::vector<float>& heightMap)
@@ -117,17 +143,20 @@ void World::update_chunk(Chunk& chunk, std::vector<float>& heightMap)
             {
                 Block& block = chunk._blocks[x][y][z];
                 block._position = glm::vec3(x, y, z);
-                float colorVal = 0.5f;
-                block._color = glm::vec3(colorVal, colorVal, colorVal);
+                block._color = glm::vec3(1.0f, 1.0f, 1.0f);
                 if (y <= height)
                 {
                     block._solid = true;
+                    block._sunlight = 0;
                 }
                 else {
                     block._solid = false;
+                    block._sunlight = MAX_LIGHT_LEVEL;
                 }
             }
         }
     }
 
+    //this is not needed
+    //init_sunlight(chunk);
 }

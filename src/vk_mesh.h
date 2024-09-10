@@ -1,8 +1,6 @@
 #pragma once
 
 #include <vk_types.h>
-#include <vector>
-#include <glm/vec3.hpp>
 
 struct VertexInputDescription {
 
@@ -25,6 +23,12 @@ struct Vertex {
     static VertexInputDescription get_vertex_description();
 };
 
+struct PointVertex {
+    glm::vec3 position;
+
+    static VertexInputDescription get_vertex_description();
+};
+
 struct Mesh {
     std::vector<Vertex> _vertices;
     AllocatedBuffer _vertexBuffer;
@@ -32,4 +36,12 @@ struct Mesh {
     AllocatedBuffer _indexBuffer;
 
     static Mesh create_cube_mesh();
+};
+
+struct RenderObject {
+	Mesh* mesh;
+
+	Material* material;
+
+	glm::mat4 transformMatrix;
 };

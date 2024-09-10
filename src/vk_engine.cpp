@@ -4,7 +4,6 @@
 #include <SDL.h>
 #include <SDL_vulkan.h>
 
-#include <vk_types.h>
 #include <vk_initializers.h>
 #include <sdl_utils.h>
 
@@ -12,6 +11,38 @@
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
+
+void VulkanEngine::build_target_block_view(const glm::vec3& worldPos)
+{
+	RenderObject target_block;
+	target_block.material = get_material("defaultmesh");
+	if(!_meshes.contains("cubeMesh")) {
+		std::unique_ptr<Mesh> cubeMesh = std::make_unique<Mesh>(Mesh::create_cube_mesh());
+		_meshes["cubeMesh"] = cubeMesh.release();
+		upload_mesh(*_meshes["cubeMesh"]);
+	}
+
+	target_block.mesh = _meshes["cubeMesh"];
+	glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, worldPos);
+	target_block.transformMatrix = glm::scale(translate, glm::vec3(1.1f, 1.1f, 1.1f));
+	_renderObjects.push_back(target_block);
+}
+
+void VulkanEngine::build_chunk_debug_view(const Chunk& chunk)
+{
+	RenderObject target_chunk;
+	target_chunk.material = get_material("wireframe");
+	if(!_meshes.contains("cubeMesh")) {
+		std::unique_ptr<Mesh> cubeMesh = std::make_unique<Mesh>(Mesh::create_cube_mesh());
+		_meshes["cubeMesh"] = cubeMesh.release();
+		upload_mesh(*_meshes["cubeMesh"]);
+	}
+
+	target_chunk.mesh = _meshes["cubeMesh"];
+	glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk._position.x, 0, chunk._position.y));
+	target_chunk.transformMatrix = glm::scale(translate, glm::vec3(CHUNK_SIZE, CHUNK_HEIGHT, CHUNK_SIZE));
+	_renderObjects.push_back(target_chunk);
+}
 
 void VulkanEngine::calculate_fps()
 {
@@ -57,9 +88,9 @@ void VulkanEngine::init()
 
 	init_pipelines();
 
-	load_meshes();
+	//load_meshes();
 
-	init_scene();
+	//init_scene();
 	
 	//everything went fine
 	_isInitialized = true;
@@ -138,7 +169,7 @@ void VulkanEngine::draw()
 
 	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	draw_objects(cmd, _renderables.data(), _renderables.size());
+	draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
 
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
@@ -205,7 +236,7 @@ void VulkanEngine::run()
 		std::chrono::duration<float> test = now - _lastFrameTime;
 		_deltaTime = test.count();
 		_lastFrameTime = now;
-		_camera._cameraSpeed = 7.5f * _deltaTime;
+		_game._player._moveSpeed = DEFAULT_MOVE_SPEED * _deltaTime;
 
 
 		//Handle events on queue
@@ -231,13 +262,23 @@ void VulkanEngine::run()
 						SDL_SetWindowGrab(_window, SDL_TRUE);
 						SDL_SetRelativeMouseMode(SDL_TRUE);
 						SDL_ShowCursor(SDL_FALSE);
+					} else {
+						_targetBlock = _camera.get_target_block(_game._world, _game._player);
+						if(_targetBlock.has_value())
+						{
+							auto block = _targetBlock.value()._block;
+							auto chunk = _targetBlock.value()._chunk;
+							glm::vec3 worldBlockPos = _targetBlock.value()._worldPos;
+							build_target_block_view(worldBlockPos);
+							fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
+							fmt::println("Current chunk: Chunk(x: {}, y: {})", chunk->_position.x, chunk->_position.y);
+						}
 					}
 					break;
 				case SDL_MOUSEMOTION:
 					if (bFocused == true)
 					{
-						//_camera.handle_mouse_move(e.motion.x, e.motion.y);
-						_camera.handle_mouse_move_v2(e.motion.xrel, e.motion.yrel);
+						_game._player.handle_mouse_move(e.motion.xrel, e.motion.yrel);
 					}
 					break;
 				case SDL_QUIT:
@@ -248,22 +289,43 @@ void VulkanEngine::run()
 
 		if (state[SDL_SCANCODE_W])
 		{
-			_camera.moveForward();
+			_game._player.move_forward();
 		}
 
 		if (state[SDL_SCANCODE_S])
 		{
-			_camera.moveBackward();
+			_game._player.move_backward();
 		}
 
 		if (state[SDL_SCANCODE_A])
 		{
-			_camera.moveLeft();
+			_game._player.move_left();
 		}
 
 		if (state[SDL_SCANCODE_D])
 		{
-			_camera.moveRight();
+			_game._player.move_right();
+		}
+
+		_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
+
+		_game.update();
+
+		//upload new meshes
+		for(auto& [key, chunk] : _game._world._chunkMap)
+		{
+			if(!_meshes.contains(chunk->_chunkKey))
+			{
+				upload_mesh(chunk->_mesh);
+				_meshes[chunk->_chunkKey] = &chunk->_mesh;
+				RenderObject newObj;
+				newObj.material = get_material("defaultmesh");
+				newObj.mesh = &chunk->_mesh;
+				glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_position.x, 0, chunk->_position.y));
+				newObj.transformMatrix = translate;
+				_renderObjects.push_back(newObj);
+				build_chunk_debug_view(*chunk);
+			}
 		}
 
 		draw();
@@ -563,24 +625,30 @@ std::string getShaderPath(const std::string& shaderName) {
 
 void VulkanEngine::init_pipelines()
 {	
+	build_material_default();
+	build_material_wireframe();
+}
+
+void VulkanEngine::build_material_default()
+{
 	VkShaderModule trimeshFragShader;
 
 	if (!load_shader_module(getShaderPath("tri_mesh.frag.spv"), &trimeshFragShader))
 	{
-		fmt::println("Error when building the triangle fragment shader module");
+		fmt::println("Error when building the trimesh fragment shader module");
 	}
 	else {
-		fmt::println("Triangle fragment shader successfully loaded");
+		fmt::println("Trimesh fragment shader successfully loaded");
 	}
 
 	VkShaderModule trimeshVertexShader;
 	if (!load_shader_module(getShaderPath("tri_mesh.vert.spv"), &trimeshVertexShader))
 	{
-		fmt::println("Error when building the triangle vertex shader module");
+		fmt::println("Error when building the trimesh vertex shader module");
 
 	}
 	else {
-		fmt::println("Triangle vertex shader successfully loaded");
+		fmt::println("Trimesh vertex shader successfully loaded");
 	}
 
 	//build the pipeline layout that controls the inputs/outputs of the shader
@@ -676,32 +744,119 @@ void VulkanEngine::init_pipelines()
 	});
 }
 
-void VulkanEngine::init_scene()
+void VulkanEngine::build_material_wireframe()
 {
-	for (auto& chunk : _world._chunks)
+	VkShaderModule wiremeshFragShader;
+
+	if (!load_shader_module(getShaderPath("wire_mesh.frag.spv"), &wiremeshFragShader))
 	{
-		RenderObject obj;
-		obj.mesh = &chunk->_mesh;
-		obj.material = get_material("defaultmesh");
-		glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_origin.x, 0, chunk->_origin.y));
-		obj.transformMatrix = translate;
-		_renderables.push_back(obj);
+		fmt::println("Error when building the triangle fragment shader module");
+	}
+	else {
+		fmt::println("Wireframe fragment shader successfully loaded");
 	}
 
-	//for (int x = 0; x <= 20; x++)
-	//{
-	//	for(int z = 0; z <= 40; z++)
-	//	{
-	//		RenderObject cube;
-	//		cube.mesh = get_mesh("cube");
-	//		cube.material = get_material("defaultmesh");
-	//		glm::mat4 translation = glm::translate( glm::mat4{ 1.0 }, glm::vec3(x, 0, z) );
-	//		glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(0.2, 0.2, 0.2));
-	//		cube.transformMatrix = translation * scale;
+	VkShaderModule wiremeshVertexShader;
+	if (!load_shader_module(getShaderPath("wire_mesh.vert.spv"), &wiremeshVertexShader))
+	{
+		fmt::println("Error when building the triangle vertex shader module");
 
-	//		_renderables.push_back(cube);
-	//	}
-	//}
+	}
+	else {
+		fmt::println("Wireframe vertex shader successfully loaded");
+	}
+
+	//build the pipeline layout that controls the inputs/outputs of the shader
+	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
+	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+
+	//setup push constants
+	VkPushConstantRange push_constant;
+	//this push constant range starts at the beginning
+	push_constant.offset = 0;
+	//this push constant range takes up the size of a MeshPushConstants struct
+	push_constant.size = sizeof(MeshPushConstants);
+	//this push constant range is accessible only in the vertex shader
+	push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	pipeline_layout_info.pPushConstantRanges = &push_constant;
+	pipeline_layout_info.pushConstantRangeCount = 1;
+
+	VkPipelineLayout meshPipelineLayout;
+
+	VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
+
+	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
+	PipelineBuilder pipelineBuilder;
+
+	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
+	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+
+	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
+	//we are just going to draw triangle list
+	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+
+	//build viewport and scissor from the swapchain extents
+	pipelineBuilder._viewport.x = 0.0f;
+	pipelineBuilder._viewport.y = 0.0f;
+	pipelineBuilder._viewport.width = (float)_windowExtent.width;
+	pipelineBuilder._viewport.height = (float)_windowExtent.height;
+	pipelineBuilder._viewport.minDepth = 0.0f;
+	pipelineBuilder._viewport.maxDepth = 1.0f;
+
+	pipelineBuilder._scissor.offset = { 0, 0 };
+	pipelineBuilder._scissor.extent = _windowExtent;
+
+	//configure the rasterizer to draw filled triangles
+	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
+
+	//we don't use multisampling, so just run the default one
+	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
+
+	//a single blend attachment with blending and writing to RGBA
+	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+
+	//default depthtesting
+	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+
+	//use the triangle layout we created
+	pipelineBuilder._pipelineLayout = meshPipelineLayout;
+
+	//build the mesh pipeline
+
+	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
+
+	//connect the pipeline builder vertex input info to the one we get from Vertex
+	pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
+	pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
+
+	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
+	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
+
+
+	//clear the shader stages for the builder
+	pipelineBuilder._shaderStages.clear();
+
+	pipelineBuilder._shaderStages.push_back(
+		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, wiremeshVertexShader));
+
+	pipelineBuilder._shaderStages.push_back(
+		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, wiremeshFragShader));
+
+	//finally build the pipeline
+	VkPipeline meshPipeline;
+	meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
+
+	create_material(meshPipeline, meshPipelineLayout, "wireframe");
+
+	vkDestroyShaderModule(_device, wiremeshFragShader, nullptr);
+	vkDestroyShaderModule(_device, wiremeshVertexShader, nullptr);
+
+	_mainDeletionQueue.push_function([=]() {
+		vkDestroyPipeline(_device, meshPipeline, nullptr);
+
+		vkDestroyPipelineLayout(_device, meshPipelineLayout, nullptr);
+	});
 
 
 }
@@ -799,6 +954,7 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
 
 	//it's easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
 	VkPipeline newPipeline;
+	
 	if (vkCreateGraphicsPipelines(
 		device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline) != VK_SUCCESS) {
 		fmt::println("failed to create pipeline");
@@ -810,57 +966,15 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
 	}
 }
 
-void VulkanEngine::load_meshes()
-{
-	// //make the array 3 vertices long
-	// Mesh triangleMesh;
-	// triangleMesh._vertices.resize(3);
-
-	// //vertex positions
-	// triangleMesh._vertices[0].position = { 1.f, 1.f, 0.0f };
-	// triangleMesh._vertices[1].position = {-1.f, 1.f, 0.0f };
-	// triangleMesh._vertices[2].position = { 0.f,-1.f, 0.0f };
-
-	// //vertex colors, all green
-	// triangleMesh._vertices[0].color = { 0.f, 1.f, 0.0f }; //pure green
-	// triangleMesh._vertices[1].color = { 0.f, 1.f, 0.0f }; //pure green
-	// triangleMesh._vertices[2].color = { 0.f, 1.f, 0.0f }; //pure green
-
-	// //we don't care about the vertex normals
-
-	// upload_mesh(triangleMesh);
-	// _meshes["triangle"] = triangleMesh;
-
-	// Mesh quadMesh;
-	// quadMesh._vertices.resize(6);
-	// quadMesh._vertices[0].position = { 1.f, 1.f, 0.0f };
-	// quadMesh._vertices[1].position = {-1.f, 1.f, 0.0f };
-	// quadMesh._vertices[2].position = { -1.f,-1.f, 0.0f };
-	// quadMesh._vertices[3].position = { 1.f, 1.f, 0.0f };
-	// quadMesh._vertices[4].position = { 1.f, -1.f, 0.0f };
-	// quadMesh._vertices[5].position = { -1.f, -1.f, 0.0f };
-
-	// quadMesh._vertices[0].color = { 0.f, 1.f, 0.0f }; //pure green
-	// quadMesh._vertices[1].color = { 0.f, 1.f, 0.0f }; //pure green
-	// quadMesh._vertices[2].color = { 0.f, 1.f, 0.0f }; //pure green
-	// quadMesh._vertices[3].color = { 0.f, 1.f, 0.0f }; //pure green
-	// quadMesh._vertices[4].color = { 0.f, 1.f, 0.0f }; //pure green
-	// quadMesh._vertices[5].color = { 0.f, 1.f, 0.0f }; //pure green
-
-	// upload_mesh(quadMesh);
-	// _meshes["quad"] = quadMesh;
-
-	for (auto& chunk : _world._chunks)
-	{
-		chunk->generate_chunk_mesh();
-		upload_mesh(chunk->_mesh);
-	}
-
-
-	Mesh cubeMesh = Mesh::create_cube_mesh();
-	upload_mesh(cubeMesh);
-	_meshes["cube"] = cubeMesh;
-}
+//TODO: Make this a call_back on the vk_engine
+// void VulkanEngine::load_meshes()
+// {
+// 	// for (auto& chunk : _world._chunks)
+// 	// {
+// 	// 	_chunkMesher.generate_mesh(chunk.get());
+// 	// 	upload_mesh(chunk->_mesh);
+// 	// }
+// }
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
 {
@@ -928,26 +1042,19 @@ Material* VulkanEngine::get_material(const std::string &name)
 	}
 }
 
-Mesh* VulkanEngine::get_mesh(const std::string &name)
-{
-    auto it = _meshes.find(name);
-	if (it == _meshes.end()) {
-		return nullptr;
-	}
-	else {
-		return &(*it).second;
-	}
-}
+// Mesh* VulkanEngine::get_mesh(const std::string &name)
+// {
+//     auto it = _meshes.find(name);
+// 	if (it == _meshes.end()) {
+// 		return nullptr;
+// 	}
+// 	else {
+// 		return &(*it).second;
+// 	}
+// }
 
 void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject *first, int count)
 {
-	//make a model view matrix for rendering the object
-	//camera view
-	glm::mat4 view = _camera._view;
-	//camera projection
-	glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 10000.0f);
-	projection[1][1] *= -1;
-
 	Mesh* lastMesh = nullptr;
 	Material* lastMaterial = nullptr;
 	for (int i = 0; i < count; i++)
@@ -964,7 +1071,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject *first, int co
 
 		glm::mat4 model = object.transformMatrix;
 		//final render matrix, that we are calculating on the cpu
-		glm::mat4 mesh_matrix = projection * view * model;
+		glm::mat4 mesh_matrix = _camera._projection * _camera._view * model;
 
 		MeshPushConstants constants;
 		constants.render_matrix = mesh_matrix;

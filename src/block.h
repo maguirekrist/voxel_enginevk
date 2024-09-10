@@ -2,6 +2,18 @@
 #pragma once
 #include <vk_types.h>
 
+class Color {
+public:
+    int _red, _green, _blue;
+
+    constexpr Color(int r, int g, int b) : _red(r), _green(g), _blue(b) {}
+
+    operator glm::vec3() const {
+        return glm::vec3(_red / 255.0f, _green / 255.0f, _blue / 255.0f);
+    }
+};
+
+
 enum FaceDirection {
     FRONT_FACE = 0,
     BACK_FACE = 1,
@@ -25,10 +37,36 @@ namespace Colors {
     constexpr glm::vec3 purple{ 1.0f, 0.0f, 1.0f };
     constexpr glm::vec3 yellow{ 1.0f, 1.0f, 0.0f };
     constexpr glm::vec3 lightBlue{ 0.0f, 1.0f, 1.0f };
+    constexpr Color lightGreen{0, 255, 51};
 };
 
 constexpr FaceDirection faceDirections[6] = { FRONT_FACE, BACK_FACE, RIGHT_FACE, LEFT_FACE, TOP_FACE, BOTTOM_FACE };
 constexpr glm::vec3 faceColors[6] = { Colors::red, Colors::green, Colors::blue, Colors::purple, Colors::yellow, Colors::lightBlue };
+
+constexpr std::optional<FaceDirection> get_face_direction(glm::ivec3 normal)
+{
+    if(normal.x > 0)
+    {
+        return FaceDirection::LEFT_FACE;
+    } else if(normal.x < 0)
+    {
+        return FaceDirection::RIGHT_FACE;
+    } else if(normal.y > 0)
+    {
+        return FaceDirection::TOP_FACE;
+    } else if(normal.y < 0)
+    {
+        return FaceDirection::BOTTOM_FACE;
+    } else if(normal.z > 0)
+    {
+        return FaceDirection::BACK_FACE;
+    } else if(normal.z < 0)
+    {
+        return FaceDirection::FRONT_FACE;
+    }
+
+    return std::nullopt;
+}
 
 constexpr int faceOffsetX[] = { 0,  0, -1,  1,  0,  0 };
 constexpr int faceOffsetY[] = { 0,  0,  0,  0,  1, -1 };
@@ -70,13 +108,13 @@ constexpr glm::ivec3 Side2Offsets[6][4] = {
 //All have to be in order of bottom left, bottom-right, top-right, top-left
 constexpr glm::ivec3 CornerOffsets[6][4] = {
     // Front face vertices (0, 1, 2, 3)
-    { {-1, -1, 0}, { 1, -1, 0}, { 1,  1, 0}, {-1,  1, 0} },
+    { {-1, -1, 1}, { 1, -1, 1}, { 1,  1, 1}, {-1,  1, 1} },
     // Back face vertices (4, 5, 6, 7)
     { {1, -1, -1}, { -1, -1, -1}, { -1,  1, -1}, { 1,  1, -1} },
     // right face vertices (8, 9, 10, 11)
     { {-1, -1, -1}, {-1, -1, 1}, {-1, 1, 1}, {-1, 1, -1} },
     // left face vertices (12, 13, 14, 15)
-    { {1, 1, 1}, { 1, 1, -1 }, { 1, -1, -1}, { 1, -1, 1 } },
+    { {1, -1, 1}, { 1, -1, -1 }, { 1, 1, -1}, { 1, 1, 1 } },
     // Top face vertices (16, 17, 18, 19)
     { {1,  1,  -1}, { -1,  1,  -1}, { -1, 1, 1 }, { 1,  1, 1} },
     // Bottom face vertices (20, 21, 22, 23)
@@ -100,7 +138,8 @@ constexpr glm::vec3 faceVertices[6][4] = {
 };
 
 struct Block {
-    bool _solid = false;
+    bool _solid;
+    uint8_t _sunlight;
     glm::vec3 _color;
     glm::vec3 _position;
 };

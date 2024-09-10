@@ -3,35 +3,9 @@
 
 #pragma once
 
-#include <vk_types.h>
 #include <vk_mesh.h>
+#include <cube_engine.h>
 #include <camera.h>
-#include <world.h>
-
-using Clock = std::chrono::high_resolution_clock;
-using TimePoint = std::chrono::time_point<Clock>;
-using Duration = std::chrono::duration<float>;
-
-struct Material {
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
-};
-
-struct RenderObject {
-	Mesh* mesh;
-
-	Material* material;
-
-	glm::mat4 transformMatrix;
-};
-
-struct FrameData {
-	VkSemaphore _presentSemaphore, _renderSemaphore;
-	VkFence _renderFence;
-
-	VkCommandPool _commandPool;
-	VkCommandBuffer _mainCommandBuffer;
-};
 
 class DeletionQueue {
 public:
@@ -80,16 +54,21 @@ public:
 	VkRenderPass _renderPass;
 	std::vector<VkFramebuffer> _framebuffers;
 
-	World _world;
-	std::vector<RenderObject> _renderables;
 	std::unordered_map<std::string, Material> _materials;
-	std::unordered_map<std::string, Mesh> _meshes;
-	Camera _camera{glm::vec3(0.0f, static_cast<float>(CHUNK_HEIGHT), 0.0f)};
+    std::unordered_map<std::string, Mesh*> _meshes;
+
+	std::vector<RenderObject> _renderObjects;
+	CubeEngine _game;
+	Camera _camera;
+	std::optional<RaycastResult> _targetBlock;
+
+
 
 	float _deltaTime;
 	TimePoint _lastFrameTime;
 	TimePoint _lastFpsTime;
-
+	float _fps;
+	
 	VkImageView _depthImageView;
 	AllocatedImage _depthImage;
 	VkFormat _depthFormat;
@@ -109,11 +88,10 @@ public:
 
 	Material* get_material(const std::string& name);
 
-	Mesh* get_mesh(const std::string& name);
+	//??
+	//Mesh* get_mesh(const std::string& name);
 
 	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
-
-	float _fps;
 
 	void calculate_fps();
 
@@ -137,12 +115,20 @@ private:
 	void init_framebuffers();
 	void init_sync_structures();
 	void init_pipelines();
-	void init_scene();
 
-	void load_meshes();
+	void build_material_default();
+	void build_material_wireframe();
+
+	//void init_scene();
+
+	//Re-implement as subscriber method
+	//void load_meshes();
 	void upload_mesh(Mesh& mesh);
 
 	bool load_shader_module(const std::string& filePath, VkShaderModule* outShaderModule);
+
+	void build_target_block_view(const glm::vec3& worldPos);
+	void build_chunk_debug_view(const Chunk& chunk);
 };
 
 class PipelineBuilder {
