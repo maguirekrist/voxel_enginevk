@@ -2,19 +2,27 @@
 
 #include <world.h>
 #include <chunk_mesher.h>
+#include <chunk_manager.h>
 #include <player.h>
+
 
 //number is in chunks away from player position.
 constexpr int DEFAULT_VIEW_DISTANCE = 4;
 
 class CubeEngine {
 public:
-    World _world;
     Player _player;
-	ChunkMesher _chunkMesher{ _world };
+    ChunkManager _chunkManager{DEFAULT_VIEW_DISTANCE};
+    World _world{ &_chunkManager };
+	//ChunkMesher _chunkMesher{ _world };
+
+    //CubeEngine(VulkanEngine* renderer) : _renderer(renderer) {}
+    //CubeEngine();
+    CubeEngine() {}
 
     //Main Tick entry
     void update();
 private:
-    void load_chunks();
+    //VulkanEngine* _renderer = nullptr;
+    //void load_chunks();
 };

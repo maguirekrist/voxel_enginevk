@@ -1,13 +1,9 @@
 
 #include "world.h"
 
-World::World()
-{
-    _seed = Random::generate(1, 1337);
-    auto perlin = FastNoise::New<FastNoise::Perlin>();
-    _generator.base = perlin;
-}
 
+int World::_seed = Random::generate(0, 1337);
+FastNoise::GeneratorSource World::_generator;
 
 Block* World::get_block(const glm::ivec3& worldPos)
 {
@@ -43,40 +39,43 @@ bool World::is_position_solid(const glm::ivec3& pos)
 Chunk* World::get_chunk(glm::vec3 worldPos)
 {
     auto chunkOrigin = get_chunk_origin(worldPos);
-    auto chunkKey = get_chunk_key(chunkOrigin);
+    auto chunkKey = ChunkCoord{chunkOrigin.x, chunkOrigin.y };
 
-    if(_chunkMap.contains(chunkKey))
+    if(_chunkManager->loadedChunks.contains(chunkKey))
     {
-        return _chunkMap[chunkKey].get();
+        return _chunkManager->loadedChunks[chunkKey].get();
     }
 
     return nullptr;
 }
 
-std::string World::get_chunk_key(const glm::ivec2& worldPos)
+// void World::generate_chunk(int xStart, int yStart)
+// {
+//     auto chunkKey = get_chunk_key({ xStart, yStart });
+//     if(_chunkMap.contains(chunkKey))
+//     {
+//         return;
+//     }
+
+
+//     fmt::println("Generating chunk ({}, {})", xStart, yStart);
+
+//     std::vector<float> heightMap(CHUNK_SIZE * CHUNK_SIZE);
+//     _generator.base->GenUniformGrid2D(heightMap.data(), xStart, yStart, CHUNK_SIZE, CHUNK_SIZE, 0.001f, _seed);
+//     //median_filter(heightMap, CHUNK_SIZE, 5);
+//     auto chunk = std::make_unique<Chunk>(glm::ivec2(xStart, yStart), chunkKey);
+//     update_chunk(*chunk, heightMap);
+//     _chunkMap[chunkKey] = std::move(chunk);
+//     //_chunks.push_back(std::move(chunk));
+//     fmt::println("Completed chunk generation.");
+// }
+
+std::vector<float> World::generate_height_map(int xStart, int zStart)
 {
-    return fmt::format("({},{})", worldPos.x, worldPos.y);
-}
-
-void World::generate_chunk(int xStart, int yStart)
-{
-    auto chunkKey = get_chunk_key({ xStart, yStart });
-    if(_chunkMap.contains(chunkKey))
-    {
-        return;
-    }
-
-
-    fmt::println("Generating chunk ({}, {})", xStart, yStart);
-
     std::vector<float> heightMap(CHUNK_SIZE * CHUNK_SIZE);
-    _generator.base->GenUniformGrid2D(heightMap.data(), xStart, yStart, CHUNK_SIZE, CHUNK_SIZE, 0.001f, _seed);
-    //median_filter(heightMap, CHUNK_SIZE, 5);
-    auto chunk = std::make_unique<Chunk>(glm::ivec2(xStart, yStart), chunkKey);
-    update_chunk(*chunk, heightMap);
-    _chunkMap[chunkKey] = std::move(chunk);
-    //_chunks.push_back(std::move(chunk));
-    fmt::println("Completed chunk generation.");
+    World::_generator.base = FastNoise::New<FastNoise::Perlin>();  ;
+    World::_generator.base->GenUniformGrid2D(heightMap.data(), xStart, zStart, CHUNK_SIZE, CHUNK_SIZE, 0.001f, _seed);
+    return heightMap;
 }
 
 glm::ivec2 World::get_chunk_coordinates(const glm::vec3 &worldPos)
@@ -105,7 +104,7 @@ glm::ivec3 World::get_local_coordinates(const glm::vec3 &worldPos)
     );
 }
 
-float get_normalized_height(std::vector<float>& map, int yScale, int xScale, int x, int y)
+float World::get_normalized_height(std::vector<float>& map, int yScale, int xScale, int x, int y)
 {
     float height = map[(y * xScale) + x];
     float normalized = (height + 1.0f) / 2.0f;
@@ -113,50 +112,50 @@ float get_normalized_height(std::vector<float>& map, int yScale, int xScale, int
     return scaled_value;
 }
 
-void init_sunlight(Chunk& chunk)
-{
-    for (int x = 0; x < CHUNK_SIZE; x++) {
-        for (int z = 0; z < CHUNK_SIZE; z++) {
-            int y = CHUNK_HEIGHT - 1;
-            while (y >= 0 && !chunk._blocks[x][y][z]._solid) {
-                chunk._blocks[x][y][z]._sunlight = MAX_LIGHT_LEVEL;
-                --y;
-            }
+// void init_sunlight(Chunk& chunk)
+// {
+//     for (int x = 0; x < CHUNK_SIZE; x++) {
+//         for (int z = 0; z < CHUNK_SIZE; z++) {
+//             int y = CHUNK_HEIGHT - 1;
+//             while (y >= 0 && !chunk._blocks[x][y][z]._solid) {
+//                 chunk._blocks[x][y][z]._sunlight = MAX_LIGHT_LEVEL;
+//                 --y;
+//             }
 
-            while (y >= 0) {
-                chunk._blocks[x][y][z]._sunlight = 0;
-                --y;
-            }
-        }
-    }
-}
+//             while (y >= 0) {
+//                 chunk._blocks[x][y][z]._sunlight = 0;
+//                 --y;
+//             }
+//         }
+//     }
+// }
 
-void World::update_chunk(Chunk& chunk, std::vector<float>& heightMap)
-{
-    //Given the height map, we're going to update the blocks in our default chunk.
-    for(int x = 0; x < CHUNK_SIZE; x++)
-    {
-        for(int z = 0; z < CHUNK_SIZE; z++)
-        {
-            auto height = get_normalized_height(heightMap, CHUNK_HEIGHT, CHUNK_SIZE, x, z);
-            for (int y = 0; y < CHUNK_HEIGHT; y++)
-            {
-                Block& block = chunk._blocks[x][y][z];
-                block._position = glm::vec3(x, y, z);
-                block._color = glm::vec3(1.0f, 1.0f, 1.0f);
-                if (y <= height)
-                {
-                    block._solid = true;
-                    block._sunlight = 0;
-                }
-                else {
-                    block._solid = false;
-                    block._sunlight = MAX_LIGHT_LEVEL;
-                }
-            }
-        }
-    }
+// void World::update_chunk(Chunk& chunk, std::vector<float>& heightMap)
+// {
+//     //Given the height map, we're going to update the blocks in our default chunk.
+//     for(int x = 0; x < CHUNK_SIZE; x++)
+//     {
+//         for(int z = 0; z < CHUNK_SIZE; z++)
+//         {
+//             auto height = get_normalized_height(heightMap, CHUNK_HEIGHT, CHUNK_SIZE, x, z);
+//             for (int y = 0; y < CHUNK_HEIGHT; y++)
+//             {
+//                 Block& block = chunk._blocks[x][y][z];
+//                 block._position = glm::vec3(x, y, z);
+//                 block._color = glm::vec3(1.0f, 1.0f, 1.0f);
+//                 if (y <= height)
+//                 {
+//                     block._solid = true;
+//                     block._sunlight = 0;
+//                 }
+//                 else {
+//                     block._solid = false;
+//                     block._sunlight = MAX_LIGHT_LEVEL;
+//                 }
+//             }
+//         }
+//     }
 
-    //this is not needed
-    //init_sunlight(chunk);
-}
+//     //this is not needed
+//     //init_sunlight(chunk);
+// }

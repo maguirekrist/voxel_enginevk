@@ -34,6 +34,9 @@ public:
 	bool _isInitialized{ false };
 	bool bUseValidationLayers{ false };
 	int _frameNumber {0};
+
+	bool bFocused = false;
+	bool bQuit = false;
 	
 	VkInstance _instance;
 	VkDebugUtilsMessengerEXT _debug_messenger;
@@ -100,6 +103,8 @@ public:
 
 	//shuts down the engine
 	void cleanup();
+
+	void handle_input();
 
 	//draw loop
 	void draw();

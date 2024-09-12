@@ -3,12 +3,7 @@
 
 void ChunkMesher::generate_mesh(Chunk* chunk)
 {
-    if(chunk->_isValid)
-    {
-        return;
-    }
-
-    fmt::println("Generating mesh for chunk: {}", chunk->_chunkKey);
+    fmt::println("Generating mesh for chunk");
 
     _chunk = chunk;
     //propagate_sunlight();
@@ -31,7 +26,6 @@ void ChunkMesher::generate_mesh(Chunk* chunk)
     }
 
     fmt::println("Finished generating chunk");
-    chunk->_isValid = true;
 }
 
 Block* ChunkMesher::get_face_neighbor(const Block& block, FaceDirection face)
@@ -43,7 +37,7 @@ Block* ChunkMesher::get_face_neighbor(const Block& block, FaceDirection face)
     if (Chunk::is_outside_chunk({ nx, ny, nz }))
     {
         //Perform more expenive search.
-        return _world.get_block(_chunk->get_world_pos({ nx, ny, nz }));
+        return _world->get_block(_chunk->get_world_pos({ nx, ny, nz }));
     }
 
     return &_chunk->_blocks[nx][ny][nz];
@@ -59,7 +53,7 @@ bool ChunkMesher::is_face_visible(const Block& block, FaceDirection face)
     if (Chunk::is_outside_chunk({ nx, ny, nz }))
     {
         //Perform more expenive search.
-        return !_world.is_position_solid(_chunk->get_world_pos({ nx, ny, nz }));
+        return !_world->is_position_solid(_chunk->get_world_pos({ nx, ny, nz }));
     }
 
     return !_chunk->_blocks[nx][ny][nz]._solid;
@@ -80,21 +74,21 @@ float ChunkMesher::calculate_vertex_ao(glm::ivec3 cubePos, FaceDirection face, i
         corner = _chunk->_blocks[cornerPos.x][cornerPos.y][cornerPos.z]._solid;
     }
     else {
-        corner = _world.is_position_solid(_chunk->get_world_pos(cornerPos));
+        corner = _world->is_position_solid(_chunk->get_world_pos(cornerPos));
     }
 
     if (!Chunk::is_outside_chunk(edge1Pos))
     {
         edge1 = _chunk->_blocks[edge1Pos.x][edge1Pos.y][edge1Pos.z]._solid;
     } else {
-        edge1 = _world.is_position_solid(_chunk->get_world_pos(edge1Pos));
+        edge1 = _world->is_position_solid(_chunk->get_world_pos(edge1Pos));
     }
 
     if (!Chunk::is_outside_chunk(edge2Pos))
     {
         edge2 = _chunk->_blocks[edge2Pos.x][edge2Pos.y][edge2Pos.z]._solid;
     } else {
-        edge2 = _world.is_position_solid(_chunk->get_world_pos(edge2Pos));
+        edge2 = _world->is_position_solid(_chunk->get_world_pos(edge2Pos));
     }
 
     if (corner && edge1 && edge2)

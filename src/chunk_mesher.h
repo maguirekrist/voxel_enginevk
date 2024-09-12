@@ -5,14 +5,15 @@
 
 class ChunkMesher {
 public:
-    ChunkMesher(World& world) : _world(world) {}
-    void generate_mesh(Chunk* chunk);
-    void place_block(const glm::ivec3 worldPos, FaceDirection face);
+    ChunkMesher(Chunk* chunk, World* world) : _chunk(chunk), _world(world) {
+        generate_mesh(chunk);
+    }
 
 private:
-    World& _world;
     Chunk* _chunk;
+    World* _world;
 
+    void generate_mesh(Chunk* chunk);
 
     Block* get_face_neighbor(const Block& block, FaceDirection face);
     bool is_face_visible(const Block& block, FaceDirection face);

@@ -3,43 +3,31 @@
 #include <vk_types.h>
 #include <random.h>
 #include <chunk.h>
+#include <chunk_manager.h>
 #include <FastNoise/FastNoise.h>
 
-enum WorldDirection {
-    NORTH,
-    SOUTH,
-    EAST,
-    WEST
-};
-
-constexpr WorldDirection worldDirections[4] = { WorldDirection::NORTH, WorldDirection::SOUTH, WorldDirection::EAST, WorldDirection::WEST };
-
-constexpr glm::ivec2 worldDirectionOffset[4] = {
-    { 0, 1 },
-    { 0, -1 },
-    { -1, 0},
-    { 1, 0 }
-};
 
 class World {
 public:
-    std::unordered_map<std::string, std::unique_ptr<Chunk>> _chunkMap;
+    //std::unordered_map<std::string, std::unique_ptr<Chunk>> _chunkMap;
     //std::vector<std::unique_ptr<Chunk>> _chunks;
-    int _seed;
-    FastNoise::GeneratorSource _generator;
+    static int _seed;
+    static FastNoise::GeneratorSource _generator;
 
-    World();
+    World(ChunkManager* chunkManager) : _chunkManager(chunkManager) {    }
 
     bool is_position_solid(const glm::ivec3& worldPos);
     Block* get_block(const glm::ivec3& worldPos);
     Chunk* get_chunk(glm::vec3 worldPos); 
-    void generate_chunk(int xStart, int yStart);
+    //void generate_chunk(int xStart, int yStart);
+
+    static std::vector<float> generate_height_map(int xStart, int zStart);
+    static float get_normalized_height(std::vector<float>& map, int yScale, int xScale, int x, int y);
 
     static glm::ivec2 get_chunk_coordinates(const glm::vec3& worldPos);
     static glm::ivec2 get_chunk_origin(const glm::vec3& worldPos);
     static glm::ivec3 get_local_coordinates(const glm::vec3& worldPos);
-
 private:
-    void update_chunk(Chunk& chunk, std::vector<float>& heightMap);
-    std::string get_chunk_key(const glm::ivec2& worldPos);
+    ChunkManager* _chunkManager;
+    //void update_chunk(Chunk& chunk, std::vector<float>& heightMap);
 };

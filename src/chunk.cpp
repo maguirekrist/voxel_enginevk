@@ -1,4 +1,5 @@
 #include "chunk.h"
+#include <world.h>
 
 bool Chunk::is_outside_chunk(const glm::ivec3& pos)
 {
@@ -7,6 +8,34 @@ bool Chunk::is_outside_chunk(const glm::ivec3& pos)
     }
 
     return false;
+}
+
+
+void Chunk::generate()
+{
+        auto heightMap = World::generate_height_map(_position.x, _position.y);
+        for(int x = 0; x < CHUNK_SIZE; x++)
+            {
+            for(int z = 0; z < CHUNK_SIZE; z++)
+            {
+                auto height = World::get_normalized_height(heightMap, CHUNK_HEIGHT, CHUNK_SIZE, x, z);
+                for (int y = 0; y < CHUNK_HEIGHT; y++)
+                {
+                    Block& block = _blocks[x][y][z];
+                    block._position = glm::vec3(x, y, z);
+                    block._color = glm::vec3(1.0f, 1.0f, 1.0f);
+                    if (y <= height)
+                    {
+                        block._solid = true;
+                        block._sunlight = 0;
+                    }
+                    else {
+                        block._solid = false;
+                        block._sunlight = MAX_LIGHT_LEVEL;
+                    }
+                }
+            }
+        }
 }
 
 

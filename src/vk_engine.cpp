@@ -112,6 +112,79 @@ void VulkanEngine::cleanup()
 	}
 }
 
+void VulkanEngine::handle_input()
+{	
+	SDL_Event e;
+	const Uint8* state = SDL_GetKeyboardState(NULL);
+	//Handle events on queue
+	while (SDL_PollEvent(&e) != 0)
+	{
+		switch(e.type) {
+			case SDL_KEYDOWN:
+				switch(e.key.keysym.sym)
+				{
+					case SDLK_ESCAPE:
+						bFocused = false;
+						SDL_SetWindowGrab(_window, SDL_FALSE);
+						SDL_SetRelativeMouseMode(SDL_FALSE);
+						SDL_ShowCursor(SDL_TRUE);
+						break;
+				}
+				break;
+			case SDL_MOUSEBUTTONDOWN:
+				if(bFocused == false)
+				{
+					fmt::println("Mouse Button down");
+					bFocused = true;
+					SDL_SetWindowGrab(_window, SDL_TRUE);
+					SDL_SetRelativeMouseMode(SDL_TRUE);
+					SDL_ShowCursor(SDL_FALSE);
+				} else {
+					_targetBlock = _camera.get_target_block(_game._world, _game._player);
+					if(_targetBlock.has_value())
+					{
+						auto block = _targetBlock.value()._block;
+						auto chunk = _targetBlock.value()._chunk;
+						glm::vec3 worldBlockPos = _targetBlock.value()._worldPos;
+						build_target_block_view(worldBlockPos);
+						fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
+						fmt::println("Current chunk: Chunk(x: {}, y: {})", chunk->_position.x, chunk->_position.y);
+					}
+				}
+				break;
+			case SDL_MOUSEMOTION:
+				if (bFocused == true)
+				{
+					_game._player.handle_mouse_move(e.motion.xrel, e.motion.yrel);
+				}
+				break;
+			case SDL_QUIT:
+				bQuit = true;
+				break;
+		}
+	}
+
+	if (state[SDL_SCANCODE_W])
+	{
+		_game._player.move_forward();
+	}
+
+	if (state[SDL_SCANCODE_S])
+	{
+		_game._player.move_backward();
+	}
+
+	if (state[SDL_SCANCODE_A])
+	{
+		_game._player.move_left();
+	}
+
+	if (state[SDL_SCANCODE_D])
+	{
+		_game._player.move_right();
+	}
+}
+
 void VulkanEngine::draw()
 {
 	//nothing yet
@@ -224,10 +297,6 @@ void VulkanEngine::draw()
 
 void VulkanEngine::run()
 {
-	SDL_Event e;
-	bool bQuit = false;
-	bool bFocused = false;
-	const Uint8* state = SDL_GetKeyboardState(NULL);
 
 	//main loop
 	while (!bQuit)
@@ -239,94 +308,28 @@ void VulkanEngine::run()
 		_game._player._moveSpeed = DEFAULT_MOVE_SPEED * _deltaTime;
 
 
-		//Handle events on queue
-		while (SDL_PollEvent(&e) != 0)
-		{
-			switch(e.type) {
-				case SDL_KEYDOWN:
-					switch(e.key.keysym.sym)
-					{
-						case SDLK_ESCAPE:
-							bFocused = false;
-							SDL_SetWindowGrab(_window, SDL_FALSE);
-							SDL_SetRelativeMouseMode(SDL_FALSE);
-							SDL_ShowCursor(SDL_TRUE);
-							break;
-					}
-					break;
-				case SDL_MOUSEBUTTONDOWN:
-					if(bFocused == false)
-					{
-						fmt::println("Mouse Button down");
-						bFocused = true;
-						SDL_SetWindowGrab(_window, SDL_TRUE);
-						SDL_SetRelativeMouseMode(SDL_TRUE);
-						SDL_ShowCursor(SDL_FALSE);
-					} else {
-						_targetBlock = _camera.get_target_block(_game._world, _game._player);
-						if(_targetBlock.has_value())
-						{
-							auto block = _targetBlock.value()._block;
-							auto chunk = _targetBlock.value()._chunk;
-							glm::vec3 worldBlockPos = _targetBlock.value()._worldPos;
-							build_target_block_view(worldBlockPos);
-							fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
-							fmt::println("Current chunk: Chunk(x: {}, y: {})", chunk->_position.x, chunk->_position.y);
-						}
-					}
-					break;
-				case SDL_MOUSEMOTION:
-					if (bFocused == true)
-					{
-						_game._player.handle_mouse_move(e.motion.xrel, e.motion.yrel);
-					}
-					break;
-				case SDL_QUIT:
-					bQuit = true;
-					break;
-			}
-		}
-
-		if (state[SDL_SCANCODE_W])
-		{
-			_game._player.move_forward();
-		}
-
-		if (state[SDL_SCANCODE_S])
-		{
-			_game._player.move_backward();
-		}
-
-		if (state[SDL_SCANCODE_A])
-		{
-			_game._player.move_left();
-		}
-
-		if (state[SDL_SCANCODE_D])
-		{
-			_game._player.move_right();
-		}
+		handle_input();
 
 		_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
 
 		_game.update();
 
 		//upload new meshes
-		for(auto& [key, chunk] : _game._world._chunkMap)
-		{
-			if(!_meshes.contains(chunk->_chunkKey))
-			{
-				upload_mesh(chunk->_mesh);
-				_meshes[chunk->_chunkKey] = &chunk->_mesh;
-				RenderObject newObj;
-				newObj.material = get_material("defaultmesh");
-				newObj.mesh = &chunk->_mesh;
-				glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_position.x, 0, chunk->_position.y));
-				newObj.transformMatrix = translate;
-				_renderObjects.push_back(newObj);
-				build_chunk_debug_view(*chunk);
-			}
-		}
+		// for(auto& [key, chunk] : _game._world._chunkMap)
+		// {
+		// 	if(!_meshes.contains(chunk->_chunkKey))
+		// 	{
+		// 		upload_mesh(chunk->_mesh);
+		// 		_meshes[chunk->_chunkKey] = &chunk->_mesh;
+		// 		RenderObject newObj;
+		// 		newObj.material = get_material("defaultmesh");
+		// 		newObj.mesh = &chunk->_mesh;
+		// 		glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_position.x, 0, chunk->_position.y));
+		// 		newObj.transformMatrix = translate;
+		// 		_renderObjects.push_back(newObj);
+		// 		//build_chunk_debug_view(*chunk);
+		// 	}
+		// }
 
 		draw();
 	}
@@ -997,11 +1000,11 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 		&mesh._indexBuffer._allocation,
 		nullptr));
 
-	//add the destruction of triangle mesh buffer to the deletion queue
-	_mainDeletionQueue.push_function([=]() {
-        vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
-		vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
-    });
+	// //add the destruction of triangle mesh buffer to the deletion queue
+	// _mainDeletionQueue.push_function([=]() {
+    //     vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+	// 	vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
+    // });
 
 	//copy vertex data
 	void* vertexData;
@@ -1041,17 +1044,6 @@ Material* VulkanEngine::get_material(const std::string &name)
 		return &(*it).second;
 	}
 }
-
-// Mesh* VulkanEngine::get_mesh(const std::string &name)
-// {
-//     auto it = _meshes.find(name);
-// 	if (it == _meshes.end()) {
-// 		return nullptr;
-// 	}
-// 	else {
-// 		return &(*it).second;
-// 	}
-// }
 
 void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject *first, int count)
 {
@@ -1093,3 +1085,15 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject *first, int co
 		vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
 	}
 }
+
+// void VulkanEngine::onRenderObjectLoad(RenderObject renderObject)
+// {
+// 	upload_mesh(*renderObject.mesh);
+// }
+
+// void VulkanEngine::onRenderObjectUnload(RenderObject renderObject)
+// {
+// 	auto mesh = *renderObject.mesh;
+// 	vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+// 	vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
+// }
