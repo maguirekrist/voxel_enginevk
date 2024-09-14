@@ -4,23 +4,30 @@
 #include "FastNoise/SmartNode.h"
 #include <vk_types.h>
 #include <FastNoise/FastNoise.h>
+#include "chunk.h"
+#include "random.h"
 
 constexpr float RIVER_THRESHOLD = -0.2f;
 constexpr int RIVER_HEIGHT = 50;
 
 class TerrainGenerator {
 public:
-
-    static std::vector<int> generate_height_map(int xStart, int zStart);
-    static float get_normalized_height(std::vector<float>& map, int yScale, int xScale, int x, int y);
+    TerrainGenerator();
+    void GenerateChunk(int chunkX, int chunkZ, std::vector<uint8_t>& blockData);
 
 private:
-    static int _seed;
-    static FastNoise::GeneratorSource _generator;
+    // Noise generators
+    FastNoise::SmartNode<FastNoise::Perlin> baseTerrainNoise;
+    FastNoise::SmartNode<FastNoise::Perlin> mountainNoise;
+    FastNoise::SmartNode<FastNoise::Perlin> riverNoise;
+    FastNoise::SmartNode<FastNoise::Simplex> caveNoise;
 
-    static void add_rivers(std::vector<int>& heightMap, int chunkX, int chunkZ);
+    int _seed = Random::generate(0, 1337);
 
-    static FastNoise::SmartNode<FastNoise::Perlin> _terrainNoise;
-    static FastNoise::SmartNode<FastNoise::Simplex> _caveNoise;
-    static FastNoise::SmartNode<FastNoise::Perlin> _riverNoise;
+
+    // Helper functions
+    int GetBaseHeight(int x, int z);
+    float GetMountainHeight(int x, int z);
+    bool IsRiver(int x, int z);
+    bool IsCave(int x, int y, int z);
 };

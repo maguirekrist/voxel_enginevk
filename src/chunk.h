@@ -4,7 +4,7 @@
 #include <block.h>
 
 constexpr unsigned int CHUNK_SIZE = 16;
-constexpr unsigned int CHUNK_HEIGHT = 328;
+constexpr unsigned int CHUNK_HEIGHT = 256;
 constexpr unsigned int MAX_LIGHT_LEVEL = 15;
 
 struct ChunkCoord {

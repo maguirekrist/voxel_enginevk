@@ -1,58 +1,87 @@
 #include "terrain_gen.h"
-#include "FastNoise/Generators/Perlin.h"
-#include "FastNoise/Generators/Simplex.h"
-#include "FastNoise/SmartNode.h"
-#include "random.h"
-#include "chunk.h"
-
-int TerrainGenerator::_seed = Random::generate(0, 1337);
-FastNoise::GeneratorSource TerrainGenerator::_generator;
-
-FastNoise::SmartNode<FastNoise::Perlin> TerrainGenerator::_terrainNoise = FastNoise::New<FastNoise::Perlin>();  
-FastNoise::SmartNode<FastNoise::Simplex> TerrainGenerator::_caveNoise = FastNoise::New<FastNoise::Simplex>();  
-FastNoise::SmartNode<FastNoise::Perlin> TerrainGenerator::_riverNoise = FastNoise::New<FastNoise::Perlin>();  
 
 
-std::vector<int> TerrainGenerator::generate_height_map(int xStart, int zStart)
-{
+TerrainGenerator::TerrainGenerator() {
+    // Base terrain noise
+    baseTerrainNoise = FastNoise::New<FastNoise::Perlin>();
+    //baseTerrainNoise->SetFrequency(0.01f);
 
-    std::vector<int> heightMap(CHUNK_SIZE * CHUNK_SIZE);
-    // for (int x = 0; x < CHUNK_SIZE; ++x) {
-    //     for (int z = 0; z < CHUNK_SIZE; ++z) {
-    //         // Generate height using 2D Perlin noise
-    //         float heightValue = _terrainNoise->GenSingle2D((float)(xStart * CHUNK_SIZE + x), (float)(zStart * CHUNK_SIZE + z), _seed);
-    //         // Map noise value to terrain height (between 0 and MAX_HEIGHT)
-    //         int height = static_cast<int>((heightValue + 1.0f) * 0.5f * CHUNK_HEIGHT);  // Scale to [0, MAX_HEIGHT]
-    //         heightMap[(x * CHUNK_SIZE) + z] = height;
-    //     }
-    // }
-    std::vector<float> noiseOut(CHUNK_SIZE * CHUNK_SIZE);
-    TerrainGenerator::_terrainNoise->GenUniformGrid2D(noiseOut.data(), xStart, zStart, CHUNK_SIZE, CHUNK_SIZE, 0.001f, _seed);
+    // Mountain noise
+    mountainNoise = FastNoise::New<FastNoise::Perlin>();
+    //mountainNoise->SetFrequency(0.005f);
 
-    // for(int x )
+    // River noise
+    riverNoise = FastNoise::New<FastNoise::Perlin>();
+    //riverNoise->SetFrequency(0.02f);
 
-    add_rivers(heightMap, xStart, zStart);
-
-    return heightMap;
+    // Cave noise
+    caveNoise = FastNoise::New<FastNoise::Simplex>();
+    //caveNoise->SetFrequency(0.05f);
 }
 
-void TerrainGenerator::add_rivers(std::vector<int>& heightMap, int chunkX, int chunkZ)
-{
+int TerrainGenerator::GetBaseHeight(int x, int z) {
+    float noiseValue = baseTerrainNoise->GenSingle2D((float)x, (float)z, _seed);
+    int height = static_cast<int>((noiseValue + 1.0f) * 0.5f * (CHUNK_HEIGHT / 2)) + (CHUNK_HEIGHT / 4);
+    return height;
+}
+
+float TerrainGenerator::GetMountainHeight(int x, int z) {
+    float noiseValue = mountainNoise->GenSingle2D((float)x, (float)z, _seed);
+    float height = (noiseValue > 0.6f) ? (noiseValue - 0.6f) * CHUNK_HEIGHT / 2 : 0.0f;
+    return height;
+}
+
+bool TerrainGenerator::IsRiver(int x, int z) {
+    float noiseValue = riverNoise->GenSingle2D((float)x, (float)z, _seed);
+    return fabs(noiseValue) < 0.05f;
+}
+
+bool TerrainGenerator::IsCave(int x, int y, int z) {
+    float noiseValue = caveNoise->GenSingle3D((float)x, (float)y, (float)z, _seed);
+    return noiseValue > 0.7f;
+}
+
+void TerrainGenerator::GenerateChunk(int chunkX, int chunkZ, std::vector<uint8_t>& blockData) {
+    blockData.resize(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE, 0); // Initialize with air (block ID 0)
+
     for (int x = 0; x < CHUNK_SIZE; ++x) {
-            for (int z = 0; z < CHUNK_SIZE; ++z) {
-                float riverValue = _riverNoise->GenSingle2D((float)(chunkX * CHUNK_SIZE + x), (float)(chunkZ * CHUNK_SIZE + z), _seed);
-                if (riverValue < RIVER_THRESHOLD) {
-                    // Lower the terrain to create a river
-                    heightMap[(x * CHUNK_SIZE) + z] = std::min(heightMap[(x * CHUNK_SIZE) + z], RIVER_HEIGHT);
+        for (int z = 0; z < CHUNK_SIZE; ++z) {
+            int worldX = chunkX * CHUNK_SIZE + x;
+            int worldZ = chunkZ * CHUNK_SIZE + z;
+
+            // Get base terrain height
+            int baseHeight = GetBaseHeight(worldX, worldZ);
+
+            // Modify height for mountains
+            baseHeight += static_cast<int>(GetMountainHeight(worldX, worldZ));
+
+            // Adjust for height limits
+            baseHeight = std::max(0, std::min(baseHeight, static_cast<int>(CHUNK_HEIGHT - 1)));
+
+            // Lower terrain for rivers
+            if (IsRiver(worldX, worldZ)) {
+                baseHeight -= 5; // Lower the terrain to create a riverbed
+            }
+
+            for (int y = 0; y <= baseHeight; ++y) {
+                int index = x + z * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE;
+
+                // Check for caves
+                if (IsCave(worldX, y, worldZ)) {
+                    blockData[index] = 0; // Air
+                } else {
+                    // Assign block type based on height
+                    if (y == baseHeight) {
+                        blockData[index] = 2; // Grass block ID
+                    } else if (y > baseHeight - 5) {
+                        blockData[index] = 3; // Dirt block ID
+                    } else {
+                        blockData[index] = 1; // Stone block ID
+                    }
                 }
             }
         }
+    }
 }
 
-float TerrainGenerator::get_normalized_height(std::vector<float>& map, int yScale, int xScale, int x, int y)
-{
-    float height = map[(y * xScale) + x];
-    float normalized = (height + 1.0f) / 2.0f;
-    float scaled_value = normalized * yScale;
-    return scaled_value;
-}
+
