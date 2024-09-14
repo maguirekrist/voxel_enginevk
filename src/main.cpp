@@ -2,7 +2,7 @@
 
 int main(int argc, char* argv[])
 {
-	VulkanEngine engine;
+	VulkanEngine& engine = VulkanEngine::instance();
 
 	engine.init();	
 	

@@ -14,8 +14,6 @@
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
-VmaAllocator VulkanEngine::_allocator;
-VkDevice VulkanEngine::_device;
 
 void VulkanEngine::build_target_block_view(const glm::vec3& worldPos)
 {
@@ -311,29 +309,11 @@ void VulkanEngine::run()
 		_lastFrameTime = now;
 		_game._player._moveSpeed = DEFAULT_MOVE_SPEED * _deltaTime;
 
-
 		handle_input();
 
 		_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
 
 		_game.update();
-
-		//upload new meshes
-		// for(auto& [key, chunk] : _game._world._chunkMap)
-		// {
-		// 	if(!_meshes.contains(chunk->_chunkKey))
-		// 	{
-		// 		upload_mesh(chunk->_mesh);
-		// 		_meshes[chunk->_chunkKey] = &chunk->_mesh;
-		// 		RenderObject newObj;
-		// 		newObj.material = get_material("defaultmesh");
-		// 		newObj.mesh = &chunk->_mesh;
-		// 		glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_position.x, 0, chunk->_position.y));
-		// 		newObj.transformMatrix = translate;
-		// 		_renderObjects.push_back(newObj);
-		// 		//build_chunk_debug_view(*chunk);
-		// 	}
-		// }
 
 		draw();
 	}
@@ -1028,10 +1008,11 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 
 void VulkanEngine::unload_mesh(Mesh& mesh)
 {
-
+	VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));		
 	if(mesh._isActive) {
 		vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
 		vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
+		mesh._isActive = false;
 	}
 }
 

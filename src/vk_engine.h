@@ -32,6 +32,12 @@ constexpr unsigned int FRAME_OVERLAP = 2;
 
 class VulkanEngine {
 public:
+	static VulkanEngine& instance()
+	{
+		static VulkanEngine *instance = new VulkanEngine();
+        return *instance;
+	}
+
 	bool _isInitialized{ false };
 	bool bUseValidationLayers{ false };
 	int _frameNumber {0};
@@ -42,7 +48,7 @@ public:
 	VkInstance _instance;
 	VkDebugUtilsMessengerEXT _debug_messenger;
 	VkPhysicalDevice _chosenGPU;
-	static VkDevice _device;
+	VkDevice _device;
 	VkSurfaceKHR _surface;
 
 	VkSwapchainKHR _swapchain;
@@ -76,7 +82,7 @@ public:
 	VkFormat _depthFormat;
 
 	DeletionQueue _mainDeletionQueue;
-	static VmaAllocator _allocator;
+	VmaAllocator _allocator;
 
 	FrameData _frames[FRAME_OVERLAP];
 
@@ -90,8 +96,8 @@ public:
 
 	Material* get_material(const std::string& name);
 
-	static void upload_mesh(Mesh& mesh);
-	static void unload_mesh(Mesh& mesh);
+	void upload_mesh(Mesh& mesh);
+	void unload_mesh(Mesh& mesh);
 
 	//??
 	//Mesh* get_mesh(const std::string& name);
@@ -116,7 +122,6 @@ public:
 	//run main loop
 	void run();
 private:
-
 	void init_vulkan();
 	void init_swapchain();
 	void init_commands();

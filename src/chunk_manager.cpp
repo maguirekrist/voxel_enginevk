@@ -105,6 +105,7 @@ void ChunkManager::worker()
 
 void ChunkManager::worldUpdate()
 {
+    VulkanEngine& renderer = VulkanEngine::instance();
     while (_running) {
         std::unique_lock<std::mutex> lock(_mutexWorld);
         _cvWorld.wait(lock, [this] { return (!_worldUpdateQueue.empty() && !_updatingWorldState) || !_running; });
@@ -176,7 +177,7 @@ void ChunkManager::worldUpdate()
         {
             Mesh* mesh = _meshUploadQueue.front();
             _meshUploadQueue.pop();
-            VulkanEngine::upload_mesh(*mesh);
+            renderer.upload_mesh(*mesh);
         }
 
 
@@ -186,7 +187,7 @@ void ChunkManager::worldUpdate()
             updateJob._chunksToUnload.pop();
             std::unique_ptr<Chunk> unloadChunk = std::move(_loadedChunks[coord]);
             _loadedChunks.erase(coord);
-            VulkanEngine::unload_mesh(unloadChunk->_mesh);
+            renderer.unload_mesh(unloadChunk->_mesh);
             _chunkPool.push_back(std::move(unloadChunk));
         }
 
@@ -199,6 +200,7 @@ void ChunkManager::worldUpdate()
 
 void ChunkManager::meshChunk()
 {
+    VulkanEngine& renderer = VulkanEngine::instance();
     while(_running)
     {
         std::unique_lock lock(_mutexMesh);
@@ -220,6 +222,12 @@ void ChunkManager::meshChunk()
                 Mesh oldMesh = chunk->_mesh;
                 ChunkMesher mesher { chunk, this };
                 mesher.execute();
+
+                //lock.lock();
+                //renderer.unload_mesh(oldMesh);
+                //lock.unlock();
+                
+
                 chunk->_isValid = true;
             }
 
