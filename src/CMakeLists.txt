@@ -26,7 +26,9 @@ add_executable(vulkan_guide
     cube_engine.h
     cube_engine.cpp
     player.h
-    player.cpp)
+    player.cpp
+    terrain_gen.h
+    terrain_gen.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")

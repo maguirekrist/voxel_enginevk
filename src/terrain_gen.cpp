@@ -1,23 +1,6 @@
 #include "terrain_gen.h"
+#include "chunk.h"
 
-
-TerrainGenerator::TerrainGenerator() {
-    // Base terrain noise
-    baseTerrainNoise = FastNoise::New<FastNoise::Perlin>();
-    //baseTerrainNoise->SetFrequency(0.01f);
-
-    // Mountain noise
-    mountainNoise = FastNoise::New<FastNoise::Perlin>();
-    //mountainNoise->SetFrequency(0.005f);
-
-    // River noise
-    riverNoise = FastNoise::New<FastNoise::Perlin>();
-    //riverNoise->SetFrequency(0.02f);
-
-    // Cave noise
-    caveNoise = FastNoise::New<FastNoise::Simplex>();
-    //caveNoise->SetFrequency(0.05f);
-}
 
 int TerrainGenerator::GetBaseHeight(int x, int z) {
     float noiseValue = baseTerrainNoise->GenSingle2D((float)x, (float)z, _seed);

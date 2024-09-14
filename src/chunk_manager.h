@@ -19,9 +19,13 @@ public:
     ChunkManager(int viewDistance) 
         : _viewDistance(viewDistance), 
           _maxChunks((2 * viewDistance + 1) * (2 * viewDistance + 1)),
-          _maxThreads(std::thread::hardware_concurrency()),
+          _maxThreads(1),
           _running(true) {
         _chunkPool.reserve(_maxChunks);
+        for(int i = 0; i < _maxChunks; i++)
+        {
+            _chunkPool.emplace_back(std::make_unique<Chunk>());
+        }
         for(size_t i = 0; i < _maxThreads; i++)
         {
             _workers.emplace_back(&ChunkManager::worker, this);
@@ -33,7 +37,7 @@ public:
         _running = false;
         _cv.notify_all();
         for (std::thread &worker : _workers) {
-            _workerThread.join();
+            worker.join();
         }
     }
 
@@ -72,13 +76,8 @@ private:
 
     std::queue<WorldUpdateJob> _worldUpdateQueue;
 
-    // std::queue<ChunkCoord> _chunksToLoad;
-    // std::queue<std::unique_ptr<Chunk>> _chunksToUnload;
-
     std::vector<std::thread> _workers;
-    //std::mutex _queue_mutex;
-    //old code
-    std::thread _workerThread;
+    //std::thread _workerThread;
     std::mutex _mutex;
 
     std::condition_variable _cv;

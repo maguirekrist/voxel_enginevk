@@ -34,6 +34,8 @@ public:
     Block* get_block(const glm::ivec3& localPos);
     glm::ivec3 get_world_pos(const glm::ivec3& localPos);
 
+    Chunk() {};
+
     Chunk(ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)) {
         generate();
     }

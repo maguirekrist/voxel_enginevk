@@ -147,8 +147,6 @@ void ChunkManager::worker()
                 neighbor_chunks.push_back({ coord.x - updateJob._changeX , coord.z + 1 });
             }
 
-            //END THREAD_SAFE AREA
-
             for(const auto& cCoord : neighbor_chunks)
             {
                 if(_loadedChunks.contains(cCoord))
