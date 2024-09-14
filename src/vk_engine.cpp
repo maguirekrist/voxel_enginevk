@@ -633,7 +633,7 @@ std::string getShaderPath(const std::string& shaderName) {
 void VulkanEngine::init_pipelines()
 {	
 	build_material_default();
-	build_material_wireframe();
+	//build_material_wireframe();
 }
 
 void VulkanEngine::build_material_default()

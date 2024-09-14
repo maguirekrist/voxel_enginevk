@@ -16,6 +16,8 @@ public:
 
     void GenerateChunk(int chunkX, int chunkZ, std::vector<uint8_t>& blockData);
 
+    std::vector<float> GenerateHeightMap(int chunkX, int chunkZ);
+    float NormalizeHeight(std::vector<float>& map, int yScale, int xScale, int x, int y);
 private:
     TerrainGenerator() {
         _seed = Random::generate(0, 1337);
@@ -32,6 +34,7 @@ private:
     FastNoise::SmartNode<FastNoise::Simplex> caveNoise;
 
     int _seed;
+
 
 
     // Helper functions

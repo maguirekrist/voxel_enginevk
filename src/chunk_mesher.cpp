@@ -3,7 +3,7 @@
 
 void ChunkMesher::generate_mesh(Chunk* chunk)
 {
-    fmt::println("Generating mesh for chunk");
+    //fmt::println("Generating mesh for chunk");
 
     _chunk = chunk;
     //propagate_sunlight();
@@ -27,7 +27,7 @@ void ChunkMesher::generate_mesh(Chunk* chunk)
 
     _chunk->_mesh = _mesh;
 
-    fmt::println("Finished generating chunk");
+    //fmt::println("Finished generating chunk");
 }
 
 Block* ChunkMesher::get_face_neighbor(const Block& block, FaceDirection face)

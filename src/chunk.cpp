@@ -19,46 +19,45 @@ void Chunk::reset(ChunkCoord newCoord)
 
 void Chunk::generate()
 {
-        fmt::println("generate chunk!");
-        std::vector<uint8_t> blockData;
+        //fmt::println("generate chunk!");
         TerrainGenerator generator = TerrainGenerator::instance();
-        generator.GenerateChunk(_position.x, _position.y, blockData);
+        std::vector<float> chunkHeightMap = generator.GenerateHeightMap(_position.x, _position.y);
         for(int x = 0; x < CHUNK_SIZE; x++)
             {
             for(int z = 0; z < CHUNK_SIZE; z++)
             {
-                //auto height = World::get_normalized_height(heightMap, CHUNK_HEIGHT, CHUNK_SIZE, x, z);
+                auto height = generator.NormalizeHeight(chunkHeightMap, CHUNK_HEIGHT, CHUNK_SIZE, x, z);
                 for (int y = 0; y < CHUNK_HEIGHT; y++)
                 {
                     Block& block = _blocks[x][y][z];
                     block._position = glm::vec3(x, y, z);
                     block._color = glm::vec3(1.0f, 1.0f, 1.0f);
-                    int index = x + z * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE;
-                    uint8_t blockId = blockData[index];
+                    //int index = x + z * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE;
+                    // uint8_t blockId = blockData[index];
 
-                    switch(blockId)
-                    {
-                        case 1:
-                        case 2:
-                        case 3:
-                            block._solid = true;
-                            block._sunlight = 0;
-                            break;
-                        default:
-                            block._solid = false;
-                            block._sunlight = MAX_LIGHT_LEVEL;
-                            break;
-                    }
-
-                    // if (y <= height)
+                    // switch(blockId)
                     // {
-                    //     block._solid = true;
-                    //     block._sunlight = 0;
+                    //     case 1:
+                    //     case 2:
+                    //     case 3:
+                    //         block._solid = true;
+                    //         block._sunlight = 0;
+                    //         break;
+                    //     default:
+                    //         block._solid = false;
+                    //         block._sunlight = MAX_LIGHT_LEVEL;
+                    //         break;
                     // }
-                    // else {
-                    //     block._solid = false;
-                    //     block._sunlight = MAX_LIGHT_LEVEL;
-                    // }
+
+                    if (y <= height)
+                    {
+                        block._solid = true;
+                        block._sunlight = 0;
+                    }
+                    else {
+                        block._solid = false;
+                        block._sunlight = MAX_LIGHT_LEVEL;
+                    }
                 }
             }
         }

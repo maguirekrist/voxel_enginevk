@@ -10,7 +10,7 @@ void ChunkManager::updatePlayerPosition(int x, int z)
     ChunkCoord playerChunk = {x / static_cast<int>(CHUNK_SIZE), z / static_cast<int>(CHUNK_SIZE)};  // Assuming 16x16 chunks
     if (playerChunk == _lastPlayerChunk && !_initLoad) return;
 
-    std::unique_lock<std::mutex> lock(_mutex);
+    std::unique_lock<std::mutex> lock(_mutexWorld);
 
     fmt::println("Main thread begin work!");
 
@@ -23,7 +23,7 @@ void ChunkManager::updatePlayerPosition(int x, int z)
     _initLoad = false;
 
     fmt::println("Main thread completed work!");
-    _cv.notify_one();
+    _cvWorld.notify_one();
 }
 
 void ChunkManager::updateWorldState()
@@ -100,11 +100,18 @@ void ChunkManager::queueWorldUpdate(int changeX, int changeZ)
 
 void ChunkManager::worker()
 {
+    
+}
+
+void ChunkManager::worldUpdate()
+{
     while (_running) {
-        std::unique_lock<std::mutex> lock(_mutex);
-        _cv.wait(lock, [this] { return !_worldUpdateQueue.empty() || !_running; });
+        std::unique_lock<std::mutex> lock(_mutexWorld);
+        _cvWorld.wait(lock, [this] { return (!_worldUpdateQueue.empty() && !_updatingWorldState) || !_running; });
 
         if (!_running) break;
+
+        _updatingWorldState = true;
 
         fmt::println("Worker thread begin work.");
 
@@ -112,13 +119,11 @@ void ChunkManager::worker()
         _worldUpdateQueue.pop();
 
         lock.unlock();
-        std::queue<Chunk*> meshQueue;
         while (!updateJob._chunksToLoad.empty()) {
             ChunkCoord coord = updateJob._chunksToLoad.front();
             updateJob._chunksToLoad.pop();
 
             std::unique_ptr<Chunk> chunk;
-            //lock.lock();
             if (!_chunkPool.empty()) {
                 chunk = std::move(_chunkPool.back());
                 _chunkPool.pop_back();
@@ -127,7 +132,6 @@ void ChunkManager::worker()
             } else {
                 chunk = std::make_unique<Chunk>(coord);
             }
-            //lock.unlock();
 
 
             std::vector<ChunkCoord> neighbor_chunks;
@@ -153,35 +157,28 @@ void ChunkManager::worker()
                 {
                     auto target_chunk = _loadedChunks[cCoord].get();
                     _loadedChunks[cCoord]->_isValid = false;
-                    meshQueue.push(_loadedChunks[cCoord].get());
+                    _meshUpdateQueue.push(_loadedChunks[cCoord].get());
                 }
             }
 
     
             //Dangerous, we modify loaded chunks
             _loadedChunks[coord] = std::move(chunk);
-            meshQueue.push(_loadedChunks[coord].get());
+            _meshUpdateQueue.push(_loadedChunks[coord].get());
         }
 
-        while(!meshQueue.empty())
+        _cvMesh.notify_all();
+
+        std::unique_lock<std::mutex> meshLock(_mutexMesh);
+        _cvMesh.wait(meshLock, [this] { return _meshUpdateQueue.empty() && _activeWorkers == 0; });
+        
+        while(!_meshUploadQueue.empty())
         {
-            auto chunk = meshQueue.front();
-            meshQueue.pop();
-            if(chunk != nullptr && !chunk->_isValid)
-            {
-                Mesh oldMesh = chunk->_mesh;
-                ChunkMesher mesher { chunk, this };
-                mesher.execute();
-                VulkanEngine::upload_mesh(chunk->_mesh);
-
-                if(oldMesh._isActive)
-                {
-                    VulkanEngine::unload_mesh(oldMesh);
-                }
-
-                chunk->_isValid = true;
-            }
+            Mesh* mesh = _meshUploadQueue.front();
+            _meshUploadQueue.pop();
+            VulkanEngine::upload_mesh(*mesh);
         }
+
 
         while (!updateJob._chunksToUnload.empty())
         {
@@ -194,7 +191,47 @@ void ChunkManager::worker()
         }
 
         //ock.lock();
+        lock.lock();
+        _updatingWorldState = false;
         fmt::println("Worker thread completed.");
+    }
+}
+
+void ChunkManager::meshChunk()
+{
+    while(_running)
+    {
+        std::unique_lock lock(_mutexMesh);
+        _cvMesh.wait(lock, [this]() { return !_meshUpdateQueue.empty() || !_running; });
+
+        if (!_running) break;
+
+        //Acquire a mesh
+        if(!_meshUpdateQueue.empty())
+        {
+            _activeWorkers++;
+            Chunk* chunk = _meshUpdateQueue.front();
+            _meshUpdateQueue.pop();
+
+            //Unlock as we can do this work async with other meshChunk threads
+            lock.unlock();
+            if(chunk != nullptr && !chunk->_isValid)
+            {
+                Mesh oldMesh = chunk->_mesh;
+                ChunkMesher mesher { chunk, this };
+                mesher.execute();
+                chunk->_isValid = true;
+            }
+
+            lock.lock();
+            _activeWorkers --;
+            _meshUploadQueue.push(&chunk->_mesh);
+            if(_meshUpdateQueue.empty() && _activeWorkers == 0)
+            {
+                _cvMesh.notify_all();
+            }
+        }
+
     }
 }
 
