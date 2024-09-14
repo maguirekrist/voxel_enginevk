@@ -4,7 +4,7 @@
 #include <block.h>
 
 constexpr unsigned int CHUNK_SIZE = 16;
-constexpr unsigned int CHUNK_HEIGHT = 32;
+constexpr unsigned int CHUNK_HEIGHT = 328;
 constexpr unsigned int MAX_LIGHT_LEVEL = 15;
 
 struct ChunkCoord {
@@ -28,20 +28,17 @@ class Chunk {
 public:
     Block _blocks[CHUNK_SIZE][CHUNK_HEIGHT][CHUNK_SIZE];
     Mesh _mesh;
-    glm::ivec2 _position;
+    glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
     bool _isValid{ false };
 
     Block* get_block(const glm::ivec3& localPos);
     glm::ivec3 get_world_pos(const glm::ivec3& localPos);
 
-    Chunk(const glm::ivec2& origin) : _position(origin) {
-        generate();
-    }
-    Chunk(ChunkCoord coord) : _position(glm::ivec2(coord.x, coord.z)) {
+    Chunk(ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)) {
         generate();
     }
 
-    //void reset();
+    void reset(ChunkCoord newCoord);
 
     void generate();
 

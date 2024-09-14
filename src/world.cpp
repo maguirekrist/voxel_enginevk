@@ -2,9 +2,6 @@
 #include "world.h"
 
 
-int World::_seed = Random::generate(0, 1337);
-FastNoise::GeneratorSource World::_generator;
-
 Block* World::get_block(const glm::ivec3& worldPos)
 {
     Chunk* chunk = get_chunk(worldPos);
@@ -38,12 +35,12 @@ bool World::is_position_solid(const glm::ivec3& pos)
 
 Chunk* World::get_chunk(glm::vec3 worldPos)
 {
-    auto chunkOrigin = get_chunk_origin(worldPos);
-    auto chunkKey = ChunkCoord{chunkOrigin.x, chunkOrigin.y };
+    auto chunkCoord = get_chunk_coordinates(worldPos);
+    auto chunkKey = ChunkCoord{chunkCoord.x, chunkCoord.y };
 
-    if(_chunkManager->loadedChunks.contains(chunkKey))
+    if(_chunkManager->_loadedChunks.contains(chunkKey))
     {
-        return _chunkManager->loadedChunks[chunkKey].get();
+        return _chunkManager->_loadedChunks[chunkKey].get();
     }
 
     return nullptr;
@@ -70,14 +67,6 @@ Chunk* World::get_chunk(glm::vec3 worldPos)
 //     fmt::println("Completed chunk generation.");
 // }
 
-std::vector<float> World::generate_height_map(int xStart, int zStart)
-{
-    std::vector<float> heightMap(CHUNK_SIZE * CHUNK_SIZE);
-    World::_generator.base = FastNoise::New<FastNoise::Perlin>();  ;
-    World::_generator.base->GenUniformGrid2D(heightMap.data(), xStart, zStart, CHUNK_SIZE, CHUNK_SIZE, 0.001f, _seed);
-    return heightMap;
-}
-
 glm::ivec2 World::get_chunk_coordinates(const glm::vec3 &worldPos)
 {
     return glm::ivec2(
@@ -102,14 +91,6 @@ glm::ivec3 World::get_local_coordinates(const glm::vec3 &worldPos)
         static_cast<int>(std::floor(worldPos.y)) & (CHUNK_HEIGHT - 1),
         static_cast<int>(std::floor(worldPos.z)) & (CHUNK_SIZE - 1)
     );
-}
-
-float World::get_normalized_height(std::vector<float>& map, int yScale, int xScale, int x, int y)
-{
-    float height = map[(y * xScale) + x];
-    float normalized = (height + 1.0f) / 2.0f;
-    float scaled_value = normalized * yScale;
-    return scaled_value;
 }
 
 // void init_sunlight(Chunk& chunk)

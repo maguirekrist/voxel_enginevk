@@ -7,7 +7,7 @@
 
 
 //number is in chunks away from player position.
-constexpr int DEFAULT_VIEW_DISTANCE = 4;
+constexpr int DEFAULT_VIEW_DISTANCE = 32;
 
 class CubeEngine {
 public:

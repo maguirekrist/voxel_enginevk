@@ -9,6 +9,7 @@ void CubeEngine::update()
     //handling input from SDL.
 
     _chunkManager.updatePlayerPosition(_player._position.x, _player._position.z);
+    _chunkManager.printWorldUpdateQueue();
     //_chunkManager.printLoadedChunks();
     //load_chunks();
 }

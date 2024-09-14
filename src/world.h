@@ -11,8 +11,6 @@ class World {
 public:
     //std::unordered_map<std::string, std::unique_ptr<Chunk>> _chunkMap;
     //std::vector<std::unique_ptr<Chunk>> _chunks;
-    static int _seed;
-    static FastNoise::GeneratorSource _generator;
 
     World(ChunkManager* chunkManager) : _chunkManager(chunkManager) {    }
 
@@ -20,9 +18,6 @@ public:
     Block* get_block(const glm::ivec3& worldPos);
     Chunk* get_chunk(glm::vec3 worldPos); 
     //void generate_chunk(int xStart, int yStart);
-
-    static std::vector<float> generate_height_map(int xStart, int zStart);
-    static float get_normalized_height(std::vector<float>& map, int yScale, int xScale, int x, int y);
 
     static glm::ivec2 get_chunk_coordinates(const glm::vec3& worldPos);
     static glm::ivec2 get_chunk_origin(const glm::vec3& worldPos);

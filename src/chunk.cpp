@@ -10,6 +10,12 @@ bool Chunk::is_outside_chunk(const glm::ivec3& pos)
     return false;
 }
 
+void Chunk::reset(ChunkCoord newCoord)
+{
+    _position = glm::ivec2(newCoord.x * CHUNK_SIZE, newCoord.z * CHUNK_SIZE);
+    _isValid = false;
+    _mesh = Mesh{};
+}
 
 void Chunk::generate()
 {
@@ -53,7 +59,7 @@ Block* Chunk::get_block(const glm::ivec3& localPos)
 
 glm::ivec3 Chunk::get_world_pos(const glm::ivec3& localPos)
 {
-    return { localPos.x + _position.x, localPos.y, localPos.z + _position.y };
+    return { localPos.x + (_position.x), localPos.y, localPos.z + _position.y };
 }
 
 

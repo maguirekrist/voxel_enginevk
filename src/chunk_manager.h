@@ -3,63 +3,84 @@
 #include <vk_types.h>
 #include <chunk.h>
 
-
+struct WorldUpdateJob {
+    int _changeX;
+    int _changeZ;
+    std::queue<ChunkCoord> _chunksToLoad;
+    std::queue<ChunkCoord> _chunksToUnload; 
+};
 
 class ChunkManager {
 public:
-    std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>> loadedChunks;
+    std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>> _loadedChunks;
+    std::unordered_set<ChunkCoord> _worldChunks;
+    std::unordered_set<ChunkCoord> _oldWorldChunks;
 
     ChunkManager(int viewDistance) 
-        : viewDistance(viewDistance), 
-          maxChunks((2 * viewDistance + 1) * (2 * viewDistance + 1)),
-          running(true) {
-        chunkPool.reserve(maxChunks);
-        workerThread = std::thread(&ChunkManager::worker, this);
+        : _viewDistance(viewDistance), 
+          _maxChunks((2 * viewDistance + 1) * (2 * viewDistance + 1)),
+          _maxThreads(std::thread::hardware_concurrency()),
+          _running(true) {
+        _chunkPool.reserve(_maxChunks);
+        for(size_t i = 0; i < _maxThreads; i++)
+        {
+            _workers.emplace_back(&ChunkManager::worker, this);
+        }
+        //_workerThread = std::thread(&ChunkManager::worker, this);
     }
 
     ~ChunkManager() {
-        running = false;
-        cv.notify_one();
-        if (workerThread.joinable()) {
-            workerThread.join();
+        _running = false;
+        _cv.notify_all();
+        for (std::thread &worker : _workers) {
+            _workerThread.join();
         }
     }
 
-    void updatePlayerPosition(int x, int z) {
-        ChunkCoord playerChunk = {x / CHUNK_SIZE, z / CHUNK_SIZE};  // Assuming 16x16 chunks
-        if (playerChunk == lastPlayerChunk) return;
-
-        std::unique_lock<std::mutex> lock(mutex);
-        lastPlayerChunk = playerChunk;
-        updateChunksToLoad();
-        cv.notify_one();
-    }
+    void updatePlayerPosition(int x, int z);
 
     void printLoadedChunks() {
-        std::unique_lock<std::mutex> lock(mutex);
+        std::unique_lock<std::mutex> lock(_mutex);
         std::cout << "Loaded chunks: ";
-        for (const auto& chunk : loadedChunks) {
+        for (const auto& chunk : _loadedChunks) {
             std::cout << "(" << chunk.first.x << "," << chunk.first.z << ") ";
         }
         std::cout << std::endl;
     }
 
+    void printWorldUpdateQueue() {
+        //std::unique_lock<std::mutex> lock(_mutex);
+        fmt::println("World update queue count: {}", _worldUpdateQueue.size());
+    }
+
+    Block* getBlockGlobal(int x, int y, int z);
+    Block* getBlockGlobal(glm::ivec3 pos);
+
 private:
-    void updateChunksToLoad();
+    void updateWorldState();
+    void queueWorldUpdate(int changeX, int changeZ);
 
     void worker();
 
-    Block* getBlockGlobal(int x, int y, int z);
+    int _viewDistance;
+    size_t _maxChunks;
+    size_t _maxThreads;
+    bool _initLoad{true};
+    ChunkCoord _lastPlayerChunk = {0, 0};
 
+    std::vector<std::unique_ptr<Chunk>> _chunkPool;
 
+    std::queue<WorldUpdateJob> _worldUpdateQueue;
 
-    int viewDistance;
-    size_t maxChunks;
-    ChunkCoord lastPlayerChunk = {0, 0};
-    std::vector<std::unique_ptr<Chunk>> chunkPool;
-    std::queue<ChunkCoord> chunksToLoad;
-    std::thread workerThread;
-    std::mutex mutex;
-    std::condition_variable cv;
-    std::atomic<bool> running;
+    // std::queue<ChunkCoord> _chunksToLoad;
+    // std::queue<std::unique_ptr<Chunk>> _chunksToUnload;
+
+    std::vector<std::thread> _workers;
+    //std::mutex _queue_mutex;
+    //old code
+    std::thread _workerThread;
+    std::mutex _mutex;
+
+    std::condition_variable _cv;
+    std::atomic<bool> _running;
 };

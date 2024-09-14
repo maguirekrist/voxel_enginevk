@@ -6,6 +6,7 @@
 #include <vk_mesh.h>
 #include <cube_engine.h>
 #include <camera.h>
+#include <vulkan/vulkan_core.h>
 
 class DeletionQueue {
 public:
@@ -27,7 +28,7 @@ private:
 	std::deque<std::function<void()>> deletors;
 };
 
-constexpr unsigned int FRAME_OVERLAP = 1;
+constexpr unsigned int FRAME_OVERLAP = 2;
 
 class VulkanEngine {
 public:
@@ -41,7 +42,7 @@ public:
 	VkInstance _instance;
 	VkDebugUtilsMessengerEXT _debug_messenger;
 	VkPhysicalDevice _chosenGPU;
-	VkDevice _device;
+	static VkDevice _device;
 	VkSurfaceKHR _surface;
 
 	VkSwapchainKHR _swapchain;
@@ -65,8 +66,6 @@ public:
 	Camera _camera;
 	std::optional<RaycastResult> _targetBlock;
 
-
-
 	float _deltaTime;
 	TimePoint _lastFrameTime;
 	TimePoint _lastFpsTime;
@@ -77,7 +76,7 @@ public:
 	VkFormat _depthFormat;
 
 	DeletionQueue _mainDeletionQueue;
-	VmaAllocator _allocator;
+	static VmaAllocator _allocator;
 
 	FrameData _frames[FRAME_OVERLAP];
 
@@ -91,10 +90,15 @@ public:
 
 	Material* get_material(const std::string& name);
 
+	static void upload_mesh(Mesh& mesh);
+	static void unload_mesh(Mesh& mesh);
+
 	//??
 	//Mesh* get_mesh(const std::string& name);
 
 	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
+
+	void draw_chunks(VkCommandBuffer cmd);
 
 	void calculate_fps();
 
@@ -126,14 +130,10 @@ private:
 
 	//void init_scene();
 
-	//Re-implement as subscriber method
-	//void load_meshes();
-	void upload_mesh(Mesh& mesh);
-
 	bool load_shader_module(const std::string& filePath, VkShaderModule* outShaderModule);
 
 	void build_target_block_view(const glm::vec3& worldPos);
-	void build_chunk_debug_view(const Chunk& chunk);
+	RenderObject build_chunk_debug_view(const Chunk& chunk);
 };
 
 class PipelineBuilder {

@@ -34,6 +34,7 @@ struct Mesh {
     AllocatedBuffer _vertexBuffer;
     std::vector<uint32_t> _indices;
     AllocatedBuffer _indexBuffer;
+    bool _isActive{false};
 
     static Mesh create_cube_mesh();
 };

@@ -3,7 +3,7 @@
 
 void ChunkMesher::generate_mesh(Chunk* chunk)
 {
-    fmt::println("Generating mesh for chunk");
+    //fmt::println("Generating mesh for chunk");
 
     _chunk = chunk;
     //propagate_sunlight();
@@ -25,7 +25,9 @@ void ChunkMesher::generate_mesh(Chunk* chunk)
         }
     }
 
-    fmt::println("Finished generating chunk");
+    _chunk->_mesh = _mesh;
+
+    //fmt::println("Finished generating chunk");
 }
 
 Block* ChunkMesher::get_face_neighbor(const Block& block, FaceDirection face)
@@ -37,7 +39,7 @@ Block* ChunkMesher::get_face_neighbor(const Block& block, FaceDirection face)
     if (Chunk::is_outside_chunk({ nx, ny, nz }))
     {
         //Perform more expenive search.
-        return _world->get_block(_chunk->get_world_pos({ nx, ny, nz }));
+        return _manager->getBlockGlobal(_chunk->get_world_pos({ nx, ny, nz }));
     }
 
     return &_chunk->_blocks[nx][ny][nz];
@@ -53,7 +55,7 @@ bool ChunkMesher::is_face_visible(const Block& block, FaceDirection face)
     if (Chunk::is_outside_chunk({ nx, ny, nz }))
     {
         //Perform more expenive search.
-        return !_world->is_position_solid(_chunk->get_world_pos({ nx, ny, nz }));
+        return !is_position_solid({ nx, ny, nz });
     }
 
     return !_chunk->_blocks[nx][ny][nz]._solid;
@@ -74,21 +76,21 @@ float ChunkMesher::calculate_vertex_ao(glm::ivec3 cubePos, FaceDirection face, i
         corner = _chunk->_blocks[cornerPos.x][cornerPos.y][cornerPos.z]._solid;
     }
     else {
-        corner = _world->is_position_solid(_chunk->get_world_pos(cornerPos));
+        corner = is_position_solid(cornerPos);
     }
 
     if (!Chunk::is_outside_chunk(edge1Pos))
     {
         edge1 = _chunk->_blocks[edge1Pos.x][edge1Pos.y][edge1Pos.z]._solid;
     } else {
-        edge1 = _world->is_position_solid(_chunk->get_world_pos(edge1Pos));
+        edge1 = is_position_solid(edge1Pos);
     }
 
     if (!Chunk::is_outside_chunk(edge2Pos))
     {
         edge2 = _chunk->_blocks[edge2Pos.x][edge2Pos.y][edge2Pos.z]._solid;
     } else {
-        edge2 = _world->is_position_solid(_chunk->get_world_pos(edge2Pos));
+        edge2 = is_position_solid(edge2Pos);
     }
 
     if (corner && edge1 && edge2)
@@ -172,6 +174,17 @@ void ChunkMesher::propagate_sunlight()
     }
 }
 
+bool ChunkMesher::is_position_solid(glm::ivec3 localPos)
+{
+    auto block = _manager->getBlockGlobal(_chunk->get_world_pos(localPos));
+    if(block != nullptr)
+    {
+        return block->_solid;
+    } else {
+        return false;
+    }
+}
+
 void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
 {
     throw std::runtime_error("Not implemented.");
@@ -182,7 +195,6 @@ void ChunkMesher::add_face_to_mesh(const Block& block, FaceDirection face)
 {
     Block* faceNeighbor = get_face_neighbor(block, face);
     float sunLight = faceNeighbor ? static_cast<float>(faceNeighbor->_sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : MAX_LIGHT_LEVEL;
-    auto& _mesh = _chunk->_mesh;
 
     for (int i = 0; i < 4; ++i) {
         //get the neighbors light-level
@@ -190,7 +202,7 @@ void ChunkMesher::add_face_to_mesh(const Block& block, FaceDirection face)
         float ao = calculate_vertex_ao(block._position, face, i);
         
         //TODO: figure out how AO effects the color of the block/vertex. You can use vertex interpolation to shade.
-        _mesh._vertices.push_back({ position, glm::vec3(0.0f), faceColors[face] * (ao * sunLight) });
+        _mesh._vertices.push_back({ position, glm::vec3(0.0f), faceColors[face] * (ao) });
     }
 
     // Add indices for the face (two triangles)

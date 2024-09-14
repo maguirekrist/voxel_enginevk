@@ -6,11 +6,16 @@
 
 #include <vk_initializers.h>
 #include <sdl_utils.h>
+#include <vulkan/vulkan_core.h>
 
 #include "VkBootstrap.h"
+#include "vk_mesh.h"
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
+
+VmaAllocator VulkanEngine::_allocator;
+VkDevice VulkanEngine::_device;
 
 void VulkanEngine::build_target_block_view(const glm::vec3& worldPos)
 {
@@ -28,7 +33,7 @@ void VulkanEngine::build_target_block_view(const glm::vec3& worldPos)
 	_renderObjects.push_back(target_block);
 }
 
-void VulkanEngine::build_chunk_debug_view(const Chunk& chunk)
+RenderObject VulkanEngine::build_chunk_debug_view(const Chunk& chunk)
 {
 	RenderObject target_chunk;
 	target_chunk.material = get_material("wireframe");
@@ -41,7 +46,8 @@ void VulkanEngine::build_chunk_debug_view(const Chunk& chunk)
 	target_chunk.mesh = _meshes["cubeMesh"];
 	glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk._position.x, 0, chunk._position.y));
 	target_chunk.transformMatrix = glm::scale(translate, glm::vec3(CHUNK_SIZE, CHUNK_HEIGHT, CHUNK_SIZE));
-	_renderObjects.push_back(target_chunk);
+	return target_chunk;
+	// _renderObjects.push_back(target_chunk);
 }
 
 void VulkanEngine::calculate_fps()
@@ -88,10 +94,6 @@ void VulkanEngine::init()
 
 	init_pipelines();
 
-	//load_meshes();
-
-	//init_scene();
-	
 	//everything went fine
 	_isInitialized = true;
 }
@@ -242,7 +244,9 @@ void VulkanEngine::draw()
 
 	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
+	draw_chunks(cmd);
+
+	//draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
 
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
@@ -981,6 +985,9 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
 {
+	// vkWaitForFences(_de, 1, &renderFence, VK_TRUE, UINT64_MAX);
+    // vkResetFences(device, 1, &renderFence);
+
 	//allocate vertex buffer
 	VkBufferCreateInfo vertexBufferInfo = vkinit::buffer_create_info(mesh._vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 	VkBufferCreateInfo indexBufferInfo = vkinit::buffer_create_info(mesh._indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
@@ -1015,8 +1022,17 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 	void* indexData;
 	vmaMapMemory(_allocator, mesh._indexBuffer._allocation, &indexData);
 	memcpy(indexData, mesh._indices.data(), mesh._indices.size() * sizeof(uint32_t));
-	vmaUnmapMemory(_allocator, mesh._indexBuffer._allocation);
-	
+	vmaUnmapMemory(_allocator, mesh._indexBuffer._allocation);	
+	mesh._isActive = true;
+}
+
+void VulkanEngine::unload_mesh(Mesh& mesh)
+{
+
+	if(mesh._isActive) {
+		vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+		vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
+	}
 }
 
 FrameData& VulkanEngine::get_current_frame()
@@ -1083,6 +1099,101 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject *first, int co
 		}
 		//we can now draw
 		vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
+	}
+}
+
+void VulkanEngine::draw_chunks(VkCommandBuffer cmd)
+{
+	Mesh* lastMesh = nullptr;
+	Material* lastMaterial = nullptr;
+
+	bool chunkDebug = false;
+	std::vector<RenderObject> chunkDebugViews;
+	for (const auto& coord : _game._chunkManager._worldChunks)
+	{
+		if(_game._chunkManager._loadedChunks.contains(coord))
+		{
+			auto chunk = _game._chunkManager._loadedChunks[coord].get();
+			if(chunk != nullptr && chunk->_isValid && chunk->_mesh._isActive)
+			{
+				RenderObject object;
+				object.material = get_material("defaultmesh");
+				object.mesh = &chunk->_mesh;
+				glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_position.x, 0, chunk->_position.y));
+				object.transformMatrix = translate;
+
+				//only bind the pipeline if it doesn't match with the already bound one
+				if (object.material != lastMaterial) {
+
+					vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+					lastMaterial = object.material;
+				}
+
+
+				glm::mat4 model = object.transformMatrix;
+				//final render matrix, that we are calculating on the cpu
+				glm::mat4 mesh_matrix = _camera._projection * _camera._view * model;
+
+				MeshPushConstants constants;
+				constants.render_matrix = mesh_matrix;
+
+				//upload the mesh to the GPU via push constants
+				vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+
+				//only bind the mesh if it's a different one from last bind
+				if (object.mesh != lastMesh) {
+					//bind the mesh vertex buffer with offset 0
+					VkDeviceSize offset = 0;
+					vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
+
+					vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+
+					lastMesh = object.mesh;
+				}
+
+				if(chunkDebug){
+					chunkDebugViews.push_back(build_chunk_debug_view(*chunk));
+				}
+				//we can now draw
+				vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
+			}
+		}
+	}
+
+	if(chunkDebug) 
+	{
+		for(const auto& object : chunkDebugViews)
+		{
+			if (object.material != lastMaterial) {
+
+				vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+				lastMaterial = object.material;
+			}
+
+
+			glm::mat4 model = object.transformMatrix;
+			//final render matrix, that we are calculating on the cpu
+			glm::mat4 mesh_matrix = _camera._projection * _camera._view * model;
+
+			MeshPushConstants constants;
+			constants.render_matrix = mesh_matrix;
+
+			//upload the mesh to the GPU via push constants
+			vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+
+			//only bind the mesh if it's a different one from last bind
+			if (object.mesh != lastMesh) {
+				//bind the mesh vertex buffer with offset 0
+				VkDeviceSize offset = 0;
+				vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
+
+				vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+
+				lastMesh = object.mesh;
+			}
+			//we can now draw
+			vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
+		}
 	}
 }
 

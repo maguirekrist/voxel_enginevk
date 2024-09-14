@@ -2,7 +2,7 @@
 
 #include <vk_types.h>
 
-constexpr float DEFAULT_MOVE_SPEED = 10.0f;
+constexpr float DEFAULT_MOVE_SPEED = 100.0f;
 
 class Player {
 public:
