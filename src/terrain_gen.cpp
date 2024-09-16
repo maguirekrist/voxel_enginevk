@@ -1,5 +1,5 @@
 #include "terrain_gen.h"
-#include "chunk.h"
+#include "constants.h"
 
 constexpr float TerrainFrequency = 0.001f;
 

@@ -21,18 +21,6 @@ Block* World::get_block(const glm::ivec3& worldPos)
     return &chunk->_blocks[localPos.x][localPos.y][localPos.z];
 }
 
-//pos == worldPos
-bool World::is_position_solid(const glm::ivec3& pos)
-{
-    Block* block = get_block(pos);
-    if(block != nullptr)
-    {
-        return block->_solid;
-    }
-
-    return false;
-}
-
 Chunk* World::get_chunk(glm::vec3 worldPos)
 {
     auto chunkCoord = get_chunk_coordinates(worldPos);

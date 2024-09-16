@@ -2,10 +2,8 @@
 #include <vk_types.h>
 #include <vk_mesh.h>
 #include <block.h>
+#include <constants.h>
 
-constexpr unsigned int CHUNK_SIZE = 16;
-constexpr unsigned int CHUNK_HEIGHT = 256;
-constexpr unsigned int MAX_LIGHT_LEVEL = 15;
 
 struct ChunkCoord {
     int x, z;
@@ -24,8 +22,27 @@ namespace std {
     };
 }
 
+enum Direction {
+    NORTH,
+    SOUTH,
+    EAST,
+    WEST,
+    NORTH_EAST,
+    NORTH_WEST,
+    SOUTH_EAST,
+    SOUTH_WEST
+};
+
+constexpr Direction directionList[8] = { NORTH, SOUTH, EAST, WEST, NORTH_EAST, NORTH_WEST, SOUTH_EAST, SOUTH_WEST };
+
+constexpr int directionOffsetX[] = { 0, 0, -1, 1, -1, 1, -1, 1 };
+constexpr int directionOffsetZ[] = { 1, -1, 0, 0, 1, 1, -1, -1 };
+
+
+
 class Chunk {
 public:
+
     Block _blocks[CHUNK_SIZE][CHUNK_HEIGHT][CHUNK_SIZE];
     Mesh _mesh;
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
@@ -44,7 +61,14 @@ public:
 
     void generate();
 
-    static bool is_outside_chunk(const glm::ivec3& localPos);
+    static constexpr bool is_outside_chunk(const glm::ivec3& localPos)
+    {
+        if (localPos.x < 0 || localPos.x >= CHUNK_SIZE || localPos.y < 0 || localPos.y >= CHUNK_HEIGHT || localPos.z < 0 || localPos.z >= CHUNK_SIZE) {
+            return true;
+        }
+
+        return false;
+    }
 private:
 
 

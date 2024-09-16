@@ -1,5 +1,7 @@
 
 # Add source to this project's executable.
+set(CMAKE_CXX_FLAGS_DEBUG, "/Zi")
+
 add_executable(vulkan_guide
     main.cpp
     vk_engine.cpp
@@ -28,7 +30,8 @@ add_executable(vulkan_guide
     player.h
     player.cpp
     terrain_gen.h
-    terrain_gen.cpp)
+    terrain_gen.cpp
+    constants.h)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")

@@ -1,14 +1,6 @@
 #include "chunk.h"
 #include <terrain_gen.h>
 
-bool Chunk::is_outside_chunk(const glm::ivec3& pos)
-{
-    if (pos.x < 0 || pos.x >= CHUNK_SIZE || pos.y < 0 || pos.y >= CHUNK_HEIGHT || pos.z < 0 || pos.z >= CHUNK_SIZE) {
-        return true;
-    }
-
-    return false;
-}
 
 void Chunk::reset(ChunkCoord newCoord)
 {
@@ -78,7 +70,7 @@ Block* Chunk::get_block(const glm::ivec3& localPos)
 
 glm::ivec3 Chunk::get_world_pos(const glm::ivec3& localPos)
 {
-    return { localPos.x + (_position.x), localPos.y, localPos.z + _position.y };
+    return { localPos.x + _position.x, localPos.y, localPos.z + _position.y };
 }
 
 

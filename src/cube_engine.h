@@ -6,9 +6,6 @@
 #include <player.h>
 
 
-//number is in chunks away from player position.
-constexpr int DEFAULT_VIEW_DISTANCE = 8;
-
 class CubeEngine {
 public:
     Player _player;

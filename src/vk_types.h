@@ -21,6 +21,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <future>
+#include <shared_mutex>
+#include <tuple>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>

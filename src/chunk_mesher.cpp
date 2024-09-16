@@ -1,17 +1,14 @@
 
 #include <chunk_mesher.h>
 
-void ChunkMesher::generate_mesh(Chunk* chunk)
+void ChunkMesher::generate_mesh()
 {
     //fmt::println("Generating mesh for chunk");
-
-    _chunk = chunk;
-    //propagate_sunlight();
 
     for (int x = 0; x < CHUNK_SIZE; ++x) {
         for (int y = 0; y < CHUNK_HEIGHT; ++y) {
             for (int z = 0; z < CHUNK_SIZE; ++z) {
-                Block& block = _chunk->_blocks[x][y][z];
+                Block& block = _chunk._blocks[x][y][z];
                 if (block._solid) {
                     for(auto face : faceDirections)
                     {
@@ -25,7 +22,7 @@ void ChunkMesher::generate_mesh(Chunk* chunk)
         }
     }
 
-    _chunk->_mesh = _mesh;
+    _chunk._mesh = _mesh;
 
     //fmt::println("Finished generating chunk");
 }
@@ -39,10 +36,18 @@ Block* ChunkMesher::get_face_neighbor(const Block& block, FaceDirection face)
     if (Chunk::is_outside_chunk({ nx, ny, nz }))
     {
         //Perform more expenive search.
-        return _manager->getBlockGlobal(_chunk->get_world_pos({ nx, ny, nz }));
+        auto direction = get_chunk_direction({ nx, ny, nz });
+        if(direction.has_value())
+        {
+            auto chunk = _chunkNeighbors[direction.value()];
+            auto local_pos = World::get_local_coordinates({ nx, ny, nz });
+            return &chunk->_blocks[local_pos.x][local_pos.y][local_pos.z];
+        } else {
+            return nullptr;
+        }
     }
 
-    return &_chunk->_blocks[nx][ny][nz];
+    return &_chunk._blocks[nx][ny][nz];
 }
 
 bool ChunkMesher::is_face_visible(const Block& block, FaceDirection face)
@@ -58,7 +63,7 @@ bool ChunkMesher::is_face_visible(const Block& block, FaceDirection face)
         return !is_position_solid({ nx, ny, nz });
     }
 
-    return !_chunk->_blocks[nx][ny][nz]._solid;
+    return !_chunk._blocks[nx][ny][nz]._solid;
 }
 
 //Face cube position of the 
@@ -73,7 +78,7 @@ float ChunkMesher::calculate_vertex_ao(glm::ivec3 cubePos, FaceDirection face, i
     glm::ivec3 edge2Pos = cubePos + Side2Offsets[face][vertex];
 
     if (!Chunk::is_outside_chunk(cornerPos)) {
-        corner = _chunk->_blocks[cornerPos.x][cornerPos.y][cornerPos.z]._solid;
+        corner = _chunk._blocks[cornerPos.x][cornerPos.y][cornerPos.z]._solid;
     }
     else {
         corner = is_position_solid(cornerPos);
@@ -81,14 +86,14 @@ float ChunkMesher::calculate_vertex_ao(glm::ivec3 cubePos, FaceDirection face, i
 
     if (!Chunk::is_outside_chunk(edge1Pos))
     {
-        edge1 = _chunk->_blocks[edge1Pos.x][edge1Pos.y][edge1Pos.z]._solid;
+        edge1 = _chunk._blocks[edge1Pos.x][edge1Pos.y][edge1Pos.z]._solid;
     } else {
         edge1 = is_position_solid(edge1Pos);
     }
 
     if (!Chunk::is_outside_chunk(edge2Pos))
     {
-        edge2 = _chunk->_blocks[edge2Pos.x][edge2Pos.y][edge2Pos.z]._solid;
+        edge2 = _chunk._blocks[edge2Pos.x][edge2Pos.y][edge2Pos.z]._solid;
     } else {
         edge2 = is_position_solid(edge2Pos);
     }
@@ -122,7 +127,7 @@ void ChunkMesher::propagate_sunlight()
     {
         for (int z = 0; z < CHUNK_SIZE; z++)
         {
-            if (_chunk->_blocks[x][CHUNK_HEIGHT - 1][z]._sunlight > 0)
+            if (_chunk._blocks[x][CHUNK_HEIGHT - 1][z]._sunlight > 0)
             {
                 lightQueue.push({ x, CHUNK_HEIGHT - 1, z});
             }
@@ -145,8 +150,8 @@ void ChunkMesher::propagate_sunlight()
 
             if(!Chunk::is_outside_chunk({ nx, ny, nz }))
             {
-                neighbor = &_chunk->_blocks[nx][ny][nz];
-                int newLight = _chunk->_blocks[current.x][current.y][current.z]._sunlight - 1;
+                neighbor = &_chunk._blocks[nx][ny][nz];
+                int newLight = _chunk._blocks[current.x][current.y][current.z]._sunlight - 1;
 
                 if (neighbor && !neighbor->_solid && neighbor->_sunlight < newLight)
                 {
@@ -169,20 +174,55 @@ void ChunkMesher::propagate_sunlight()
     {
         glm::ivec3 current = crossChunkQueue.front();
         crossChunkQueue.pop();
-
-
     }
 }
 
-bool ChunkMesher::is_position_solid(glm::ivec3 localPos)
+std::optional<Direction> ChunkMesher::get_chunk_direction(const glm::ivec3& localPos)
 {
-    auto block = _manager->getBlockGlobal(_chunk->get_world_pos(localPos));
-    if(block != nullptr)
-    {
-        return block->_solid;
-    } else {
-        return false;
+    //auto local_offset = World::get_local_coordinates(localPos);
+    auto x = localPos.x > 15 ? 1 : (localPos.x < 0 ? -1 : 0);
+    auto z = localPos.z > 15 ? 1 : (localPos.z < 0 ? -1 : 0);
+
+    if (x == 0 && z == 1) {
+        return NORTH;
     }
+    else if (x == 0 && z == -1) {
+        return SOUTH;
+    }
+    else if (x == 1 && z == 0) {
+        return WEST;
+    }
+    else if (x == -1 && z == 0) {
+        return EAST;
+    }
+    else if (x == 1 && z == 1) {
+        return NORTH_WEST;
+    }
+    else if (x == -1 && z == 1) {
+        return NORTH_EAST;
+    }
+    else if (x == 1 && z == -1) {
+        return SOUTH_WEST;
+    }
+    else if (x == -1 && z == -1) {
+        return SOUTH_EAST;
+    }
+
+    return std::nullopt;
+}
+
+bool ChunkMesher::is_position_solid(const glm::ivec3& localPos)
+{
+    auto direction = get_chunk_direction(localPos);
+    if(direction.has_value()) {
+        auto target_chunk = _chunkNeighbors[direction.value()];
+        auto new_pos = World::get_local_coordinates(localPos);
+        auto block = target_chunk->_blocks[new_pos.x][new_pos.y][new_pos.z];
+
+        return block._solid;
+    }
+
+    return true;
 }
 
 void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
@@ -193,8 +233,8 @@ void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
 //note: a block's position is the back-bottom-right of the cube.
 void ChunkMesher::add_face_to_mesh(const Block& block, FaceDirection face)
 {
-    Block* faceNeighbor = get_face_neighbor(block, face);
-    float sunLight = faceNeighbor ? static_cast<float>(faceNeighbor->_sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : MAX_LIGHT_LEVEL;
+    //Block* faceNeighbor = get_face_neighbor(block, face);
+   // float sunLight = faceNeighbor ? static_cast<float>(faceNeighbor->_sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : MAX_LIGHT_LEVEL;
 
     for (int i = 0; i < 4; ++i) {
         //get the neighbors light-level

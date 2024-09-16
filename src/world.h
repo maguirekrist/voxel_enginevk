@@ -11,7 +11,6 @@ class World {
 public:
     World(ChunkManager* chunkManager) : _chunkManager(chunkManager) {    }
 
-    bool is_position_solid(const glm::ivec3& worldPos);
     Block* get_block(const glm::ivec3& worldPos);
     Chunk* get_chunk(glm::vec3 worldPos); 
 

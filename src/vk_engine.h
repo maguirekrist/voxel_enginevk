@@ -28,7 +28,7 @@ private:
 	std::deque<std::function<void()>> deletors;
 };
 
-constexpr unsigned int FRAME_OVERLAP = 2;
+constexpr unsigned int FRAME_OVERLAP = 1;
 
 class VulkanEngine {
 public:
@@ -58,7 +58,7 @@ public:
 	VkRenderPass _renderPass;
 	std::vector<VkFramebuffer> _framebuffers;
 
-	std::unordered_map<std::string, Material> _materials;
+	static std::unordered_map<std::string, Material> _materials;
     std::unordered_map<std::string, Mesh*> _meshes;
 
 	std::vector<RenderObject> _renderObjects;
@@ -86,9 +86,9 @@ public:
 
 	FrameData& get_current_frame();
 
-	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
+	static Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
 
-	Material* get_material(const std::string& name);
+	static Material* get_material(const std::string& name);
 
 	static void upload_mesh(Mesh& mesh);
 	static void unload_mesh(Mesh& mesh);

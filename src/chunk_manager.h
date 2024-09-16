@@ -8,11 +8,13 @@ struct WorldUpdateJob {
     int _changeZ;
     std::queue<ChunkCoord> _chunksToLoad;
     std::queue<ChunkCoord> _chunksToUnload; 
+    std::queue<ChunkCoord> _chunksToMesh;
 };
 
 class ChunkManager {
 public:
     std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>> _loadedChunks;
+    std::vector<RenderObject> _renderChunks;
     std::unordered_set<ChunkCoord> _worldChunks;
     std::unordered_set<ChunkCoord> _oldWorldChunks;
 
@@ -63,16 +65,15 @@ public:
     }
 
     Block* getBlockGlobal(int x, int y, int z);
-    Block* getBlockGlobal(glm::ivec3 pos);
 
 private:
     void updateWorldState();
     void queueWorldUpdate(int changeX, int changeZ);
 
-    void worker();
-
     void worldUpdate();
     void meshChunk();
+
+    std::vector<Chunk*> get_chunk_neighbors(ChunkCoord coord);
 
     int _viewDistance;
     size_t _maxChunks;
@@ -83,7 +84,7 @@ private:
     std::vector<std::unique_ptr<Chunk>> _chunkPool;
 
     std::queue<WorldUpdateJob> _worldUpdateQueue;
-    std::queue<Chunk*> _meshUpdateQueue;
+    std::queue<std::tuple<Chunk*, std::vector<Chunk*>>> _chunkUpdateQueue;
     std::queue<Mesh*> _meshUploadQueue;
 
     bool _updatingWorldState;
@@ -93,6 +94,7 @@ private:
 
     std::mutex _mutexWorld;
     std::mutex _mutexMesh;
+    std::shared_mutex _loadedMutex;
 
     std::condition_variable _cvWorld;
     std::condition_variable _cvMesh;

@@ -17,6 +17,8 @@
 VmaAllocator VulkanEngine::_allocator;
 VkDevice VulkanEngine::_device;
 
+std::unordered_map<std::string, Material> VulkanEngine::_materials;
+
 void VulkanEngine::build_target_block_view(const glm::vec3& worldPos)
 {
 	RenderObject target_block;
@@ -244,9 +246,11 @@ void VulkanEngine::draw()
 
 	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	draw_chunks(cmd);
+	//draw_chunks(cmd);
 
 	//draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
+
+	draw_objects(cmd, _game._chunkManager._renderChunks.data(), _game._chunkManager._renderChunks.size());
 
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
