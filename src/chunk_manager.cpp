@@ -3,6 +3,7 @@
 #include "chunk_mesher.h"
 #include "vk_engine.h"
 #include <chunk_manager.h>
+#include <mutex>
 #include <vulkan/vulkan_core.h>
 
 void ChunkManager::updatePlayerPosition(int x, int z)
@@ -29,6 +30,7 @@ void ChunkManager::updatePlayerPosition(int x, int z)
  
     lock.lock();
     _cvWorld.wait(lock, [this] { return !_updatingWorldState && _worldUpdateQueue.empty(); });
+
     fmt::println("World update completed... refresh renderObjects");
     
     _renderChunks.clear();
@@ -123,12 +125,13 @@ void ChunkManager::worldUpdate()
                 chunk = std::move(_chunkPool.back());
                 _chunkPool.pop_back();
                 chunk->reset(coord);
-                chunk->generate();
             } else {
                 chunk = std::make_unique<Chunk>(coord);
             }
-    
+
+            auto ptrChunk = chunk.get();
             _loadedChunks[coord] = std::move(chunk);
+            _chunkGenQueue.push( ptrChunk);
         }
 
         //Calculate the chunks to mesh now, which are the 
@@ -141,15 +144,18 @@ void ChunkManager::worldUpdate()
             auto neighbors = get_chunk_neighbors(coord);
             if(chunk != nullptr && neighbors.size() == 8)
             {
-                _chunkUpdateQueue.push({ chunk, neighbors });
+                _chunkMeshQueue.push({ chunk, neighbors });
             }
         }
+        _workComplete = false;
 
-        _cvMesh.notify_all();
+        _cvGen.notify_all();    
 
-        std::unique_lock<std::mutex> meshLock(_mutexMesh);
-        _cvMesh.wait(meshLock, [this] { return _chunkUpdateQueue.empty() && _activeWorkers == 0; });
-        
+        std::unique_lock<std::mutex> workLock(_mutexWork);
+        _cvWork.wait(workLock, [this]{ return _workComplete == true;});
+
+        _mutexWork.unlock();
+
         while(!_meshUploadQueue.empty())
         {
             Mesh* mesh = _meshUploadQueue.front();
@@ -196,44 +202,81 @@ std::vector<Chunk*> ChunkManager::get_chunk_neighbors(ChunkCoord coord)
 
 void ChunkManager::meshChunk()
 {
+
     while(_running)
-    {
-        std::unique_lock lock(_mutexMesh);
-        _cvMesh.wait(lock, [this]() { return !_chunkUpdateQueue.empty() || !_running; });
-
-        if (!_running) break;
-
-        //Acquire a mesh
-        if(!_chunkUpdateQueue.empty())
+    { 
+        // First pass: Chunk generation
         {
+            std::unique_lock lock(_mutexPool);
+            _cvGen.wait(lock, [this]() { return !_chunkGenQueue.empty() || !_running; });
+
+            if (!_running) break;  // If shutdown signal, exit
+
             _activeWorkers++;
-            const auto [chunk, neighbors] = _chunkUpdateQueue.front();
-            _chunkUpdateQueue.pop();
 
-            ChunkCoord cCoord = { chunk->_position.x / static_cast<int>(CHUNK_SIZE), chunk->_position.y / static_cast<int>(CHUNK_SIZE) };    
-            std::vector<Chunk*> neighbor_chunks = get_chunk_neighbors(cCoord);
-            
-            //Unlock as we can do this work async with other meshChunk threads
-            lock.unlock();
-            if(chunk != nullptr && !chunk->_isValid && neighbor_chunks.size() == 8)
-            {
-                Mesh oldMesh = chunk->_mesh;
+            // Process chunks in the queue (first pass)
+            while (!_chunkGenQueue.empty()) {
+                auto chunk = _chunkGenQueue.front();
+                _chunkGenQueue.pop();
 
-                ChunkMesher mesher { *chunk, neighbor_chunks };
-                mesher.execute();
-                chunk->_isValid = true;
+                lock.unlock();  // Unlock to allow other threads to access the queue
+
+                ChunkCoord cCoord = { chunk->_position.x / static_cast<int>(CHUNK_SIZE), chunk->_position.y / static_cast<int>(CHUNK_SIZE) };
+                if (chunk != nullptr) {
+                    chunk->generate(_terrainGenerator);  // First pass work
+                }
+
+                lock.lock();  // Lock again for next queue access
             }
+        }
 
-            lock.lock();
-            _activeWorkers --;
+        // Synchronization point or barrier before starting second pass
+        {
+            std::unique_lock lock(_mutex_barrier);
+            _activeWorkers--;
+            if (_activeWorkers == 0) {
+                // All threads finished the first pass, signal second pass start
+                _cvMesh.notify_all();
+            } else {
+                // Wait for all threads to finish first pass
+                _cvMesh.wait(lock, [this] { return _activeWorkers == 0 || !_running; });
+            }
+        }
 
-            if(chunk->_isValid) {
+        {
+            std::unique_lock lock(_mutexPool); 
+            _cvMesh.wait(lock, [this] { return !_chunkMeshQueue.empty() || !_running; });
+
+            if(!_running) break;
+            _activeWorkers++;
+
+            while(!_chunkMeshQueue.empty())
+            {  
+                const auto [chunk, neighbors] = _chunkMeshQueue.front();
+                _chunkMeshQueue.pop();
+                lock.unlock();
+                if(chunk != nullptr && neighbors.size() == 8)
+                {
+                    //Mesh oldMesh = chunk->_mesh;
+                    ChunkMesher mesher { *chunk, neighbors };
+                    mesher.execute();
+                    chunk->_isValid = true;
+                }
+                lock.lock();
                 _meshUploadQueue.push(&chunk->_mesh);
             }
+        }
 
-            if(_chunkUpdateQueue.empty() && _activeWorkers == 0)
-            {
-                _cvMesh.notify_all();
+        {
+            std::unique_lock lock(_mutexWork);
+            _activeWorkers--;
+            if (_activeWorkers == 0) {
+                // All threads finished the first pass, signal second pass start
+                _workComplete = true;
+                _cvWork.notify_all();
+            } else {
+                // Wait for all threads to finish first pass
+                _cvWork.wait(lock, [this] { return _activeWorkers == 0 || _workComplete || !_running; });
             }
         }
 

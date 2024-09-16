@@ -1,4 +1,5 @@
 #pragma once
+#include "terrain_gen.h"
 #include <vk_types.h>
 #include <vk_mesh.h>
 #include <block.h>
@@ -53,13 +54,11 @@ public:
 
     Chunk() {};
 
-    Chunk(ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)) {
-        generate();
-    }
+    Chunk(ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)) {}
 
     void reset(ChunkCoord newCoord);
 
-    void generate();
+    void generate(TerrainGenerator generator);
 
     static constexpr bool is_outside_chunk(const glm::ivec3& localPos)
     {

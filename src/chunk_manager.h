@@ -1,5 +1,7 @@
 #pragma once
 
+#include "terrain_gen.h"
+#include <condition_variable>
 #include <vk_types.h>
 #include <chunk.h>
 
@@ -23,8 +25,8 @@ public:
           _maxChunks((2 * viewDistance + 1) * (2 * viewDistance + 1)),
           _maxThreads(std::thread::hardware_concurrency() - 1),
           _activeWorkers(0),
-          _running(true) {
-
+          _running(true),
+          _terrainGenerator(TerrainGenerator::instance()) {
         _chunkPool.reserve(_maxChunks);
         for(int i = 0; i < _maxChunks; i++)
         {
@@ -81,22 +83,31 @@ private:
     bool _initLoad{true};
     ChunkCoord _lastPlayerChunk = {0, 0};
 
+    TerrainGenerator& _terrainGenerator;
+
     std::vector<std::unique_ptr<Chunk>> _chunkPool;
 
     std::queue<WorldUpdateJob> _worldUpdateQueue;
-    std::queue<std::tuple<Chunk*, std::vector<Chunk*>>> _chunkUpdateQueue;
+    std::queue<Chunk*> _chunkGenQueue;
+    std::queue<std::tuple<Chunk*, std::vector<Chunk*>>> _chunkMeshQueue;
     std::queue<Mesh*> _meshUploadQueue;
 
     bool _updatingWorldState;
     std::vector<std::thread> _workers;
-    size_t _activeWorkers;
+    std::atomic<size_t> _activeWorkers;
     std::thread _updateThread;
 
     std::mutex _mutexWorld;
-    std::mutex _mutexMesh;
+    std::mutex _mutexPool;
+    std::mutex _mutex_barrier;
+    std::mutex _mutexWork;
     std::shared_mutex _loadedMutex;
 
     std::condition_variable _cvWorld;
     std::condition_variable _cvMesh;
+    std::condition_variable _cvGen;
+    std::condition_variable _cvWork;
+    std::atomic<bool> _workComplete;
+
     std::atomic<bool> _running;
 };
