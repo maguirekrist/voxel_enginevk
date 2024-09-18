@@ -34,7 +34,7 @@ public:
         }
         for(size_t i = 0; i < _maxThreads; i++)
         {
-            _workers.emplace_back(&ChunkManager::meshChunk, this);
+            _workers.emplace_back(&ChunkManager::meshChunk, this, i);
         }
         _updateThread = std::thread(&ChunkManager::worldUpdate, this);
         _updatingWorldState = false;
@@ -73,9 +73,9 @@ private:
     void queueWorldUpdate(int changeX, int changeZ);
 
     void worldUpdate();
-    void meshChunk();
+    void meshChunk(int threadId);
 
-    std::vector<Chunk*> get_chunk_neighbors(ChunkCoord coord);
+    std::optional<std::array<Chunk*, 8>> get_chunk_neighbors(ChunkCoord coord);
 
     int _viewDistance;
     size_t _maxChunks;
@@ -89,7 +89,7 @@ private:
 
     std::queue<WorldUpdateJob> _worldUpdateQueue;
     std::queue<Chunk*> _chunkGenQueue;
-    std::queue<std::tuple<Chunk*, std::vector<Chunk*>>> _chunkMeshQueue;
+    std::queue<std::tuple<Chunk*, std::array<Chunk*, 8>>> _chunkMeshQueue;
     std::queue<Mesh*> _meshUploadQueue;
 
     bool _updatingWorldState;

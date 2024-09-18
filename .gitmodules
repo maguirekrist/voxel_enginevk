@@ -1,3 +1,6 @@
 [submodule "third_party/FastNoise2"]
 	path = third_party/FastNoise2
 	url = https://github.com/Auburn/FastNoise2.git
+[submodule "third_party/tracy"]
+	path = third_party/tracy
+	url = https://github.com/wolfpld/tracy.git

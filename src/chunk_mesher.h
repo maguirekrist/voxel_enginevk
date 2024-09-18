@@ -6,7 +6,7 @@
 
 class ChunkMesher {
 public:
-    ChunkMesher(Chunk& chunk, const std::vector<Chunk*>& neighbors) : _chunk(chunk), _chunkNeighbors(neighbors) {}
+    ChunkMesher(Chunk& chunk, const std::array<Chunk*, 8>& neighbors) : _chunk(chunk), _chunkNeighbors(neighbors) {}
 
     void execute()
     {
@@ -15,7 +15,7 @@ public:
 
 private:
     Chunk& _chunk;
-    const std::vector<Chunk*>& _chunkNeighbors;
+    const std::array<Chunk*, 8>& _chunkNeighbors;
 
     Mesh _mesh;
 

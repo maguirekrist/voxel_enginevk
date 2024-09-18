@@ -1,6 +1,6 @@
 #include "chunk.h"
 #include <terrain_gen.h>
-
+#include "tracy/Tracy.hpp"
 
 void Chunk::reset(ChunkCoord newCoord)
 {
@@ -11,6 +11,7 @@ void Chunk::reset(ChunkCoord newCoord)
 
 void Chunk::generate(TerrainGenerator generator)
 {
+        ZoneScopedN("Generate chunk");
         std::vector<float> chunkHeightMap = generator.GenerateHeightMap(_position.x, _position.y);
         for(int x = 0; x < CHUNK_SIZE; x++)
             {

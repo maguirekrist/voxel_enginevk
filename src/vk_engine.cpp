@@ -4,6 +4,8 @@
 #include <SDL.h>
 #include <SDL_vulkan.h>
 
+#include "tracy/Tracy.hpp"
+
 #include <vk_initializers.h>
 #include <sdl_utils.h>
 #include <vulkan/vulkan_core.h>
@@ -191,6 +193,7 @@ void VulkanEngine::handle_input()
 
 void VulkanEngine::draw()
 {
+	ZoneScopedN("RenderFrame");
 	//nothing yet
 	//wait until the GPU has finished rendering the last frame. Timeout of 1 second
 	VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));

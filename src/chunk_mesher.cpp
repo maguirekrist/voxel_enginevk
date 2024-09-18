@@ -1,8 +1,10 @@
 
 #include <chunk_mesher.h>
+#include "tracy/Tracy.hpp"
 
 void ChunkMesher::generate_mesh()
 {
+    ZoneScopedN("Generate Chunk Mesh");
     //fmt::println("Generating mesh for chunk");
 
     for (int x = 0; x < CHUNK_SIZE; ++x) {
