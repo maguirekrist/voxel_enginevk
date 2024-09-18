@@ -1,11 +1,9 @@
 
 #pragma once
 #include <vk_types.h>
-#include <random.h>
 #include <chunk.h>
-#include <chunk_manager.h>
-#include <FastNoise/FastNoise.h>
 
+class ChunkManager;
 
 class World {
 public:

@@ -1,20 +1,47 @@
 
-#include "chunk.h"
+#include "chunk_manager.h"
 #include "chunk_mesher.h"
 #include "vk_engine.h"
-#include <chunk_manager.h>
-#include <common/TracySystem.hpp>
-#include <mutex>
-#include <optional>
-#include <vulkan/vulkan_core.h>
 #include "tracy/Tracy.hpp"
+
+
+ChunkManager::ChunkManager(VulkanEngine& renderer) 
+        : _viewDistance(DEFAULT_VIEW_DISTANCE), 
+          _maxChunks((2 * DEFAULT_VIEW_DISTANCE + 1) * (2 * DEFAULT_VIEW_DISTANCE + 1)),
+          _maxThreads(4),
+          _activeWorkers(0),
+          _running(true),
+          _terrainGenerator(TerrainGenerator::instance()),
+          _renderer(renderer) {
+        _chunkPool.reserve(_maxChunks);
+        for(int i = 0; i < _maxChunks; i++)
+        {
+            _chunkPool.emplace_back(std::make_unique<Chunk>());
+        }
+        for(size_t i = 0; i < _maxThreads; i++)
+        {
+            _workers.emplace_back(&ChunkManager::meshChunk, this, i);
+            _workerCount++;
+        }
+        _updateThread = std::thread(&ChunkManager::worldUpdate, this);
+        _updatingWorldState = false;
+    }
+
+ChunkManager::~ChunkManager()
+{
+    _running = false;
+    _cvWorld.notify_one();
+    _cvMesh.notify_all();
+    for (std::thread &worker : _workers) {
+        worker.join();
+    }
+    _updateThread.join();
+}
 
 void ChunkManager::updatePlayerPosition(int x, int z)
 {
     ChunkCoord playerChunk = {x / static_cast<int>(CHUNK_SIZE), z / static_cast<int>(CHUNK_SIZE)};  // Assuming 16x16 chunks
     if (playerChunk == _lastPlayerChunk && !_initLoad) return;
-
-    std::unique_lock<std::mutex> lock(_mutexWorld);
 
     fmt::println("Main thread begin work!");
 
@@ -25,31 +52,9 @@ void ChunkManager::updatePlayerPosition(int x, int z)
     updateWorldState();
     queueWorldUpdate(changeX, changeZ);
     _initLoad = false;
-
-    fmt::println("Main thread completed work!");
-    lock.unlock();
     _cvWorld.notify_one();
 
- 
-    lock.lock();
-    _cvWorld.wait(lock, [this] { return !_updatingWorldState && _worldUpdateQueue.empty(); });
-
-    fmt::println("World update completed... refresh renderObjects");
-    
-    _renderChunks.clear();
-    for(const auto& coord : _worldChunks)
-    {
-        auto it_chunk = _loadedChunks.find(coord);
-        if(it_chunk != _loadedChunks.end() && it_chunk->second->_isValid)
-        {
-            RenderObject obj;
-            obj.mesh = &it_chunk->second->_mesh;
-            obj.material = VulkanEngine::get_material("defaultmesh");
-            glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(it_chunk->second->_position.x, 0, it_chunk->second->_position.y));
-            obj.transformMatrix = translate;
-            _renderChunks.push_back(obj);
-        }
-    }
+    fmt::println("Main thread completed work!");
 }
 
 void ChunkManager::updateWorldState()
@@ -158,34 +163,32 @@ void ChunkManager::worldUpdate()
 
         _cvGen.notify_all();    
 
-        std::unique_lock<std::mutex> workLock(_mutexWork);
-        _cvWork.wait(workLock, [this]{ return _workComplete == true;});
-
-        _mutexWork.unlock();
+        {
+            std::unique_lock<std::mutex> workLock(_mutexWork);
+            _cvWork.wait(workLock, [this]{ return _workComplete == true;});
+        }
 
         while(!_meshUploadQueue.empty())
         {
             Mesh* mesh = _meshUploadQueue.front();
             _meshUploadQueue.pop();
-            VulkanEngine::upload_mesh(*mesh);
+            _renderer._mainMeshUploadQueue.push(mesh);
         }
 
-
-        while (!updateJob._chunksToUnload.empty())
-        {
-            auto coord = updateJob._chunksToUnload.front();
-            updateJob._chunksToUnload.pop();
-            std::unique_ptr<Chunk> unloadChunk = std::move(_loadedChunks[coord]);
-            _loadedChunks.erase(coord);
-            VulkanEngine::unload_mesh(unloadChunk->_mesh);
-            _chunkPool.push_back(std::move(unloadChunk));
-        }
+        // while (!updateJob._chunksToUnload.empty())
+        // {
+        //     auto coord = updateJob._chunksToUnload.front();
+        //     updateJob._chunksToUnload.pop();
+        //     std::unique_ptr<Chunk> unloadChunk = std::move(_loadedChunks[coord]);
+        //     _loadedChunks.erase(coord);
+        //     _renderer._mainMeshUnloadQueue.push(unloadChunk->_mesh);
+        //     _chunkPool.push_back(std::move(unloadChunk));
+        // }
 
         _updatingWorldState = false;
 
         fmt::println("Worker thread completed.");
 
-        lock.unlock();
         _cvWorld.notify_one();
     }
 }

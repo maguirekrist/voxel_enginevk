@@ -1,9 +1,8 @@
 #pragma once
 
-#include "terrain_gen.h"
-#include <condition_variable>
-#include <vk_types.h>
 #include <chunk.h>
+
+class VulkanEngine;
 
 struct WorldUpdateJob {
     int _changeX;
@@ -20,51 +19,11 @@ public:
     std::unordered_set<ChunkCoord> _worldChunks;
     std::unordered_set<ChunkCoord> _oldWorldChunks;
 
-    ChunkManager(int viewDistance) 
-        : _viewDistance(viewDistance), 
-          _maxChunks((2 * viewDistance + 1) * (2 * viewDistance + 1)),
-          _maxThreads(std::thread::hardware_concurrency() - 1),
-          _activeWorkers(0),
-          _running(true),
-          _terrainGenerator(TerrainGenerator::instance()) {
-        _chunkPool.reserve(_maxChunks);
-        for(int i = 0; i < _maxChunks; i++)
-        {
-            _chunkPool.emplace_back(std::make_unique<Chunk>());
-        }
-        for(size_t i = 0; i < _maxThreads; i++)
-        {
-            _workers.emplace_back(&ChunkManager::meshChunk, this, i);
-        }
-        _updateThread = std::thread(&ChunkManager::worldUpdate, this);
-        _updatingWorldState = false;
-    }
+    ChunkManager(VulkanEngine& renderer);
 
-    ~ChunkManager() {
-        _running = false;
-        _cvWorld.notify_one();
-        _cvMesh.notify_all();
-        for (std::thread &worker : _workers) {
-            worker.join();
-        }
-        _updateThread.join();
-    }
+    ~ChunkManager();
 
     void updatePlayerPosition(int x, int z);
-
-    void printLoadedChunks() {
-        std::unique_lock<std::mutex> lock(_mutexWorld);
-        std::cout << "Loaded chunks: ";
-        for (const auto& chunk : _loadedChunks) {
-            std::cout << "(" << chunk.first.x << "," << chunk.first.z << ") ";
-        }
-        std::cout << std::endl;
-    }
-
-    void printWorldUpdateQueue() {
-        //std::unique_lock<std::mutex> lock(_mutex);
-        fmt::println("World update queue count: {}", _worldUpdateQueue.size());
-    }
 
     Block* getBlockGlobal(int x, int y, int z);
 
@@ -84,6 +43,7 @@ private:
     ChunkCoord _lastPlayerChunk = {0, 0};
 
     TerrainGenerator& _terrainGenerator;
+    VulkanEngine& _renderer;
 
     std::vector<std::unique_ptr<Chunk>> _chunkPool;
 
@@ -95,6 +55,7 @@ private:
     bool _updatingWorldState;
     std::vector<std::thread> _workers;
     std::atomic<size_t> _activeWorkers;
+    size_t _workerCount = 0;
     std::thread _updateThread;
 
     std::mutex _mutexWorld;

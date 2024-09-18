@@ -21,16 +21,15 @@ void Chunk::generate(TerrainGenerator generator)
                 for (int y = 0; y < CHUNK_HEIGHT; y++)
                 {
                     Block& block = _blocks[x][y][z];
-                    block._position = glm::vec3(x, y, z);
-                    block._color = glm::vec3(1.0f, 1.0f, 1.0f);
-
                     if (y <= height)
                     {
                         block._solid = true;
+                        block._type = BlockType::GROUND;
                         block._sunlight = 0;
                     }
                     else {
                         block._solid = false;
+                        block._type = BlockType::AIR;
                         block._sunlight = MAX_LIGHT_LEVEL;
                     }
                 }

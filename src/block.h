@@ -122,7 +122,7 @@ constexpr glm::ivec3 CornerOffsets[6][4] = {
 };
 
 //y-up coordinate system vertices, positive-x is left, positive-z is forward.
-constexpr glm::vec3 faceVertices[6][4] = {
+constexpr glm::ivec3 faceVertices[6][4] = {
     // FRONT_FACE
     { {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1} }, //z is front
     // BACK_FACE
@@ -137,9 +137,13 @@ constexpr glm::vec3 faceVertices[6][4] = {
     { {1, 0, 0}, {0, 0, 0}, {0, 0, 1}, {1, 0, 1} } 
 };
 
+enum BlockType {
+    AIR = 0,
+    GROUND = 1
+};
+
 struct Block {
     bool _solid;
     uint8_t _sunlight;
-    glm::vec3 _color;
-    glm::vec3 _position;
+    uint8_t _type;
 };

@@ -1,8 +1,7 @@
 #pragma once
 
 #include <vk_types.h>
-
-constexpr float DEFAULT_MOVE_SPEED = 100.0f;
+#include <constants.h>
 
 class Player {
 public:

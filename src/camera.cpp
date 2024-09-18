@@ -41,7 +41,7 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, Player& play
             auto block = current_chunk->get_block(localPos);
             if (block && block->_solid) {
                 
-                auto worldPos = current_chunk->get_world_pos(block->_position);
+                auto worldPos = current_chunk->get_world_pos(localPos);
                 auto faceDir = get_face_direction(faceNormal);
                 return RaycastResult{ block, faceDir.has_value() ? faceDir.value() : FaceDirection::FRONT_FACE, current_chunk, worldPos, distance };
             }

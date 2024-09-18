@@ -10,16 +10,13 @@
 #include <sdl_utils.h>
 #include <vulkan/vulkan_core.h>
 
+#include <cube_engine.h>
+
 #include "VkBootstrap.h"
 #include "vk_mesh.h"
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
-
-VmaAllocator VulkanEngine::_allocator;
-VkDevice VulkanEngine::_device;
-
-std::unordered_map<std::string, Material> VulkanEngine::_materials;
 
 void VulkanEngine::build_target_block_view(const glm::vec3& worldPos)
 {
@@ -153,7 +150,7 @@ void VulkanEngine::handle_input()
 						auto chunk = _targetBlock.value()._chunk;
 						glm::vec3 worldBlockPos = _targetBlock.value()._worldPos;
 						build_target_block_view(worldBlockPos);
-						fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
+						//fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
 						fmt::println("Current chunk: Chunk(x: {}, y: {})", chunk->_position.x, chunk->_position.y);
 					}
 				}
@@ -196,15 +193,43 @@ void VulkanEngine::draw()
 	ZoneScopedN("RenderFrame");
 	//nothing yet
 	//wait until the GPU has finished rendering the last frame. Timeout of 1 second
-	VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
-	VK_CHECK(vkResetFences(_device, 1, &get_current_frame()._renderFence));
+	{
+		ZoneScopedN("Wait for GPU");
+		VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
+		VK_CHECK(vkResetFences(_device, 1, &get_current_frame()._renderFence));
+	}
+
+	//Delete old stuff
+	{
+		ZoneScopedN("Handle Unload and Upload meshes");
+
+		while(!_mainMeshUnloadQueue.empty())
+		{
+			auto mesh = _mainMeshUnloadQueue.front();
+			_mainMeshUnloadQueue.pop();
+			unload_mesh(mesh);
+		}
+		//Upload new stuff
+		while(!_mainMeshUploadQueue.empty())
+		{
+			auto mesh = _mainMeshUploadQueue.front();
+			_mainMeshUploadQueue.pop();
+			upload_mesh(*mesh);
+		}
+	}
 
 	//request image from the swapchain, one second timeout
 	uint32_t swapchainImageIndex;
-	VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex));
+	{
+		ZoneScopedN("Request Image");
+		VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex));
+	}
 
-	//now that we are sure that the commands finished executing, we can safely reset the command buffer to begin recording again.
-	VK_CHECK(vkResetCommandBuffer(get_current_frame()._mainCommandBuffer, 0));
+	{
+		ZoneScopedN("Reset buffer");
+		//now that we are sure that the commands finished executing, we can safely reset the command buffer to begin recording again.
+		VK_CHECK(vkResetCommandBuffer(get_current_frame()._mainCommandBuffer, 0));
+	}
 
 	//naming it cmd for shorter writing
 	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
@@ -249,11 +274,13 @@ void VulkanEngine::draw()
 
 	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	//draw_chunks(cmd);
+	{
+		ZoneScopedN("Draw Chunks & Objects");
+		draw_chunks(cmd);
+		draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
+	}
 
-	//draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
-
-	draw_objects(cmd, _game._chunkManager._renderChunks.data(), _game._chunkManager._renderChunks.size());
+	//draw_objects(cmd, _game._chunkManager._renderChunks.data(), _game._chunkManager._renderChunks.size());
 
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
@@ -617,31 +644,32 @@ std::string getShaderPath(const std::string& shaderName) {
 	std::filesystem::path exePath = std::filesystem::current_path();
 
 	// Navigate to the shaders directory
-	return (exePath.parent_path() / "shaders" / shaderName).string();
+	return (exePath / "shaders" / shaderName).string();
 }
 
 void VulkanEngine::init_pipelines()
 {	
 	build_material_default();
-	//build_material_wireframe();
+	build_material_wireframe();
 }
 
 void VulkanEngine::build_material_default()
 {
 	VkShaderModule trimeshFragShader;
-
-	if (!load_shader_module(getShaderPath("tri_mesh.frag.spv"), &trimeshFragShader))
+	auto fragShaderPath = getShaderPath("tri_mesh.frag.spv");
+	if (!load_shader_module(fragShaderPath, &trimeshFragShader))
 	{
-		fmt::println("Error when building the trimesh fragment shader module");
+		fmt::println("Error when building the trimesh fragment shader module at: {}", fragShaderPath);
 	}
 	else {
 		fmt::println("Trimesh fragment shader successfully loaded");
 	}
 
 	VkShaderModule trimeshVertexShader;
-	if (!load_shader_module(getShaderPath("tri_mesh.vert.spv"), &trimeshVertexShader))
+	auto vertexShaderPath = getShaderPath("tri_mesh.vert.spv");
+	if (!load_shader_module(vertexShaderPath, &trimeshVertexShader))
 	{
-		fmt::println("Error when building the trimesh vertex shader module");
+		fmt::println("Error when building the trimesh vertex shader module at: {}", vertexShaderPath);
 
 	}
 	else {
@@ -744,7 +772,6 @@ void VulkanEngine::build_material_default()
 void VulkanEngine::build_material_wireframe()
 {
 	VkShaderModule wiremeshFragShader;
-
 	if (!load_shader_module(getShaderPath("wire_mesh.frag.spv"), &wiremeshFragShader))
 	{
 		fmt::println("Error when building the triangle fragment shader module");
@@ -977,7 +1004,7 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 {
 	// vkWaitForFences(_de, 1, &renderFence, VK_TRUE, UINT64_MAX);
     // vkResetFences(device, 1, &renderFence);
-
+	
 	//allocate vertex buffer
 	VkBufferCreateInfo vertexBufferInfo = vkinit::buffer_create_info(mesh._vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 	VkBufferCreateInfo indexBufferInfo = vkinit::buffer_create_info(mesh._indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
@@ -987,21 +1014,21 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
 	//allocate the buffer
-	VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo,
+	vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo,
 		&mesh._vertexBuffer._buffer,
 		&mesh._vertexBuffer._allocation,
-		nullptr));
+		nullptr);
 
-	VK_CHECK(vmaCreateBuffer(_allocator, &indexBufferInfo, &vmaallocInfo,
+	vmaCreateBuffer(_allocator, &indexBufferInfo, &vmaallocInfo,
 		&mesh._indexBuffer._buffer,
 		&mesh._indexBuffer._allocation,
-		nullptr));
+		nullptr);
 
 	// //add the destruction of triangle mesh buffer to the deletion queue
 	// _mainDeletionQueue.push_function([=]() {
-    //     vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+	//     vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
 	// 	vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
-    // });
+	// });
 
 	//copy vertex data
 	void* vertexData;
@@ -1018,12 +1045,10 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 
 void VulkanEngine::unload_mesh(Mesh& mesh)
 {
-	//VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));		
-	if(mesh._isActive) {
-		vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
-		vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
-		mesh._isActive = false;
-	}
+
+	vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+	vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
+	mesh._isActive = false;
 }
 
 FrameData& VulkanEngine::get_current_frame()
@@ -1102,16 +1127,21 @@ void VulkanEngine::draw_chunks(VkCommandBuffer cmd)
 	std::vector<RenderObject> chunkDebugViews;
 	for (const auto& coord : _game._chunkManager._worldChunks)
 	{
+		ZoneScopedN("Draw Chunk");
 		if(_game._chunkManager._loadedChunks.contains(coord))
 		{
 			auto chunk = _game._chunkManager._loadedChunks[coord].get();
 			if(chunk != nullptr && chunk->_isValid && chunk->_mesh._isActive)
 			{
+				
 				RenderObject object;
-				object.material = get_material("defaultmesh");
-				object.mesh = &chunk->_mesh;
-				glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_position.x, 0, chunk->_position.y));
-				object.transformMatrix = translate;
+				{
+					ZoneScopedN("Setup RenderObject Chunk");
+					object.material = get_material("defaultmesh");
+					object.mesh = &chunk->_mesh;
+					glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_position.x, 0, chunk->_position.y));
+					object.transformMatrix = translate;
+				}
 
 				//only bind the pipeline if it doesn't match with the already bound one
 				if (object.material != lastMaterial) {
