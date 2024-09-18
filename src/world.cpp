@@ -1,6 +1,6 @@
 
 #include "world.h"
-
+#include "chunk_manager.h"
 
 Block* World::get_block(const glm::ivec3& worldPos)
 {

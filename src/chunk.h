@@ -6,6 +6,8 @@
 #include <constants.h>
 
 
+
+
 struct ChunkCoord {
     int x, z;
     
@@ -43,7 +45,6 @@ constexpr int directionOffsetZ[] = { 1, -1, 0, 0, 1, 1, -1, -1 };
 
 class Chunk {
 public:
-
     Block _blocks[CHUNK_SIZE][CHUNK_HEIGHT][CHUNK_SIZE];
     Mesh _mesh;
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.

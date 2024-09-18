@@ -1,5 +1,6 @@
 
 #include <chunk_mesher.h>
+#include <world.h>
 
 void ChunkMesher::generate_mesh()
 {
@@ -12,9 +13,9 @@ void ChunkMesher::generate_mesh()
                 if (block._solid) {
                     for(auto face : faceDirections)
                     {
-                        if(is_face_visible(block, face))
+                        if(is_face_visible(x, y, z, face))
                         {
-                            add_face_to_mesh(block, face);
+                            add_face_to_mesh(x, y, z, face);
                         }
                     }
                 }
@@ -27,11 +28,11 @@ void ChunkMesher::generate_mesh()
     //fmt::println("Finished generating chunk");
 }
 
-Block* ChunkMesher::get_face_neighbor(const Block& block, FaceDirection face)
+Block* ChunkMesher::get_face_neighbor(int x, int y, int z, FaceDirection face)
 {
-    int nx = block._position.x + faceOffsetX[face];
-    int ny = block._position.y + faceOffsetY[face];
-    int nz = block._position.z + faceOffsetZ[face];
+    int nx = x + faceOffsetX[face];
+    int ny = y + faceOffsetY[face];
+    int nz = z + faceOffsetZ[face];
 
     if (Chunk::is_outside_chunk({ nx, ny, nz }))
     {
@@ -50,12 +51,12 @@ Block* ChunkMesher::get_face_neighbor(const Block& block, FaceDirection face)
     return &_chunk._blocks[nx][ny][nz];
 }
 
-bool ChunkMesher::is_face_visible(const Block& block, FaceDirection face)
+bool ChunkMesher::is_face_visible(int x, int y, int z, FaceDirection face)
 {
     // Check the neighboring block in the direction of 'face'
-    int nx = block._position.x + faceOffsetX[face];
-    int ny = block._position.y + faceOffsetY[face];
-    int nz = block._position.z + faceOffsetZ[face];
+    int nx = x + faceOffsetX[face];
+    int ny = y + faceOffsetY[face];
+    int nz = z + faceOffsetZ[face];
 
     if (Chunk::is_outside_chunk({ nx, ny, nz }))
     {
@@ -231,15 +232,17 @@ void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
 }
 
 //note: a block's position is the back-bottom-right of the cube.
-void ChunkMesher::add_face_to_mesh(const Block& block, FaceDirection face)
+void ChunkMesher::add_face_to_mesh(int x, int y, int z, FaceDirection face)
 {
     //Block* faceNeighbor = get_face_neighbor(block, face);
    // float sunLight = faceNeighbor ? static_cast<float>(faceNeighbor->_sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : MAX_LIGHT_LEVEL;
 
+    glm::ivec3 blockPos{x,y,z};
+
     for (int i = 0; i < 4; ++i) {
         //get the neighbors light-level
-        glm::vec3 position = block._position + faceVertices[face][i];
-        float ao = calculate_vertex_ao(block._position, face, i);
+        glm::ivec3 position = blockPos + faceVertices[face][i];
+        float ao = calculate_vertex_ao(blockPos, face, i);
         
         //TODO: figure out how AO effects the color of the block/vertex. You can use vertex interpolation to shade.
         _mesh._vertices.push_back({ position, glm::vec3(0.0f), faceColors[face] * (ao) });

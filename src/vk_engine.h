@@ -4,36 +4,40 @@
 #pragma once
 
 #include <vk_mesh.h>
-#include <cube_engine.h>
 #include <camera.h>
+#include <cube_engine.h>
 #include <vulkan/vulkan_core.h>
 
-class DeletionQueue {
+class FunctionQueue {
 public:
 	
 	void push_function(std::function<void()>&& function)
 	{
-		deletors.push_back(function);
+		funcs.push_back(std::move(function));
 	}
 
 	void flush() {
-		for(auto func : deletors) {
+		for(auto& func : funcs) {
 			func();
 		}
 
-		deletors.clear();
+		funcs.clear();
 	}
 
 private:
-	std::deque<std::function<void()>> deletors;
+	std::deque<std::function<void()>> funcs;
 };
-
-constexpr unsigned int FRAME_OVERLAP = 1;
 
 class VulkanEngine {
 public:
+	static VulkanEngine& instance()		
+	{
+		static VulkanEngine *instance = new VulkanEngine();
+        return *instance;
+	}
+
 	bool _isInitialized{ false };
-	bool bUseValidationLayers{ false };
+	bool bUseValidationLayers{ true };
 	int _frameNumber {0};
 
 	bool bFocused = false;
@@ -42,7 +46,7 @@ public:
 	VkInstance _instance;
 	VkDebugUtilsMessengerEXT _debug_messenger;
 	VkPhysicalDevice _chosenGPU;
-	static VkDevice _device;
+	VkDevice _device;
 	VkSurfaceKHR _surface;
 
 	VkSwapchainKHR _swapchain;
@@ -58,11 +62,11 @@ public:
 	VkRenderPass _renderPass;
 	std::vector<VkFramebuffer> _framebuffers;
 
-	static std::unordered_map<std::string, Material> _materials;
+	std::unordered_map<std::string, Material> _materials;
     std::unordered_map<std::string, Mesh*> _meshes;
 
 	std::vector<RenderObject> _renderObjects;
-	CubeEngine _game;
+	CubeEngine _game{ *this };
 	Camera _camera;
 	std::optional<RaycastResult> _targetBlock;
 
@@ -75,8 +79,10 @@ public:
 	AllocatedImage _depthImage;
 	VkFormat _depthFormat;
 
-	DeletionQueue _mainDeletionQueue;
-	static VmaAllocator _allocator;
+	FunctionQueue _mainDeletionQueue;
+	std::queue<Mesh*> _mainMeshUploadQueue;
+	std::queue<Mesh> _mainMeshUnloadQueue;
+	VmaAllocator _allocator;
 
 	FrameData _frames[FRAME_OVERLAP];
 
@@ -86,12 +92,12 @@ public:
 
 	FrameData& get_current_frame();
 
-	static Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
+	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
 
-	static Material* get_material(const std::string& name);
+	Material* get_material(const std::string& name);
 
-	static void upload_mesh(Mesh& mesh);
-	static void unload_mesh(Mesh& mesh);
+	void upload_mesh(Mesh& mesh);
+	void unload_mesh(Mesh& mesh);
 
 	//??
 	//Mesh* get_mesh(const std::string& name);
@@ -116,6 +122,8 @@ public:
 	//run main loop
 	void run();
 private:
+
+	VulkanEngine() {};
 
 	void init_vulkan();
 	void init_swapchain();
