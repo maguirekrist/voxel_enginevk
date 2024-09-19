@@ -3,7 +3,7 @@
 #include "chunk_mesher.h"
 #include "vk_engine.h"
 #include "tracy/Tracy.hpp"
-
+#include "thread_types.h"
 
 ChunkManager::ChunkManager(VulkanEngine& renderer) 
         : _viewDistance(DEFAULT_VIEW_DISTANCE), 
@@ -221,6 +221,9 @@ std::optional<std::array<Chunk*, 8>> ChunkManager::get_chunk_neighbors(ChunkCoor
 void ChunkManager::meshChunk(int threadId)
 {
     tracy::SetThreadName(fmt::format("Chunk Update Thread: {}", threadId).c_str());
+
+    static Barrier barrier(_maxThreads);
+
     while(_running)
     { 
         // First pass: Chunk generation
@@ -251,18 +254,7 @@ void ChunkManager::meshChunk(int threadId)
             }
         }
 
-        // Synchronization point or barrier before starting second pass
-        {
-            std::unique_lock lock(_mutex_barrier);
-            _activeWorkers--;
-            if (_activeWorkers == 0) {
-                // All threads finished the first pass, signal second pass start
-                _cvMesh.notify_all();
-            } else {
-                // Wait for all threads to finish first pass
-                _cvMesh.wait(lock, [this] { return _activeWorkers == 0 || !_running; });
-            }
-        }
+        barrier.wait();
 
         {
             std::unique_lock lock(_mutexPool); 
@@ -292,6 +284,12 @@ void ChunkManager::meshChunk(int threadId)
             }
         }
 
+        barrier.wait();
+        std::unique_lock lock(_mutexWork);
+        _workComplete = true;
+        _cvWork.notify_all();
+
+
         {
             std::unique_lock lock(_mutexWork);
             _activeWorkers--;
@@ -303,7 +301,7 @@ void ChunkManager::meshChunk(int threadId)
                 // Wait for all threads to finish first pass
                 _cvWork.wait(lock, [this] { return _activeWorkers == 0 || _workComplete || !_running; });
             }
-        }
+        } 
 
     }
 }
