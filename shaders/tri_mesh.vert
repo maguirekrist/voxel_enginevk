@@ -6,14 +6,19 @@ layout (location = 2) in vec3 vColor;
 
 layout (location = 0) out vec3 outColor;
 
-layout ( push_constant ) uniform constants
-{
-    vec4 data;
+// layout ( push_constant ) uniform constants
+// {
+//     vec4 data;
+//     mat4 render_matrix;
+// } PushConstants;
+
+layout(set = 0, binding = 0) uniform CameraUBO {
+    vec2 chunkPos;
     mat4 render_matrix;
-} PushConstants;
+} camera;
 
 void main()
 {
-	gl_Position = PushConstants.render_matrix * vec4(vPosition, 1.0f);
+	gl_Position = render_matrix * vec4(vPosition, 1.0f);
 	outColor = vColor;
 }

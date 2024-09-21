@@ -39,10 +39,13 @@ struct Mesh {
     static Mesh create_cube_mesh();
 };
 
+struct UniformBuffer {
+    glm::mat4 projection_view;
+    AllocatedBuffer _uniformBuffer;
+};
+
 struct RenderObject {
 	Mesh* mesh;
-
 	Material* material;
-
-	glm::mat4 transformMatrix;
+	glm::ivec2 xzPos;
 };

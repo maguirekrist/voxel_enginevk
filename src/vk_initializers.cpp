@@ -1,4 +1,5 @@
 ﻿#include <vk_initializers.h>
+#include <vulkan/vulkan_core.h>
 
 
 VkPipelineShaderStageCreateInfo vkinit::pipeline_shader_stage_create_info(VkShaderStageFlagBits stageBits, VkShaderModule shaderModule)
@@ -102,6 +103,17 @@ VkPipelineColorBlendAttachmentState vkinit::color_blend_attachment_state_blendin
     colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
     return colorBlendAttachment;
+}
+
+VkPushConstantRange vkinit::pushconstrant_range(size_t size)
+{
+    VkPushConstantRange push_constant;
+	//this push constant range starts at the beginning
+	push_constant.offset = 0;
+	//this push constant range takes up the size of a MeshPushConstants struct
+	push_constant.size = size;
+	//this push constant range is accessible only in the vertex shader
+	push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 }
 
 VkPipelineLayoutCreateInfo vkinit::pipeline_layout_create_info()
@@ -236,4 +248,60 @@ VkCommandBufferAllocateInfo vkinit::command_buffer_allocate_info(VkCommandPool c
 	cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
     return cmdAllocInfo;
+}
+
+VkRenderPassBeginInfo vkinit::render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer)
+{
+    	//make a clear-color from frame number. This will flash with a 120*pi frame period.
+	VkClearValue clearValue;
+	//float flash = abs(sin(_frameNumber / 120.f));
+	clearValue.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+
+	//clear depth at 1
+	VkClearValue depthClear;
+	depthClear.depthStencil.depth = 1.f;
+	
+	//start the main renderpass.
+	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
+	VkRenderPassBeginInfo rpInfo = {};
+	rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	rpInfo.pNext = nullptr;
+
+	rpInfo.renderPass = renderPass;
+	rpInfo.renderArea.offset.x = 0;
+	rpInfo.renderArea.offset.y = 0;
+	rpInfo.renderArea.extent = windowExtent;
+	rpInfo.framebuffer = frameBuffer;
+
+	//connect clear values
+	rpInfo.clearValueCount = 2;
+
+	VkClearValue clearValues[] = { clearValue, depthClear };
+
+	rpInfo.pClearValues = &clearValues[0];
+
+    return rpInfo;
+}
+
+VkCommandBufferBeginInfo vkinit::init_command_buffer()
+{
+    //begin the command buffer recording. We will use this command buffer exactly once, so we want to let Vulkan know that
+	VkCommandBufferBeginInfo cmdBeginInfo = {};
+	cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	cmdBeginInfo.pNext = nullptr;
+
+	cmdBeginInfo.pInheritanceInfo = nullptr;
+	cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    return cmdBeginInfo;
+}
+
+VkCommandBufferInheritanceInfo vkinit::init_inheritance_info(VkRenderPass renderPass)
+{
+    VkCommandBufferInheritanceInfo inheritanceInfo = {};
+    inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+    inheritanceInfo.pNext = nullptr;
+    
+    inheritanceInfo.renderPass = renderPass;
+    inheritanceInfo.framebuffer = VK_NULL_HANDLE;
+    return inheritanceInfo;
 }

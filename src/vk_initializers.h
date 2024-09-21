@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include <vulkan/vulkan_core.h>
 
 namespace vkinit {
 
@@ -20,6 +21,12 @@ namespace vkinit {
 
 	VkCommandPoolCreateInfo command_pool_create_info(uint32_t graphicsQueueFamily, VkCommandPoolCreateFlags createFlags);
 	VkCommandBufferAllocateInfo command_buffer_allocate_info(VkCommandPool commandPool, uint32_t bufferCount);
+
+	VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer);
+	VkCommandBufferBeginInfo init_command_buffer();
+	VkCommandBufferInheritanceInfo init_inheritance_info(VkRenderPass renderPass);
+
+	VkPushConstantRange pushconstrant_range(size_t size);
 
 	VkFenceCreateInfo fence_create_info(VkFenceCreateFlags createFlags);
 	VkSemaphoreCreateInfo semaphore_create_info();

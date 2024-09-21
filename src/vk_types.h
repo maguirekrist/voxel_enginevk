@@ -24,6 +24,7 @@
 #include <shared_mutex>
 #include <tuple>
 #include <condition_variable>
+#include <barrier>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
@@ -35,6 +36,7 @@
 #include <glm/glm.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
+#include <vulkan/vulkan_core.h>
 
 struct AllocatedBuffer {
     VkBuffer _buffer;
@@ -61,6 +63,7 @@ struct FrameData {
 
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
+	std::vector<VkCommandBuffer> _secondaryCommandBuffers;
 };
 
 

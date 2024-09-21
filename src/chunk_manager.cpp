@@ -1,27 +1,32 @@
 
 #include "chunk_manager.h"
+#include "chunk.h"
 #include "chunk_mesher.h"
 #include "vk_engine.h"
 #include "tracy/Tracy.hpp"
 #include "thread_types.h"
+#include <chrono>
+#include <mutex>
 
 ChunkManager::ChunkManager(VulkanEngine& renderer) 
-        : _viewDistance(DEFAULT_VIEW_DISTANCE), 
+        : _viewDistance(DEFAULT_VIEW_DISTANCE),
           _maxChunks((2 * DEFAULT_VIEW_DISTANCE + 1) * (2 * DEFAULT_VIEW_DISTANCE + 1)),
           _maxThreads(4),
-          _activeWorkers(0),
           _running(true),
           _terrainGenerator(TerrainGenerator::instance()),
-          _renderer(renderer) {
+          _renderer(renderer),
+          _sync_point(4) {
+        
+        _renderChunks.reserve(_maxChunks);
         _chunkPool.reserve(_maxChunks);
         for(int i = 0; i < _maxChunks; i++)
         {
             _chunkPool.emplace_back(std::make_unique<Chunk>());
+            _renderChunks.emplace_back();
         }
         for(size_t i = 0; i < _maxThreads; i++)
         {
             _workers.emplace_back(&ChunkManager::meshChunk, this, i);
-            _workerCount++;
         }
         _updateThread = std::thread(&ChunkManager::worldUpdate, this);
         _updatingWorldState = false;
@@ -31,7 +36,6 @@ ChunkManager::~ChunkManager()
 {
     _running = false;
     _cvWorld.notify_one();
-    _cvMesh.notify_all();
     for (std::thread &worker : _workers) {
         worker.join();
     }
@@ -51,11 +55,55 @@ void ChunkManager::updatePlayerPosition(int x, int z)
     _oldWorldChunks = _worldChunks;
     updateWorldState();
     queueWorldUpdate(changeX, changeZ);
-    _initLoad = false;
     _cvWorld.notify_one();
 
-    fmt::println("Main thread completed work!");
+    if(_initLoad) {
+        std::unique_lock<std::mutex> lock(_mutexWorld);
+        _cvWorld.wait(lock, [this]() { return !_initLoad; });
+    }
 }
+
+// void ChunkManager::updateRender()
+// {
+//     if(_chunksToRender.empty()) return;
+
+//     //this is where we safely update _renderChunks by handling the queue
+//     std::unique_lock<std::mutex> worldLock(_mutexWorld);
+
+//     for(const auto& [coord, chunk] : _chunksToRender)
+//     {
+//         if(chunk == nullptr)
+//         {
+//             _chunksToRender.erase(coord);
+//         }
+
+//         if(chunk->_isValid)
+//         {
+//             RenderObject object;
+// 			object.material = _renderer.get_material("defaultmesh");
+// 			object.mesh = &chunk->_mesh;
+// 			glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_position.x, 0, chunk->_position.y));
+// 			object.transformMatrix = translate;
+//             object.isValid = true;
+
+//             //get a unique index for the chunk coord
+//             int x = coord.x - _lastPlayerChunk.x;
+//             int y = coord.z - _lastPlayerChunk.z;
+
+//             // Normalize the relative coordinates to the range [0, 64] by adding viewDistance
+//             int normalizedX = std::clamp(x + _viewDistance, 0, (2 * DEFAULT_VIEW_DISTANCE + 1) - 1);
+//             int normalizedZ = std::clamp(y + _viewDistance, 0, (2 * DEFAULT_VIEW_DISTANCE + 1) - 1);
+
+//             // Calculate the 1D index in the vector
+//             int index = normalizedZ * (2 * DEFAULT_VIEW_DISTANCE + 1) + normalizedX;
+
+
+//             _renderChunks[index] = object;
+
+//             _chunksToRender.erase(coord);
+//         }
+//     }
+// }
 
 void ChunkManager::updateWorldState()
 {
@@ -107,6 +155,8 @@ void ChunkManager::queueWorldUpdate(int changeX, int changeZ)
     }
 
     _worldUpdateQueue.push(newJob);
+
+
 }
 
 void ChunkManager::worldUpdate()
@@ -124,12 +174,13 @@ void ChunkManager::worldUpdate()
 
         WorldUpdateJob updateJob = std::move(_worldUpdateQueue.front());
         _worldUpdateQueue.pop();
-
         {
             ZoneScopedN("World Update Process");
             while (!updateJob._chunksToLoad.empty()) {
                 ChunkCoord coord = updateJob._chunksToLoad.front();
                 updateJob._chunksToLoad.pop();
+
+                
 
                 std::unique_ptr<Chunk> chunk;
                 if (!_chunkPool.empty()) {
@@ -142,7 +193,7 @@ void ChunkManager::worldUpdate()
 
                 auto ptrChunk = chunk.get();
                 _loadedChunks[coord] = std::move(chunk);
-                _chunkGenQueue.push( ptrChunk);
+                _chunkGenQueue.enqueue(ptrChunk);
             }
 
             //Calculate the chunks to mesh now, which are the 
@@ -155,46 +206,44 @@ void ChunkManager::worldUpdate()
                 auto neighbors = get_chunk_neighbors(coord);
                 if(chunk != nullptr && neighbors.has_value())
                 {
-                    _chunkMeshQueue.push({ chunk, neighbors.value() });
+                    _chunkMeshQueue.enqueue({ chunk, neighbors.value() });
                 }
             }
         }
         _workComplete = false;
 
-        _cvGen.notify_all();    
+        _cvWork.notify_all();    
 
         {
             std::unique_lock<std::mutex> workLock(_mutexWork);
             _cvWork.wait(workLock, [this]{ return _workComplete == true;});
         }
 
-        while(!_meshUploadQueue.empty())
+        //Look into this
+        while (!updateJob._chunksToUnload.empty())
         {
-            Mesh* mesh = _meshUploadQueue.front();
-            _meshUploadQueue.pop();
-            _renderer._mainMeshUploadQueue.push(mesh);
+            const auto coord = updateJob._chunksToUnload.front();
+            updateJob._chunksToUnload.pop();
+
+            std::unique_ptr<Chunk> unloadChunk = std::move(_loadedChunks[coord]);
+            _loadedChunks.erase(coord);
+
+            _renderer._mainMeshUnloadQueue.enqueue(&unloadChunk->_mesh);
+
+            _chunkPool.push_back(std::move(unloadChunk));
         }
 
-        // while (!updateJob._chunksToUnload.empty())
-        // {
-        //     auto coord = updateJob._chunksToUnload.front();
-        //     updateJob._chunksToUnload.pop();
-        //     std::unique_ptr<Chunk> unloadChunk = std::move(_loadedChunks[coord]);
-        //     _loadedChunks.erase(coord);
-        //     _renderer._mainMeshUnloadQueue.push(unloadChunk->_mesh);
-        //     _chunkPool.push_back(std::move(unloadChunk));
-        // }
+        fmt::println("Worker thread end work.");
 
         _updatingWorldState = false;
-
-        fmt::println("Worker thread completed.");
-
+        _initLoad = false;
         _cvWorld.notify_one();
     }
 }
 
 std::optional<std::array<Chunk*, 8>> ChunkManager::get_chunk_neighbors(ChunkCoord coord)
 {
+    ZoneScopedN("Get Chunk Neighbors");
     std::array<Chunk*, 8> chunks;
     int count = 0;
     for (auto direction : directionList)
@@ -218,104 +267,83 @@ std::optional<std::array<Chunk*, 8>> ChunkManager::get_chunk_neighbors(ChunkCoor
     }
 }
 
+int ChunkManager::get_chunk_index(ChunkCoord coord)
+{
+    //get a unique index for the chunk coord
+    int x = coord.x - _lastPlayerChunk.x;
+    int y = coord.z - _lastPlayerChunk.z;
+
+    // Normalize the relative coordinates to the range [0, 64] by adding viewDistance
+    int normalizedX = std::clamp(x + _viewDistance, 0, (2 * DEFAULT_VIEW_DISTANCE + 1) - 1);
+    int normalizedZ = std::clamp(y + _viewDistance, 0, (2 * DEFAULT_VIEW_DISTANCE + 1) - 1);
+
+    // Calculate the 1D index in the vector
+    int index = normalizedZ * (2 * DEFAULT_VIEW_DISTANCE + 1) + normalizedX;
+}
+
+void ChunkManager::add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk)
+{
+    int index = get_chunk_index(coord);
+    _chunks[index] = std::move(chunk);
+}
+
+Chunk* ChunkManager::get_chunk(ChunkCoord coord)
+{
+    int index = get_chunk_index(coord);
+    return _chunks[index].get();
+}
+
 void ChunkManager::meshChunk(int threadId)
 {
     tracy::SetThreadName(fmt::format("Chunk Update Thread: {}", threadId).c_str());
-
-    static Barrier barrier(_maxThreads);
-
-    while(_running)
+    while(true)
     { 
-        // First pass: Chunk generation
+        //prevent this area from being done unless there is actual work...
         {
-            std::unique_lock lock(_mutexPool);
-            _cvGen.wait(lock, [this]() { return !_chunkGenQueue.empty() || !_running; });
-
-            if (!_running) break;  // If shutdown signal, exit
-
-            _activeWorkers++;
-
-            {
-                ZoneScopedN("Handle Chunk Queue");
-                // Process chunks in the queue (first pass)
-                while (!_chunkGenQueue.empty()) {
-                    auto chunk = _chunkGenQueue.front();
-                    _chunkGenQueue.pop();
-
-                    lock.unlock();  // Unlock to allow other threads to access the queue
-
-                    ChunkCoord cCoord = { chunk->_position.x / static_cast<int>(CHUNK_SIZE), chunk->_position.y / static_cast<int>(CHUNK_SIZE) };
-                    if (chunk != nullptr) {
-                        chunk->generate(_terrainGenerator);  // First pass work
-                    }
-
-                    lock.lock();  // Lock again for next queue access
-                }
-            }
+            std::unique_lock<std::mutex> workLock(_mutexWork);
+            _cvWork.wait(workLock, [this](){ return _workComplete == false; });
         }
 
-        barrier.wait();
-
+        while(_running)
         {
-            std::unique_lock lock(_mutexPool); 
-            _cvMesh.wait(lock, [this] { return !_chunkMeshQueue.empty() || !_running; });
-
-            if(!_running) break;
-            _activeWorkers++;
-
+            // First pass: Chunk generation
+            Chunk* chunk;
+            if(_chunkGenQueue.wait_dequeue_timed(chunk, std::chrono::milliseconds(5)))
             {
-                ZoneScopedN("Handle Mesh Queue");
-
-                while(!_chunkMeshQueue.empty())
-                {  
-                    const auto [chunk, neighbors] = _chunkMeshQueue.front();
-                    _chunkMeshQueue.pop();
-                    lock.unlock();
-                    if(chunk != nullptr && neighbors.size() == 8)
-                    {
-                        //Mesh oldMesh = chunk->_mesh;
-                        ChunkMesher mesher { *chunk, neighbors };
-                        mesher.execute();
-                        chunk->_isValid = true;
-                    }
-                    lock.lock();
-                    _meshUploadQueue.push(&chunk->_mesh);
+                if (chunk != nullptr) {
+                    chunk->generate(_terrainGenerator); 
                 }
-            }
-        }
-
-        barrier.wait();
-        std::unique_lock lock(_mutexWork);
-        _workComplete = true;
-        _cvWork.notify_all();
-
-
-        {
-            std::unique_lock lock(_mutexWork);
-            _activeWorkers--;
-            if (_activeWorkers == 0) {
-                // All threads finished the first pass, signal second pass start
-                _workComplete = true;
-                _cvWork.notify_all();
             } else {
-                // Wait for all threads to finish first pass
-                _cvWork.wait(lock, [this] { return _activeWorkers == 0 || _workComplete || !_running; });
+                break;
+            }   
+        }
+
+        _sync_point.arrive_and_wait();
+
+        while(_running)
+        {
+            std::pair<Chunk*, std::array<Chunk*, 8>> myPair;
+            if(_chunkMeshQueue.wait_dequeue_timed(myPair, std::chrono::milliseconds(5)))
+            {
+                const auto [chunk, neighbors] = myPair;
+                if(chunk != nullptr && neighbors.size() == 8)
+                {
+                    //Mesh oldMesh = chunk->_mesh;
+                    ChunkMesher mesher { *chunk, neighbors };
+                    mesher.execute();
+                    chunk->_isValid = true;
+                }
+            } else {
+                break;
             }
-        } 
+        }
 
+        _sync_point.arrive_and_wait();
+
+        if(!_workComplete.exchange(true))
+        {
+            //First thread to enter this area.
+            _cvWork.notify_one();   
+        }
     }
-}
-
-//This is used by the mesher
-Block* ChunkManager::getBlockGlobal(int x, int y, int z)
-{
-    //std::shared_lock lock(_loadedMutex);
-    auto chunkCoord = World::get_chunk_coordinates({ x, y, z });
-    auto localCoord = World::get_local_coordinates({ x, y, z });
-
-    auto it = _loadedChunks.find({ chunkCoord.x, chunkCoord.y });
-    if (it != _loadedChunks.end()) {
-        return it->second->get_block({ localCoord.x, localCoord.y, localCoord.z });
-    }
-    return nullptr; // Or some default/error value
 }

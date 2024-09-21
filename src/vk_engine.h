@@ -7,6 +7,7 @@
 #include <camera.h>
 #include <cube_engine.h>
 #include <vulkan/vulkan_core.h>
+#include <utils/concurrentqueue.h>
 
 class FunctionQueue {
 public:
@@ -37,7 +38,7 @@ public:
 	}
 
 	bool _isInitialized{ false };
-	bool bUseValidationLayers{ true };
+	bool bUseValidationLayers{ false };
 	int _frameNumber {0};
 
 	bool bFocused = false;
@@ -80,9 +81,14 @@ public:
 	VkFormat _depthFormat;
 
 	FunctionQueue _mainDeletionQueue;
-	std::queue<Mesh*> _mainMeshUploadQueue;
-	std::queue<Mesh> _mainMeshUnloadQueue;
+	moodycamel::ConcurrentQueue<Mesh*> _mainMeshUploadQueue;
+	moodycamel::ConcurrentQueue<Mesh*> _mainMeshUnloadQueue;
 	VmaAllocator _allocator;
+
+	UniformBuffer _uniforms;
+	VkDescriptorSetLayout _dLayout;
+	VkDescriptorPool _dPool;
+	VkDescriptorSet _dSet;
 
 	FrameData _frames[FRAME_OVERLAP];
 
@@ -130,11 +136,17 @@ private:
 	void init_commands();
 	void init_default_renderpass();
 	void init_framebuffers();
+	void init_uniform_buffers();
 	void init_sync_structures();
 	void init_pipelines();
 
 	void build_material_default();
 	void build_material_wireframe();
+
+	void update_uniform_buffers();
+
+	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
+
 
 	//void init_scene();
 

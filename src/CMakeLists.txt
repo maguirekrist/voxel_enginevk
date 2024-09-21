@@ -31,7 +31,10 @@ add_executable(vulkan_guide
     player.cpp
     terrain_gen.h
     terrain_gen.cpp
-    constants.h)
+    constants.h
+    utils/concurrentqueue.h
+    utils/blockingconcurrentqueue.h
+    utils/lightweightsemaphore.h)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
