@@ -4,9 +4,9 @@
 #include "chunk_mesher.h"
 #include "vk_engine.h"
 #include "tracy/Tracy.hpp"
-#include "thread_types.h"
-#include <chrono>
-#include <mutex>
+#include "vk_mesh.h"
+#include <memory>
+
 
 ChunkManager::ChunkManager(VulkanEngine& renderer) 
         : _viewDistance(DEFAULT_VIEW_DISTANCE),
@@ -15,15 +15,17 @@ ChunkManager::ChunkManager(VulkanEngine& renderer)
           _running(true),
           _terrainGenerator(TerrainGenerator::instance()),
           _renderer(renderer),
-          _sync_point(4) {
-        
-        _renderChunks.reserve(_maxChunks);
-        _chunkPool.reserve(_maxChunks);
+          _sync_point(4) 
+    {
+
+        _chunks.reserve(_maxChunks);
+        _renderedChunks.reserve(_maxChunks);
+
         for(int i = 0; i < _maxChunks; i++)
         {
-            _chunkPool.emplace_back(std::make_unique<Chunk>());
-            _renderChunks.emplace_back();
+            _renderedChunks.emplace_back();
         }
+
         for(size_t i = 0; i < _maxThreads; i++)
         {
             _workers.emplace_back(&ChunkManager::meshChunk, this, i);
@@ -54,56 +56,25 @@ void ChunkManager::updatePlayerPosition(int x, int z)
     _lastPlayerChunk = playerChunk;
     _oldWorldChunks = _worldChunks;
     updateWorldState();
-    queueWorldUpdate(changeX, changeZ);
+    const auto [new_chunks, old_chunks] = queueWorldUpdate(changeX, changeZ);
     _cvWorld.notify_one();
 
     if(_initLoad) {
         std::unique_lock<std::mutex> lock(_mutexWorld);
         _cvWorld.wait(lock, [this]() { return !_initLoad; });
     }
+
+    for(const auto& chunkCoord : new_chunks)
+    {
+        auto chunk = _chunks[chunkCoord].get();
+        RenderObject object;
+        object.material = _renderer.get_material("defaultmesh");
+        object.mesh = chunk->_mesh;
+        object.xzPos = glm::ivec2(chunk->_position.x, chunk->_position.y);
+        _renderedChunks.push_back(object);
+    }
+
 }
-
-// void ChunkManager::updateRender()
-// {
-//     if(_chunksToRender.empty()) return;
-
-//     //this is where we safely update _renderChunks by handling the queue
-//     std::unique_lock<std::mutex> worldLock(_mutexWorld);
-
-//     for(const auto& [coord, chunk] : _chunksToRender)
-//     {
-//         if(chunk == nullptr)
-//         {
-//             _chunksToRender.erase(coord);
-//         }
-
-//         if(chunk->_isValid)
-//         {
-//             RenderObject object;
-// 			object.material = _renderer.get_material("defaultmesh");
-// 			object.mesh = &chunk->_mesh;
-// 			glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk->_position.x, 0, chunk->_position.y));
-// 			object.transformMatrix = translate;
-//             object.isValid = true;
-
-//             //get a unique index for the chunk coord
-//             int x = coord.x - _lastPlayerChunk.x;
-//             int y = coord.z - _lastPlayerChunk.z;
-
-//             // Normalize the relative coordinates to the range [0, 64] by adding viewDistance
-//             int normalizedX = std::clamp(x + _viewDistance, 0, (2 * DEFAULT_VIEW_DISTANCE + 1) - 1);
-//             int normalizedZ = std::clamp(y + _viewDistance, 0, (2 * DEFAULT_VIEW_DISTANCE + 1) - 1);
-
-//             // Calculate the 1D index in the vector
-//             int index = normalizedZ * (2 * DEFAULT_VIEW_DISTANCE + 1) + normalizedX;
-
-
-//             _renderChunks[index] = object;
-
-//             _chunksToRender.erase(coord);
-//         }
-//     }
-// }
 
 void ChunkManager::updateWorldState()
 {
@@ -125,7 +96,7 @@ void ChunkManager::updateWorldState()
     }
 }
 
-void ChunkManager::queueWorldUpdate(int changeX, int changeZ)
+std::pair<std::vector<ChunkCoord>, std::vector<ChunkCoord>> ChunkManager::queueWorldUpdate(int changeX, int changeZ)
 {
     WorldUpdateJob newJob;
     newJob._changeX = changeX;
@@ -137,25 +108,31 @@ void ChunkManager::queueWorldUpdate(int changeX, int changeZ)
             ChunkCoord coord = {_lastPlayerChunk.x + dx, _lastPlayerChunk.z + dz};
             if (_worldChunks.find(coord) != _worldChunks.end()
                 && _oldWorldChunks.find(coord) == _oldWorldChunks.end()) {
-                newJob._chunksToLoad.push(coord);
+
+                Chunk* chunk = get_chunk(coord);
+                chunk->reset(coord);
+
+                _chunkGenQueue.enqueue(chunk);
+
                 newJob._chunksToMesh.push({ coord.x - changeX, coord.z - changeZ });
-                //pendingChunks.push_back(coord);
+                pendingChunks.push_back(coord);
             }
         }
     }
 
     // Identify chunks to unload
-    //std::vector<ChunkCoord> chunksToUnload;
+    std::vector<ChunkCoord> chunksToUnload;
     for (const auto& coord : _oldWorldChunks) {
         int dx = std::abs(coord.x - _lastPlayerChunk.x);
         int dz = std::abs(coord.z - _lastPlayerChunk.z);
         if (dx > _viewDistance || dz > _viewDistance) {
             newJob._chunksToUnload.push(coord);
+            chunksToUnload.push_back(coord);
         }
     }
 
     _worldUpdateQueue.push(newJob);
-
+    return std::make_pair(pendingChunks, chunksToUnload);
 
 }
 
@@ -176,33 +153,13 @@ void ChunkManager::worldUpdate()
         _worldUpdateQueue.pop();
         {
             ZoneScopedN("World Update Process");
-            while (!updateJob._chunksToLoad.empty()) {
-                ChunkCoord coord = updateJob._chunksToLoad.front();
-                updateJob._chunksToLoad.pop();
-
-                
-
-                std::unique_ptr<Chunk> chunk;
-                if (!_chunkPool.empty()) {
-                    chunk = std::move(_chunkPool.back());
-                    _chunkPool.pop_back();
-                    chunk->reset(coord);
-                } else {
-                    chunk = std::make_unique<Chunk>(coord);
-                }
-
-                auto ptrChunk = chunk.get();
-                _loadedChunks[coord] = std::move(chunk);
-                _chunkGenQueue.enqueue(ptrChunk);
-            }
-
             //Calculate the chunks to mesh now, which are the 
             while(!updateJob._chunksToMesh.empty())
             {
                 ChunkCoord coord = updateJob._chunksToMesh.front();
                 updateJob._chunksToMesh.pop();
 
-                auto chunk = _loadedChunks[coord].get();
+                auto chunk = get_chunk(coord);
                 auto neighbors = get_chunk_neighbors(coord);
                 if(chunk != nullptr && neighbors.has_value())
                 {
@@ -220,18 +177,18 @@ void ChunkManager::worldUpdate()
         }
 
         //Look into this
-        while (!updateJob._chunksToUnload.empty())
-        {
-            const auto coord = updateJob._chunksToUnload.front();
-            updateJob._chunksToUnload.pop();
+        // while (!updateJob._chunksToUnload.empty())
+        // {
+        //     const auto coord = updateJob._chunksToUnload.front();
+        //     updateJob._chunksToUnload.pop();
 
-            std::unique_ptr<Chunk> unloadChunk = std::move(_loadedChunks[coord]);
-            _loadedChunks.erase(coord);
+        //     std::unique_ptr<Chunk> unloadChunk = std::move(_loadedChunks[coord]);
+        //     _loadedChunks.erase(coord);
 
-            _renderer._mainMeshUnloadQueue.enqueue(&unloadChunk->_mesh);
+        //     _renderer._mainMeshUnloadQueue.enqueue(&unloadChunk->_mesh);
 
-            _chunkPool.push_back(std::move(unloadChunk));
-        }
+        //     _chunkPool.push_back(std::move(unloadChunk));
+        // }
 
         fmt::println("Worker thread end work.");
 
@@ -251,11 +208,12 @@ std::optional<std::array<Chunk*, 8>> ChunkManager::get_chunk_neighbors(ChunkCoor
         auto offsetX = directionOffsetX[direction];
         auto offsetZ = directionOffsetZ[direction];
         auto offset_coord = ChunkCoord{ coord.x + offsetX, coord.z + offsetZ };
-        auto chunk_it = _loadedChunks.find(offset_coord);
-        if(chunk_it != _loadedChunks.end())
+        auto chunk = get_chunk(offset_coord);
+
+        if(chunk != nullptr)
         {
             count++;
-            chunks[direction] = chunk_it->second.get();
+            chunks[direction] = chunk;
         }
     }
 
@@ -279,18 +237,25 @@ int ChunkManager::get_chunk_index(ChunkCoord coord)
 
     // Calculate the 1D index in the vector
     int index = normalizedZ * (2 * DEFAULT_VIEW_DISTANCE + 1) + normalizedX;
+
+    return index;
 }
 
 void ChunkManager::add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk)
 {
-    int index = get_chunk_index(coord);
-    _chunks[index] = std::move(chunk);
+    _chunks[coord] = std::move(chunk);
 }
 
 Chunk* ChunkManager::get_chunk(ChunkCoord coord)
 {
-    int index = get_chunk_index(coord);
-    return _chunks[index].get();
+    auto chunk_it = _chunks.find(coord);
+    if(chunk_it != _chunks.end())
+    {
+        return chunk_it->second.get();
+    } else {
+        _chunks[coord] = std::make_unique<Chunk>(coord);
+        return _chunks[coord].get();
+    }
 }
 
 void ChunkManager::meshChunk(int threadId)
@@ -328,10 +293,12 @@ void ChunkManager::meshChunk(int threadId)
                 const auto [chunk, neighbors] = myPair;
                 if(chunk != nullptr && neighbors.size() == 8)
                 {
-                    //Mesh oldMesh = chunk->_mesh;
+                    std::shared_ptr<Mesh> oldMesh = chunk->_mesh;
                     ChunkMesher mesher { *chunk, neighbors };
-                    mesher.execute();
+                    mesher.generate_mesh();
                     chunk->_isValid = true;
+                    _renderer._mainMeshUploadQueue.enqueue(chunk->_mesh);
+                    ///_renderer._mainMeshUnloaßdQueue.enqueue(std::move(oldMesh));
                 }
             } else {
                 break;

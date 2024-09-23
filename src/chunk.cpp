@@ -6,7 +6,7 @@ void Chunk::reset(ChunkCoord newCoord)
 {
     _position = glm::ivec2(newCoord.x * CHUNK_SIZE, newCoord.z * CHUNK_SIZE);
     _isValid = false;
-    _mesh = Mesh{};
+    // _mesh = std::make_shared<Mesh>();
 }
 
 void Chunk::generate(TerrainGenerator generator)

@@ -25,7 +25,8 @@ void ChunkMesher::generate_mesh()
         }
     }
 
-    _chunk._mesh = _mesh;
+    //_chunk._mesh = std::make_shared<Mesh>(std::move(_mesh));
+    *_chunk._mesh = _mesh;
 
     //fmt::println("Finished generating chunk");
 }

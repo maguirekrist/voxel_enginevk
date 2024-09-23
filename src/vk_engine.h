@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "vk_types.h"
 #include <vk_mesh.h>
 #include <camera.h>
 #include <cube_engine.h>
@@ -49,6 +50,7 @@ public:
 	VkPhysicalDevice _chosenGPU;
 	VkDevice _device;
 	VkSurfaceKHR _surface;
+	VkPhysicalDeviceProperties _gpuProperties;
 
 	VkSwapchainKHR _swapchain;
 	VkFormat _swapchainImageFormat;
@@ -64,7 +66,7 @@ public:
 	std::vector<VkFramebuffer> _framebuffers;
 
 	std::unordered_map<std::string, Material> _materials;
-    std::unordered_map<std::string, Mesh*> _meshes;
+    std::unordered_map<std::string, std::shared_ptr<Mesh>> _meshes;
 
 	std::vector<RenderObject> _renderObjects;
 	CubeEngine _game{ *this };
@@ -81,14 +83,13 @@ public:
 	VkFormat _depthFormat;
 
 	FunctionQueue _mainDeletionQueue;
-	moodycamel::ConcurrentQueue<Mesh*> _mainMeshUploadQueue;
-	moodycamel::ConcurrentQueue<Mesh*> _mainMeshUnloadQueue;
+	moodycamel::ConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUploadQueue;
+	moodycamel::ConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUnloadQueue;
 	VmaAllocator _allocator;
 
-	UniformBuffer _uniforms;
-	VkDescriptorSetLayout _dLayout;
+	VkDescriptorSetLayout _uboSetLayout;
+	VkDescriptorSetLayout _chunkSetLayout;
 	VkDescriptorPool _dPool;
-	VkDescriptorSet _dSet;
 
 	FrameData _frames[FRAME_OVERLAP];
 
@@ -102,8 +103,10 @@ public:
 
 	Material* get_material(const std::string& name);
 
+	AllocatedBuffer create_buffer(size_t size, VkBufferUsageFlagBits bufferUsage, VmaMemoryUsage memUsage);
+
 	void upload_mesh(Mesh& mesh);
-	void unload_mesh(Mesh& mesh);
+	void unload_mesh(std::shared_ptr<Mesh>&& mesh);
 
 	//??
 	//Mesh* get_mesh(const std::string& name);
@@ -134,6 +137,7 @@ private:
 	void init_vulkan();
 	void init_swapchain();
 	void init_commands();
+	void init_descriptors();
 	void init_default_renderpass();
 	void init_framebuffers();
 	void init_uniform_buffers();
@@ -144,6 +148,7 @@ private:
 	void build_material_wireframe();
 
 	void update_uniform_buffers();
+	void update_chunk_buffer();
 
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
 

@@ -7,18 +7,13 @@ class ChunkMesher {
 public:
     ChunkMesher(Chunk& chunk, const std::array<Chunk*, 8>& neighbors) : _chunk(chunk), _chunkNeighbors(neighbors) {}
 
-    void execute()
-    {
-        generate_mesh();
-    }
+    void generate_mesh();
 
 private:
     Chunk& _chunk;
     const std::array<Chunk*, 8>& _chunkNeighbors;
 
     Mesh _mesh;
-
-    void generate_mesh();
 
     Block* get_face_neighbor(int x, int y, int z, FaceDirection face);
     bool is_face_visible(int x, int y, int z, FaceDirection face);

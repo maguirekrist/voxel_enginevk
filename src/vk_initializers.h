@@ -26,7 +26,9 @@ namespace vkinit {
 	VkCommandBufferBeginInfo init_command_buffer();
 	VkCommandBufferInheritanceInfo init_inheritance_info(VkRenderPass renderPass);
 
-	VkPushConstantRange pushconstrant_range(size_t size);
+	VkWriteDescriptorSet write_descriptor_buffer(VkDescriptorType descriptorType, VkDescriptorSet dSet, VkDescriptorBufferInfo* bufferInfo, uint32_t binding);
+	VkDescriptorSetLayoutBinding descriptorset_layout_binding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding);
+	VkPushConstantRange pushconstrant_range(size_t size, VkShaderStageFlags accessFlags);
 
 	VkFenceCreateInfo fence_create_info(VkFenceCreateFlags createFlags);
 	VkSemaphoreCreateInfo semaphore_create_info();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <vk_types.h>
 
 struct VertexInputDescription {
@@ -11,8 +12,7 @@ struct VertexInputDescription {
 };
 
 struct MeshPushConstants {
-    glm::vec4 data;
-    glm::mat4 render_matrix;
+    glm::ivec2 translation;
 };
 
 struct Vertex {
@@ -39,13 +39,28 @@ struct Mesh {
     static Mesh create_cube_mesh();
 };
 
+struct CameraUBO {
+    glm::mat4 projection;
+    glm::mat4 view;
+    glm::mat4 viewproject;
+};
+
+struct ChunkPushConstants {
+    glm::ivec2 chunk_translate;
+};
+
+struct ChunkBufferObject {
+    glm::ivec2 chunkPosition;
+};
+
+template <typename T>
 struct UniformBuffer {
-    glm::mat4 projection_view;
+    T _ubo;
     AllocatedBuffer _uniformBuffer;
 };
 
 struct RenderObject {
-	Mesh* mesh;
+	std::shared_ptr<Mesh> mesh;
 	Material* material;
 	glm::ivec2 xzPos;
 };

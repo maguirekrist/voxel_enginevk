@@ -105,7 +105,37 @@ VkPipelineColorBlendAttachmentState vkinit::color_blend_attachment_state_blendin
     return colorBlendAttachment;
 }
 
-VkPushConstantRange vkinit::pushconstrant_range(size_t size)
+VkWriteDescriptorSet vkinit::write_descriptor_buffer(VkDescriptorType descriptorType, VkDescriptorSet dSet, VkDescriptorBufferInfo* bufferInfo, uint32_t binding)
+{
+    VkWriteDescriptorSet setWrite = {};
+    setWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    setWrite.pNext = nullptr;
+
+    setWrite.dstBinding = binding;
+    setWrite.dstSet = dSet;
+    setWrite.descriptorCount = 1;
+    setWrite.descriptorType = descriptorType;
+    setWrite.pBufferInfo = bufferInfo;
+
+    return setWrite;
+}
+
+
+VkDescriptorSetLayoutBinding vkinit::descriptorset_layout_binding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding)
+{
+	VkDescriptorSetLayoutBinding setbind = {};
+	setbind.binding = binding;
+	setbind.descriptorCount = 1;
+	setbind.descriptorType = type;
+	setbind.pImmutableSamplers = nullptr;
+	setbind.stageFlags = stageFlags;
+
+	return setbind;
+}
+
+
+
+VkPushConstantRange vkinit::pushconstrant_range(size_t size, VkShaderStageFlags accessFlags)
 {
     VkPushConstantRange push_constant;
 	//this push constant range starts at the beginning
@@ -113,7 +143,9 @@ VkPushConstantRange vkinit::pushconstrant_range(size_t size)
 	//this push constant range takes up the size of a MeshPushConstants struct
 	push_constant.size = size;
 	//this push constant range is accessible only in the vertex shader
-	push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	push_constant.stageFlags = accessFlags;
+
+    return push_constant;
 }
 
 VkPipelineLayoutCreateInfo vkinit::pipeline_layout_create_info()

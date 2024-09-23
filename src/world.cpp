@@ -26,13 +26,8 @@ Chunk* World::get_chunk(glm::vec3 worldPos)
     auto chunkCoord = get_chunk_coordinates(worldPos);
     auto chunkKey = ChunkCoord{chunkCoord.x, chunkCoord.y };
 
-    auto chunk = _chunkManager->_loadedChunks.find(chunkKey);
-    if(chunk != _chunkManager->_loadedChunks.end())
-    {
-        return chunk->second.get();
-    }
-
-    return nullptr;
+    auto chunk = _chunkManager->get_chunk(chunkKey);
+    return chunk;
 }
 
 // void World::generate_chunk(int xStart, int yStart)

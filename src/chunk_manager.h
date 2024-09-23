@@ -1,9 +1,10 @@
 #pragma once
 
+#include "vk_mesh.h"
 #include <barrier>
 #include <chunk.h>
-#include <cstddef>
 #include <memory>
+#include <utils/concurrentqueue.h>
 #include <utils/blockingconcurrentqueue.h>
 
 class VulkanEngine;
@@ -11,18 +12,18 @@ class VulkanEngine;
 struct WorldUpdateJob {
     int _changeX;
     int _changeZ;
-    std::queue<ChunkCoord> _chunksToLoad;
     std::queue<ChunkCoord> _chunksToUnload; 
     std::queue<ChunkCoord> _chunksToMesh;
 };
 
 class ChunkManager {
 public:
-    std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>> _loadedChunks;
+    //Real chunk data
+    std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>> _chunks;
 
-    std::vector<std::unique_ptr<Chunk>> _chunks;
+    //Render chunk data
+    std::vector<RenderObject> _renderedChunks;
 
-    std::vector<RenderObject> _renderChunks;
     std::unordered_set<ChunkCoord> _worldChunks;
     std::unordered_set<ChunkCoord> _oldWorldChunks;
     bool _initLoad{true};
@@ -33,9 +34,11 @@ public:
 
     void updatePlayerPosition(int x, int z);
 
+    Chunk* get_chunk(ChunkCoord coord);
+
 private:
     void updateWorldState();
-    void queueWorldUpdate(int changeX, int changeZ);
+    std::pair<std::vector<ChunkCoord>, std::vector<ChunkCoord>> queueWorldUpdate(int changeX, int changeZ);
     void worldUpdate();
     void meshChunk(int threadId);
 
@@ -43,7 +46,6 @@ private:
 
     int get_chunk_index(ChunkCoord coord);
     void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
-    Chunk* get_chunk(ChunkCoord coord);
 
     bool _updatingWorldState = false;
     int _viewDistance;
@@ -54,11 +56,10 @@ private:
     TerrainGenerator& _terrainGenerator;
     VulkanEngine& _renderer;
 
-    std::vector<std::unique_ptr<Chunk>> _chunkPool;
-
     std::queue<WorldUpdateJob> _worldUpdateQueue;
     moodycamel::BlockingConcurrentQueue<Chunk*> _chunkGenQueue{_maxChunks};
     moodycamel::BlockingConcurrentQueue<std::pair<Chunk*, std::array<Chunk*, 8>>> _chunkMeshQueue;
+    // moodycamel::ConcurrentQueue<std::shared_ptr<Chunk>> _chunkSwapQueue;
 
     std::vector<std::thread> _workers;
     std::thread _updateThread;
@@ -68,7 +69,7 @@ private:
 
     std::condition_variable _cvWorld;
     std::condition_variable _cvWork;
-    std::atomic<bool> _workComplete;
+    std::atomic<bool> _workComplete{true};
 
     std::barrier<> _sync_point;
 

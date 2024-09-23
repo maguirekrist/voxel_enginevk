@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "concurrentqueue.h"
+
 #include <cstddef> // For std::size_t
 #include <atomic>
 #include <type_traits> // For std::make_signed<T>

@@ -63,7 +63,13 @@ struct FrameData {
 
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
-	std::vector<VkCommandBuffer> _secondaryCommandBuffers;
+	//std::vector<VkCommandBuffer> _secondaryCommandBuffers;
+	AllocatedBuffer _chunkBuffer;
+	VkDescriptorSet _chunkDescriptor;
+
+	AllocatedBuffer _cameraBuffer;
+	VkDescriptorSet _globalDescriptor;
+
 };
 
 
