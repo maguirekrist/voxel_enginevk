@@ -91,6 +91,10 @@ public:
 	VkDescriptorSetLayout _chunkSetLayout;
 	VkDescriptorPool _dPool;
 
+	UploadContext _uploadContext;
+
+	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
+
 	FrameData _frames[FRAME_OVERLAP];
 
 	VkExtent2D _windowExtent{ 1700 , 900 };
@@ -103,7 +107,7 @@ public:
 
 	Material* get_material(const std::string& name);
 
-	AllocatedBuffer create_buffer(size_t size, VkBufferUsageFlagBits bufferUsage, VmaMemoryUsage memUsage);
+	AllocatedBuffer create_buffer(size_t size, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage);
 
 	void upload_mesh(Mesh& mesh);
 	void unload_mesh(std::shared_ptr<Mesh>&& mesh);
@@ -160,6 +164,7 @@ private:
 	void build_target_block_view(const glm::vec3& worldPos);
 	RenderObject build_chunk_debug_view(const Chunk& chunk);
 };
+
 
 class PipelineBuilder {
 public:

@@ -19,8 +19,10 @@ namespace vkinit {
 	VkPipelineDepthStencilStateCreateInfo depth_stencil_create_info(bool bDepthTest, bool bDepthWrite, VkCompareOp compareOp);
 	VkPipelineLayoutCreateInfo pipeline_layout_create_info();
 
-	VkCommandPoolCreateInfo command_pool_create_info(uint32_t graphicsQueueFamily, VkCommandPoolCreateFlags createFlags);
+	VkCommandPoolCreateInfo command_pool_create_info(uint32_t graphicsQueueFamily, VkCommandPoolCreateFlags createFlags = 0);
 	VkCommandBufferAllocateInfo command_buffer_allocate_info(VkCommandPool commandPool, uint32_t bufferCount);
+	VkCommandBufferBeginInfo command_buffer_begin_info(VkCommandBufferUsageFlags flags = 0);
+	VkSubmitInfo submit_info(VkCommandBuffer* cmd);
 
 	VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer);
 	VkCommandBufferBeginInfo init_command_buffer();
@@ -30,7 +32,7 @@ namespace vkinit {
 	VkDescriptorSetLayoutBinding descriptorset_layout_binding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding);
 	VkPushConstantRange pushconstrant_range(size_t size, VkShaderStageFlags accessFlags);
 
-	VkFenceCreateInfo fence_create_info(VkFenceCreateFlags createFlags);
+	VkFenceCreateInfo fence_create_info(VkFenceCreateFlags createFlags = 0);
 	VkSemaphoreCreateInfo semaphore_create_info();
 
 	VkBufferCreateInfo buffer_create_info(VkDeviceSize size, VkBufferUsageFlags usageFlags);

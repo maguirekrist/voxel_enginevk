@@ -176,6 +176,7 @@ void ChunkManager::worldUpdate()
             _cvWork.wait(workLock, [this]{ return _workComplete == true;});
         }
 
+
         //Look into this
         // while (!updateJob._chunksToUnload.empty())
         // {
@@ -297,6 +298,7 @@ void ChunkManager::meshChunk(int threadId)
                     ChunkMesher mesher { *chunk, neighbors };
                     mesher.generate_mesh();
                     chunk->_isValid = true;
+                    //_renderer.upload_mesh(*chunk->_mesh);
                     _renderer._mainMeshUploadQueue.enqueue(chunk->_mesh);
                     ///_renderer._mainMeshUnloaßdQueue.enqueue(std::move(oldMesh));
                 }
