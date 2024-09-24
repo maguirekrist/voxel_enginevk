@@ -11,8 +11,13 @@ public:
     operator glm::vec3() const {
         return glm::vec3(_red / 255.0f, _green / 255.0f, _blue / 255.0f);
     }
-};
 
+    // glm::vec3 operator*(float val) const {
+    //     glm::vec3 color = *this;
+    //     color * val;
+    //     return color;
+    // }
+};
 
 enum FaceDirection {
     FRONT_FACE = 0,
@@ -37,7 +42,8 @@ namespace Colors {
     constexpr glm::vec3 purple{ 1.0f, 0.0f, 1.0f };
     constexpr glm::vec3 yellow{ 1.0f, 1.0f, 0.0f };
     constexpr glm::vec3 lightBlue{ 0.0f, 1.0f, 1.0f };
-    constexpr Color lightGreen{0, 255, 51};
+    constexpr Color black{0, 0, 0};
+    constexpr Color lightGreen{6, 128, 0};
 };
 
 constexpr FaceDirection faceDirections[6] = { FRONT_FACE, BACK_FACE, RIGHT_FACE, LEFT_FACE, TOP_FACE, BOTTOM_FACE };
@@ -139,7 +145,13 @@ constexpr glm::ivec3 faceVertices[6][4] = {
 
 enum BlockType {
     AIR = 0,
-    GROUND = 1
+    GROUND = 1,
+    WATER = 3
+};
+
+constexpr Color blockColor[2] = {
+    Colors::black,
+    Colors::lightGreen
 };
 
 struct Block {

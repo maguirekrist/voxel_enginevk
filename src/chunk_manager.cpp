@@ -21,11 +21,6 @@ ChunkManager::ChunkManager(VulkanEngine& renderer)
         _chunks.reserve(_maxChunks);
         _renderedChunks.reserve(_maxChunks);
 
-        for(int i = 0; i < _maxChunks; i++)
-        {
-            _renderedChunks.emplace_back();
-        }
-
         for(size_t i = 0; i < _maxThreads; i++)
         {
             _workers.emplace_back(&ChunkManager::meshChunk, this, i);
@@ -294,12 +289,14 @@ void ChunkManager::meshChunk(int threadId)
                 const auto [chunk, neighbors] = myPair;
                 if(chunk != nullptr && neighbors.size() == 8)
                 {
-                    std::shared_ptr<Mesh> oldMesh = chunk->_mesh;
+                    //std::shared_ptr<Mesh> oldMesh = chunk->_mesh;
                     ChunkMesher mesher { *chunk, neighbors };
-                    mesher.generate_mesh();
-                    chunk->_isValid = true;
+                    std::shared_ptr<Mesh> newMesh = std::make_shared<Mesh>(mesher.generate_mesh());
+
+                    //chunk->_isValid = true;
                     //_renderer.upload_mesh(*chunk->_mesh);
-                    _renderer._mainMeshUploadQueue.enqueue(chunk->_mesh);
+                    _renderer._meshSwapQueue.enqueue(std::make_pair(newMesh, chunk->_mesh));
+                    _renderer._mainMeshUploadQueue.enqueue(newMesh);
                     ///_renderer._mainMeshUnloaßdQueue.enqueue(std::move(oldMesh));
                 }
             } else {

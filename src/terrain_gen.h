@@ -32,6 +32,7 @@ private:
     FastNoise::SmartNode<FastNoise::Perlin> mountainNoise;
     FastNoise::SmartNode<FastNoise::Perlin> riverNoise;
     FastNoise::SmartNode<FastNoise::Simplex> caveNoise;
+    
 
     int _seed;
 

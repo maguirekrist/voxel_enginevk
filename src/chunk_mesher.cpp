@@ -1,9 +1,10 @@
 
 #include <chunk_mesher.h>
+#include "block.h"
 #include "tracy/Tracy.hpp"
 #include <world.h>
 
-void ChunkMesher::generate_mesh()
+Mesh ChunkMesher::generate_mesh()
 {
     ZoneScopedN("Generate Chunk Mesh");
     //fmt::println("Generating mesh for chunk");
@@ -26,7 +27,9 @@ void ChunkMesher::generate_mesh()
     }
 
     //_chunk._mesh = std::make_shared<Mesh>(std::move(_mesh));
-    *_chunk._mesh = _mesh;
+    //*_chunk._mesh = _mesh;
+
+    return _mesh;
 
     //fmt::println("Finished generating chunk");
 }
@@ -241,6 +244,8 @@ void ChunkMesher::add_face_to_mesh(int x, int y, int z, FaceDirection face)
    // float sunLight = faceNeighbor ? static_cast<float>(faceNeighbor->_sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : MAX_LIGHT_LEVEL;
 
     glm::ivec3 blockPos{x,y,z};
+    Block& block = _chunk._blocks[x][y][z];
+    glm::vec3 color = blockColor[block._type];
 
     for (int i = 0; i < 4; ++i) {
         //get the neighbors light-level
@@ -248,7 +253,7 @@ void ChunkMesher::add_face_to_mesh(int x, int y, int z, FaceDirection face)
         float ao = calculate_vertex_ao(blockPos, face, i);
         
         //TODO: figure out how AO effects the color of the block/vertex. You can use vertex interpolation to shade.
-        _mesh._vertices.push_back({ position, glm::vec3(0.0f), faceColors[face] * (ao) });
+        _mesh._vertices.push_back({ position, glm::vec3(0.0f), color * (ao) });
     }
 
     // Add indices for the face (two triangles)

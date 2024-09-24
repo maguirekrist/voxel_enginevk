@@ -39,6 +39,27 @@ struct Mesh {
     static Mesh create_cube_mesh();
 };
 
+template<typename T>
+class SharedResource {
+private:
+    std::shared_ptr<T> resource; // The underlying resource
+
+public:
+    SharedResource(std::shared_ptr<T> initialResource)
+        : resource(initialResource) {}
+
+    // Get the current resource
+    std::shared_ptr<T> get() const {
+        return resource;
+    }
+
+    // Set a new resource, replacing the old one
+    std::shared_ptr<T> update(std::shared_ptr<T> newResource) {
+        std::shared_ptr<T> oldResource = resource;
+        resource = newResource;
+        return oldResource;
+    }
+};
 struct CameraUBO {
     glm::mat4 projection;
     glm::mat4 view;
@@ -60,7 +81,7 @@ struct UniformBuffer {
 };
 
 struct RenderObject {
-	std::shared_ptr<Mesh> mesh;
+	std::shared_ptr<SharedResource<Mesh>> mesh;
 	Material* material;
 	glm::ivec2 xzPos;
 };

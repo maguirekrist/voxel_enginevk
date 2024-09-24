@@ -8,6 +8,7 @@
 #include "tracy/Tracy.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <vk_initializers.h>
 #include <sdl_utils.h>
@@ -32,7 +33,7 @@ void VulkanEngine::build_target_block_view(const glm::vec3& worldPos)
 		upload_mesh(*_meshes["cubeMesh"]);
 	}
 
-	target_block.mesh = _meshes["cubeMesh"];
+	target_block.mesh = std::make_unique<SharedResource<Mesh>>(_meshes["cubeMesh"]);
 	glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, worldPos);
 	//target_block.transformMatrix = glm::scale(translate, glm::vec3(1.1f, 1.1f, 1.1f));
 	_renderObjects.push_back(target_block);
@@ -48,7 +49,7 @@ RenderObject VulkanEngine::build_chunk_debug_view(const Chunk& chunk)
 		upload_mesh(*_meshes["cubeMesh"]);
 	}
 
-	target_chunk.mesh = _meshes["cubeMesh"];
+	target_chunk.mesh = std::make_unique<SharedResource<Mesh>>(_meshes["cubeMesh"]);
 	glm::mat4 translate = glm::translate(glm::mat4{ 1.0 }, glm::vec3(chunk._position.x, 0, chunk._position.y));
 	//target_chunk.transformMatrix = glm::scale(translate, glm::vec3(CHUNK_SIZE, CHUNK_HEIGHT, CHUNK_SIZE));
 	return target_chunk;
@@ -66,6 +67,27 @@ void VulkanEngine::calculate_fps()
 
 		_frameNumber = 0;
 		_lastFpsTime = Clock::now();
+	}
+}
+
+void VulkanEngine::handle_transfers()
+{
+	while(true)
+	{	
+		//Handle uploads and unloads
+		{
+			ZoneScopedN("Handle Unload and Upload meshes");
+
+			std::shared_ptr<Mesh> unloadMesh;
+			while(_mainMeshUnloadQueue.try_dequeue(unloadMesh))
+			{
+				unload_mesh(std::move(unloadMesh));
+			}
+
+			std::shared_ptr<Mesh> uploadMesh;
+			_mainMeshUploadQueue.wait_dequeue(uploadMesh);
+			upload_mesh(*uploadMesh);
+		}
 	}
 }
 
@@ -100,6 +122,8 @@ void VulkanEngine::init()
 	init_descriptors();
 
 	init_pipelines();
+
+	_transferThread = std::thread(&VulkanEngine::handle_transfers, this);
 
 	//everything went fine
 	_isInitialized = true;
@@ -236,23 +260,6 @@ void VulkanEngine::draw()
 		VK_CHECK(vkResetFences(_device, 1, &get_current_frame()._renderFence));
 	}
 
-	//Delete old stuff
-	{
-		ZoneScopedN("Handle Unload and Upload meshes");
-
-		std::shared_ptr<Mesh> unloadMesh;
-		while(_mainMeshUnloadQueue.try_dequeue(unloadMesh))
-		{
-			unload_mesh(std::move(unloadMesh));
-		}
-
-		std::shared_ptr<Mesh> uploadMesh;
-		while(_mainMeshUploadQueue.try_dequeue(uploadMesh))
-		{
-			upload_mesh(*uploadMesh);
-		}
-	}
-
 	//request image from the swapchain, one second timeout
 	uint32_t swapchainImageIndex;
 	{
@@ -312,6 +319,14 @@ void VulkanEngine::draw()
 	{
 		ZoneScopedN("Draw Chunks & Objects");
 		update_uniform_buffers();
+
+		std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>>> meshSwap;
+		while(_meshSwapQueue.try_dequeue(meshSwap))
+		{	
+			auto oldMesh = meshSwap.second->update(meshSwap.first);
+			unload_mesh(std::move(oldMesh));
+		}
+
 		//update_chunk_buffer();
 		draw_chunks(cmd);
 		//draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
@@ -457,6 +472,18 @@ void VulkanEngine::init_vulkan()
 	_chosenGPU = physicalDevice.physical_device;
 	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 	_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+
+	auto transferQueue = vkbDevice.get_queue(vkb::QueueType::transfer);
+	auto transferQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::transfer);
+
+	if(transferQueue.has_value() && transferQueueFamily.has_value())
+	{
+		_transferQueue = transferQueue.value();
+		_transferQueueFamily = transferQueueFamily.value();
+	} else {
+		_transferQueue = _graphicsQueue;
+		_transferQueueFamily = _graphicsQueueFamily;
+	}
 
 	VmaAllocatorCreateInfo allocatorInfo = {};
     allocatorInfo.physicalDevice = _chosenGPU;
@@ -653,11 +680,11 @@ void VulkanEngine::init_commands()
 		});
 	}
 
-	VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily);
+	VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(_transferQueueFamily);
 	//create pool for upload context
 	VK_CHECK(vkCreateCommandPool(_device, &uploadCommandPoolInfo, nullptr, &_uploadContext._commandPool));
 
-	_mainDeletionQueue.push_function([=]() {
+	_mainDeletionQueue.push_function([&]() {
 		vkDestroyCommandPool(_device, _uploadContext._commandPool, nullptr);
 	});
 
@@ -799,7 +826,7 @@ void VulkanEngine::init_sync_structures()
 	VkFenceCreateInfo uploadCreateInfo = vkinit::fence_create_info();
 
 	VK_CHECK(vkCreateFence(_device, &uploadCreateInfo, nullptr, &_uploadContext._uploadFence));
-	_mainDeletionQueue.push_function([=]() {
+	_mainDeletionQueue.push_function([&]() {
 		vkDestroyFence(_device, _uploadContext._uploadFence, nullptr);
 	});
 
@@ -1259,7 +1286,7 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)> &&f
 
 	//submit command buffer to the queue and execute it.
 	// _uploadFence will now block until the graphic commands finish execution
-	VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, _uploadContext._uploadFence));
+	VK_CHECK(vkQueueSubmit(_transferQueue, 1, &submit, _uploadContext._uploadFence));
 
 	vkWaitForFences(_device, 1, &_uploadContext._uploadFence, true, 9999999999);
 	vkResetFences(_device, 1, &_uploadContext._uploadFence);
@@ -1296,42 +1323,42 @@ Material* VulkanEngine::get_material(const std::string &name)
 
 void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject *first, int count)
 {
-	Mesh* lastMesh = nullptr;
-	Material* lastMaterial = nullptr;
-	for (int i = 0; i < count; i++)
-	{
-		RenderObject& object = first[i];
+	// Mesh* lastMesh = nullptr;
+	// Material* lastMaterial = nullptr;
+	// for (int i = 0; i < count; i++)
+	// {
+	// 	RenderObject& object = first[i];
 
-		//only bind the pipeline if it doesn't match with the already bound one
-		if (object.material != lastMaterial) {
+	// 	//only bind the pipeline if it doesn't match with the already bound one
+	// 	if (object.material != lastMaterial) {
 
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
-			lastMaterial = object.material;
-		}
+	// 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+	// 		lastMaterial = object.material;
+	// 	}
 
 
-		// glm::mat4 model = object.transformMatrix;
-		// //final render matrix, that we are calculating on the cpu
-		// glm::mat4 mesh_matrix = _camera._projection * _camera._view * model;
+	// 	// glm::mat4 model = object.transformMatrix;
+	// 	// //final render matrix, that we are calculating on the cpu
+	// 	// glm::mat4 mesh_matrix = _camera._projection * _camera._view * model;
 
-		// MeshPushConstants constants;
-		// constants.render_matrix = mesh_matrix;
+	// 	// MeshPushConstants constants;
+	// 	// constants.render_matrix = mesh_matrix;
 
-		//upload the mesh to the GPU via push constants
-		//vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
-			//only bind the mesh if it's a different one from last bind
-		if (object.mesh.get() != lastMesh) {
-			//bind the mesh vertex buffer with offset 0
-			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
+	// 	//upload the mesh to the GPU via push constants
+	// 	//vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+	// 		//only bind the mesh if it's a different one from last bind
+	// 	if (object.mesh.get() != lastMesh) {
+	// 		//bind the mesh vertex buffer with offset 0
+	// 		VkDeviceSize offset = 0;
+	// 		vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
 
-			vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+	// 		vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 
-			lastMesh = object.mesh.get();
-		}
-		//we can now draw
-		vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
-	}
+	// 		lastMesh = object.mesh.get();
+	// 	}
+	// 	//we can now draw
+	// 	vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
+	// }
 }
 
 void VulkanEngine::draw_chunks(VkCommandBuffer cmd)
@@ -1346,7 +1373,8 @@ void VulkanEngine::draw_chunks(VkCommandBuffer cmd)
 	{
 		auto& object = _game._chunkManager._renderedChunks[i];
 
-		if(object.mesh == nullptr || !object.mesh->_isActive) continue;
+		if(object.mesh == nullptr) continue;
+		if(!object.mesh->get()->_isActive) continue;
 
 		//only bind the pipeline if it doesn't match with the already bound one
 		if (object.material != lastMaterial) {
@@ -1380,18 +1408,18 @@ void VulkanEngine::draw_chunks(VkCommandBuffer cmd)
 		vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ChunkPushConstants), &constants);
 
 		//only bind the mesh if it's a different one from last bind
-		if(object.mesh.get() != lastMesh) {
+		if(object.mesh->get().get() != lastMesh) {
 						//bind the mesh vertex buffer with offset 0
 			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
+			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->get()->_vertexBuffer._buffer, &offset);
 
-			vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindIndexBuffer(cmd, object.mesh->get()->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 
-			lastMesh = object.mesh.get();
+			lastMesh = object.mesh->get().get();
 		}
 
 		//we can now draw
-		vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
+		vkCmdDrawIndexed(cmd, object.mesh->get()->_indices.size(), 1, 0, 0, 0);
 	}
 
 }

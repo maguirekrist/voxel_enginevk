@@ -4,6 +4,7 @@
 #pragma once
 
 #include "vk_types.h"
+#include <condition_variable>
 #include <vk_mesh.h>
 #include <camera.h>
 #include <cube_engine.h>
@@ -62,6 +63,10 @@ public:
 	VkQueue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
 
+	//Transfer Queue
+	VkQueue _transferQueue;
+	uint32_t _transferQueueFamily;
+
 	VkRenderPass _renderPass;
 	std::vector<VkFramebuffer> _framebuffers;
 
@@ -83,8 +88,9 @@ public:
 	VkFormat _depthFormat;
 
 	FunctionQueue _mainDeletionQueue;
-	moodycamel::ConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUploadQueue;
+	moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUploadQueue;
 	moodycamel::ConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUnloadQueue;
+	moodycamel::ConcurrentQueue<std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>> > > _meshSwapQueue;
 	VmaAllocator _allocator;
 
 	VkDescriptorSetLayout _uboSetLayout;
@@ -156,8 +162,8 @@ private:
 
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
 
-
-	//void init_scene();
+	void handle_transfers();
+	std::thread _transferThread;
 
 	bool load_shader_module(const std::string& filePath, VkShaderModule* outShaderModule);
 
