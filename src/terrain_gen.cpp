@@ -83,3 +83,16 @@ std::vector<float> TerrainGenerator::GenerateHeightMap(int chunkX, int chunkZ)
     baseTerrainNoise->GenUniformGrid2D(heightMap.data(), chunkX, chunkZ, CHUNK_SIZE, CHUNK_SIZE, 0.001f, _seed);
     return heightMap;
 }
+
+std::vector<float> TerrainGenerator::GenerateDensityMap(int chunkX, int chunkZ)
+{
+    std::vector<float> densityMap(CHUNK_SIZE * CHUNK_SIZE * CHUNK_HEIGHT);
+    baseTerrainNoise->GenUniformGrid3D(densityMap.data(), chunkX, 0, chunkZ, CHUNK_SIZE, CHUNK_HEIGHT, CHUNK_SIZE, 0.05f, _seed);
+    return densityMap;
+}
+
+float TerrainGenerator::SampleNoise3D(int x, int y, int z)
+{
+    auto result = _generator->GenSingle3D(x, y, z, _seed);
+    return result;
+}

@@ -17,6 +17,8 @@ public:
     void GenerateChunk(int chunkX, int chunkZ, std::vector<uint8_t>& blockData);
 
     std::vector<float> GenerateHeightMap(int chunkX, int chunkZ);
+    std::vector<float> GenerateDensityMap(int chunkX, int chunkZ);
+    float SampleNoise3D(int x, int y, int z);
     float NormalizeHeight(std::vector<float>& map, int yScale, int xScale, int x, int y);
 private:
     TerrainGenerator() {
@@ -25,7 +27,16 @@ private:
         mountainNoise = FastNoise::New<FastNoise::Perlin>();
         riverNoise = FastNoise::New<FastNoise::Perlin>();
         caveNoise = FastNoise::New<FastNoise::Simplex>();
+
+        auto frequency = FastNoise::New<FastNoise::Constant>();
+        frequency->SetValue(0.15f);
+        auto perlinWithFreq = FastNoise::New<FastNoise::Multiply>();
+        perlinWithFreq->SetLHS(frequency);
+        perlinWithFreq->SetRHS(baseTerrainNoise);
+        _generator = perlinWithFreq;
     }
+
+    FastNoise::SmartNode<FastNoise::Multiply> _generator;
 
     // Noise generators
     FastNoise::SmartNode<FastNoise::Perlin> baseTerrainNoise;

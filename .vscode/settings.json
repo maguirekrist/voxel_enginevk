@@ -102,6 +102,10 @@
         "xtree": "cpp",
         "xutility": "cpp",
         "future": "cpp",
-        "resumable": "cpp"
+        "resumable": "cpp",
+        "barrier": "cpp",
+        "numeric": "cpp",
+        "regex": "cpp",
+        "valarray": "cpp"
     }
 }
