@@ -16,18 +16,18 @@ ChunkManager::ChunkManager(VulkanEngine& renderer)
           _terrainGenerator(TerrainGenerator::instance()),
           _renderer(renderer),
           _sync_point(4) 
+{
+
+    _chunks.reserve(_maxChunks);
+    _renderedChunks.reserve(_maxChunks);
+
+    for(size_t i = 0; i < _maxThreads; i++)
     {
-
-        _chunks.reserve(_maxChunks);
-        _renderedChunks.reserve(_maxChunks);
-
-        for(size_t i = 0; i < _maxThreads; i++)
-        {
-            _workers.emplace_back(&ChunkManager::meshChunk, this, i);
-        }
-        _updateThread = std::thread(&ChunkManager::worldUpdate, this);
-        _updatingWorldState = false;
+        _workers.emplace_back(&ChunkManager::meshChunk, this, i);
     }
+    _updateThread = std::thread(&ChunkManager::worldUpdate, this);
+    _updatingWorldState = false;
+}
 
 ChunkManager::~ChunkManager()
 {
@@ -59,7 +59,10 @@ void ChunkManager::updatePlayerPosition(int x, int z)
         _cvWorld.wait(lock, [this]() { return !_initLoad; });
     }
 
-    for(const auto& chunkCoord : new_chunks)
+    
+    _renderedChunks.clear();
+    _transparentObjects.clear();
+    for(const auto& chunkCoord : _worldChunks)
     {
         auto chunk = _chunks[chunkCoord].get();
         RenderObject object;
@@ -67,6 +70,12 @@ void ChunkManager::updatePlayerPosition(int x, int z)
         object.mesh = chunk->_mesh;
         object.xzPos = glm::ivec2(chunk->_position.x, chunk->_position.y);
         _renderedChunks.push_back(object);
+
+        RenderObject waterObject;
+        waterObject.material = _renderer.get_material("watermesh");
+        waterObject.mesh = chunk->_waterMesh;
+        waterObject.xzPos = glm::ivec2(chunk->_position.x, chunk->_position.y);
+        _transparentObjects.push_back(waterObject);
     }
 
 }
@@ -291,12 +300,21 @@ void ChunkManager::meshChunk(int threadId)
                 {
                     //std::shared_ptr<Mesh> oldMesh = chunk->_mesh;
                     ChunkMesher mesher { *chunk, neighbors };
-                    std::shared_ptr<Mesh> newMesh = std::make_shared<Mesh>(mesher.generate_mesh());
+                    auto [landMesh, waterMesh] = mesher.generate_mesh();
+                    std::shared_ptr<Mesh> newMesh = std::make_shared<Mesh>(landMesh);
+                    std::shared_ptr<Mesh> newWaterMesh = std::make_shared<Mesh>(waterMesh);
 
-                    //chunk->_isValid = true;
-                    //_renderer.upload_mesh(*chunk->_mesh);
+                    if(waterMesh._vertices.size() > 0)
+                    {
+                        chunk->_hasWater = true;
+                        _renderer._meshSwapQueue.enqueue(std::make_pair(newWaterMesh, chunk->_waterMesh));
+                        _renderer._mainMeshUploadQueue.enqueue(newWaterMesh);
+                    }
+
                     _renderer._meshSwapQueue.enqueue(std::make_pair(newMesh, chunk->_mesh));
+                    
                     _renderer._mainMeshUploadQueue.enqueue(newMesh);
+                    
                     ///_renderer._mainMeshUnloaßdQueue.enqueue(std::move(oldMesh));
                 }
             } else {

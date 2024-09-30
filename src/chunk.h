@@ -48,18 +48,21 @@ class Chunk {
 public:
     Block _blocks[CHUNK_SIZE][CHUNK_HEIGHT][CHUNK_SIZE];
     std::shared_ptr<SharedResource<Mesh>> _mesh;
+    std::shared_ptr<SharedResource<Mesh>> _waterMesh;
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
     //bool _isValid{ false };
-
+    bool _hasWater{false};
     Block* get_block(const glm::ivec3& localPos);
     glm::ivec3 get_world_pos(const glm::ivec3& localPos);
 
     Chunk() {
         _mesh = std::make_shared<SharedResource<Mesh>>(std::make_shared<Mesh>());
+        _waterMesh = std::make_shared<SharedResource<Mesh>>(std::make_shared<Mesh>());
     };
 
     Chunk(ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)) {
         _mesh = std::make_shared<SharedResource<Mesh>>(std::make_shared<Mesh>());
+        _waterMesh = std::make_shared<SharedResource<Mesh>>(std::make_shared<Mesh>());
     };
 
     void reset(ChunkCoord newCoord);

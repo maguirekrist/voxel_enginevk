@@ -38,7 +38,7 @@ enum QuadCorners {
 namespace Colors {
     constexpr glm::vec3 red{ 1.0f, 0.0f, 0.0f };
     constexpr glm::vec3 green{ 0.0f, 1.0f, 0.0f };
-    constexpr glm::vec3 blue{ 0.0f, 0.0f, 1.0f };
+    constexpr Color blue{ 0, 60, 120 };
     constexpr glm::vec3 purple{ 1.0f, 0.0f, 1.0f };
     constexpr glm::vec3 yellow{ 1.0f, 1.0f, 0.0f };
     constexpr glm::vec3 lightBlue{ 0.0f, 1.0f, 1.0f };
@@ -47,7 +47,7 @@ namespace Colors {
 };
 
 constexpr FaceDirection faceDirections[6] = { FRONT_FACE, BACK_FACE, RIGHT_FACE, LEFT_FACE, TOP_FACE, BOTTOM_FACE };
-constexpr glm::vec3 faceColors[6] = { Colors::red, Colors::green, Colors::blue, Colors::purple, Colors::yellow, Colors::lightBlue };
+// constexpr glm::vec3 faceColors[6] = { Colors::red, Colors::green, Colors::blue, Colors::purple, Colors::yellow, Colors::lightBlue };
 
 constexpr std::optional<FaceDirection> get_face_direction(glm::ivec3 normal)
 {
@@ -73,6 +73,15 @@ constexpr std::optional<FaceDirection> get_face_direction(glm::ivec3 normal)
 
     return std::nullopt;
 }
+
+constexpr glm::vec3 faceNormals[6] = {
+    { 0.0f, 0.0f, 1.0f }, //Front face
+    { 0.0f, 0.0f, -1.0f },
+    { -1.0f, 0.0f, 0.0f },
+    { 1.0f, 0.0f, 0.0f },
+    { 0.0f, 1.0f, 0.0f },
+    { 0.0f, -1.0f, 0.0f }
+};
 
 constexpr int faceOffsetX[] = { 0,  0, -1,  1,  0,  0 };
 constexpr int faceOffsetY[] = { 0,  0,  0,  0,  1, -1 };
@@ -146,12 +155,14 @@ constexpr glm::ivec3 faceVertices[6][4] = {
 enum BlockType {
     AIR = 0,
     GROUND = 1,
-    WATER = 3
+    WATER = 3,
+    STONE = 4
 };
 
-constexpr Color blockColor[2] = {
+constexpr Color blockColor[3] = {
     Colors::black,
-    Colors::lightGreen
+    Colors::lightGreen,
+    Colors::blue
 };
 
 struct Block {

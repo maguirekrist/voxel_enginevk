@@ -10,6 +10,7 @@
 #include <cube_engine.h>
 #include <vulkan/vulkan_core.h>
 #include <utils/concurrentqueue.h>
+#include <vk_util.h>
 
 class FunctionQueue {
 public:
@@ -68,7 +69,11 @@ public:
 	uint32_t _transferQueueFamily;
 
 	VkRenderPass _renderPass;
+	VkRenderPass _offscreenPass;
+	VkFramebuffer _offscreenFramebuffer;
 	std::vector<VkFramebuffer> _framebuffers;
+
+	Material _computeMaterial;
 
 	std::unordered_map<std::string, Material> _materials;
     std::unordered_map<std::string, std::shared_ptr<Mesh>> _meshes;
@@ -87,11 +92,20 @@ public:
 	AllocatedImage _depthImage;
 	VkFormat _depthFormat;
 
+	VkFormat _colorFormat;
+	AllocatedImage _fullscreenImage;
+	VkImageView _fullscreenImageView;
+
 	FunctionQueue _mainDeletionQueue;
 	moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUploadQueue;
 	moodycamel::ConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUnloadQueue;
 	moodycamel::ConcurrentQueue<std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>> > > _meshSwapQueue;
 	VmaAllocator _allocator;
+
+	vkutil::DescriptorAllocator _descriptorAllocator;
+	vkutil::DescriptorLayoutCache _descriptorLayoutCache;
+
+	VkDescriptorSet _fogUboSet;
 
 	VkDescriptorSetLayout _uboSetLayout;
 	VkDescriptorSetLayout _chunkSetLayout;
@@ -125,6 +139,8 @@ public:
 
 	void draw_chunks(VkCommandBuffer cmd);
 
+	void draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial);
+
 	void calculate_fps();
 
 	//initializes everything in the engine
@@ -134,6 +150,10 @@ public:
 	void cleanup();
 
 	void handle_input();
+
+	void advance_frame();
+
+	VkCommandBuffer begin_recording();
 
 	//draw loop
 	void draw();
@@ -146,19 +166,28 @@ private:
 
 	void init_vulkan();
 	void init_swapchain();
+	void init_offscreen_images();
+	void init_offscreen_framebuffers();
 	void init_commands();
 	void init_descriptors();
+
+	void init_offscreen_renderpass();
 	void init_default_renderpass();
+
 	void init_framebuffers();
-	void init_uniform_buffers();
+	//void init_uniform_buffers();
 	void init_sync_structures();
 	void init_pipelines();
 
 	void build_material_default();
+	void build_material_water();
 	void build_material_wireframe();
+	void build_postprocess_pipeline();
 
 	void update_uniform_buffers();
 	void update_chunk_buffer();
+	
+	void run_compute(VkCommandBuffer cmd, Material computeMaterial, VkDescriptorSet descriptorSet);
 
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
 
@@ -169,21 +198,4 @@ private:
 
 	void build_target_block_view(const glm::vec3& worldPos);
 	RenderObject build_chunk_debug_view(const Chunk& chunk);
-};
-
-
-class PipelineBuilder {
-public:
-	std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
-	VkPipelineVertexInputStateCreateInfo _vertexInputInfo;
-	VkPipelineInputAssemblyStateCreateInfo _inputAssembly;
-	VkViewport _viewport;
-	VkRect2D _scissor;
-	VkPipelineRasterizationStateCreateInfo _rasterizer;
-	VkPipelineColorBlendAttachmentState _colorBlendAttachment;
-	VkPipelineDepthStencilStateCreateInfo _depthStencil;
-	VkPipelineMultisampleStateCreateInfo _multisampling;
-	VkPipelineLayout _pipelineLayout;
-
-	VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
 };

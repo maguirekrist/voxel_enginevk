@@ -34,7 +34,13 @@ add_executable(vulkan_guide
     constants.h
     utils/concurrentqueue.h
     utils/blockingconcurrentqueue.h
-    utils/lightweightsemaphore.h)
+    utils/lightweightsemaphore.h
+    vk_pipeline_builder.h
+    vk_pipeline_builder.cpp
+    vk_util.h
+    vk_util.cpp
+    render/compute_shader.h
+    render/compute_shader.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")

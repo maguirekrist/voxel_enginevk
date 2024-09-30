@@ -23,6 +23,7 @@ public:
 
     //Render chunk data
     std::vector<RenderObject> _renderedChunks;
+    std::vector<RenderObject> _transparentObjects;
 
     std::unordered_set<ChunkCoord> _worldChunks;
     std::unordered_set<ChunkCoord> _oldWorldChunks;

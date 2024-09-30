@@ -4,10 +4,9 @@
 #include "tracy/Tracy.hpp"
 #include <world.h>
 
-Mesh ChunkMesher::generate_mesh()
+std::pair<Mesh, Mesh> ChunkMesher::generate_mesh()
 {
     ZoneScopedN("Generate Chunk Mesh");
-    //fmt::println("Generating mesh for chunk");
 
     for (int x = 0; x < CHUNK_SIZE; ++x) {
         for (int y = 0; y < CHUNK_HEIGHT; ++y) {
@@ -18,7 +17,16 @@ Mesh ChunkMesher::generate_mesh()
                     {
                         if(is_face_visible(x, y, z, face))
                         {
-                            add_face_to_mesh(x, y, z, face);
+                            add_face_to_opaque_mesh(x, y, z, face);
+                        }
+                    }
+                } else if(block._type == BlockType::WATER)
+                {
+                    for(auto face : faceDirections)
+                    {
+                        if(is_face_visible_water(x, y, z, face))
+                        {
+                            add_face_to_water_mesh(x, y, z, face);
                         }
                     }
                 }
@@ -26,12 +34,7 @@ Mesh ChunkMesher::generate_mesh()
         }
     }
 
-    //_chunk._mesh = std::make_shared<Mesh>(std::move(_mesh));
-    //*_chunk._mesh = _mesh;
-
-    return _mesh;
-
-    //fmt::println("Finished generating chunk");
+    return std::make_pair(_mesh, _waterMesh);
 }
 
 Block* ChunkMesher::get_face_neighbor(int x, int y, int z, FaceDirection face)
@@ -71,6 +74,13 @@ bool ChunkMesher::is_face_visible(int x, int y, int z, FaceDirection face)
     }
 
     return !_chunk._blocks[nx][ny][nz]._solid;
+}
+
+bool ChunkMesher::is_face_visible_water(int x, int y, int z, FaceDirection face)
+{
+    Block* faceBlock = get_face_neighbor(x, y, z, face);
+
+    return faceBlock->_type == BlockType::AIR;
 }
 
 //Face cube position of the 
@@ -238,10 +248,10 @@ void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
 }
 
 //note: a block's position is the back-bottom-right of the cube.
-void ChunkMesher::add_face_to_mesh(int x, int y, int z, FaceDirection face)
+void ChunkMesher::add_face_to_opaque_mesh(int x, int y, int z, FaceDirection face)
 {
-    //Block* faceNeighbor = get_face_neighbor(block, face);
-   // float sunLight = faceNeighbor ? static_cast<float>(faceNeighbor->_sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : MAX_LIGHT_LEVEL;
+    Block* faceNeighbor = get_face_neighbor(x, y, z, face);
+    float sunLight = faceNeighbor ? static_cast<float>(faceNeighbor->_sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : 1.0f;
 
     glm::ivec3 blockPos{x,y,z};
     Block& block = _chunk._blocks[x][y][z];
@@ -251,9 +261,8 @@ void ChunkMesher::add_face_to_mesh(int x, int y, int z, FaceDirection face)
         //get the neighbors light-level
         glm::ivec3 position = blockPos + faceVertices[face][i];
         float ao = calculate_vertex_ao(blockPos, face, i);
-        
-        //TODO: figure out how AO effects the color of the block/vertex. You can use vertex interpolation to shade.
-        _mesh._vertices.push_back({ position, glm::vec3(0.0f), color * (ao) });
+
+        _mesh._vertices.push_back({ position, faceNormals[face], color * (ao * sunLight) });
     }
 
     // Add indices for the face (two triangles)
@@ -264,4 +273,25 @@ void ChunkMesher::add_face_to_mesh(int x, int y, int z, FaceDirection face)
     _mesh._indices.push_back(index + 2);
     _mesh._indices.push_back(index + 3);
     _mesh._indices.push_back(index + 0);
+}
+
+void ChunkMesher::add_face_to_water_mesh(int x, int y, int z, FaceDirection face)
+{
+    glm::ivec3 blockPos{x,y,z};
+    Block& block = _chunk._blocks[x][y][z];
+    glm::vec3 color = blockColor[block._type];
+
+    for (int i = 0; i < 4; ++i) {
+        glm::ivec3 position = blockPos + faceVertices[face][i];
+    
+        _waterMesh._vertices.push_back({ position, faceNormals[face], color });
+    }
+
+    uint32_t index = _waterMesh._vertices.size() - 4;
+    _waterMesh._indices.push_back(index + 0);
+    _waterMesh._indices.push_back(index + 1);
+    _waterMesh._indices.push_back(index + 2);
+    _waterMesh._indices.push_back(index + 2);
+    _waterMesh._indices.push_back(index + 3);
+    _waterMesh._indices.push_back(index + 0);
 }

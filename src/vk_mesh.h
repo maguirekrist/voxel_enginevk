@@ -66,6 +66,12 @@ struct CameraUBO {
     glm::mat4 viewproject;
 };
 
+struct FogUBO {
+    glm::vec3 fogColor;
+    float fogStart;
+    float fogEnd;
+};
+
 struct ChunkPushConstants {
     glm::ivec2 chunk_translate;
 };
