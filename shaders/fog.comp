@@ -1,9 +1,9 @@
 #version 450
 
-layout(binding = 0, rgba8) uniform image2D colorImage;   // The off-screen color image (input/output)
-layout(binding = 1) uniform sampler2D depthImage;        // Depth buffer image (input)
+layout(set = 0, binding = 0, rgba8) uniform image2D colorImage;   // The off-screen color image (input/output)
+layout(set = 1, binding = 0) uniform sampler2D depthImage;        // Depth buffer image (input)
 
-layout(binding = 2) uniform FogUBO {
+layout(set = 2, binding = 0) uniform FogUBO {
     vec3 fogColor;
     float fogStart;
     float fogEnd;
@@ -12,24 +12,35 @@ layout(binding = 2) uniform FogUBO {
 
 layout(local_size_x = 16, local_size_y = 16) in;         // Define workgroup size
 
+float linearizeDepth(float depth, float near, float far) {
+    return near * far / (far - depth * (far - near));
+}
+
+float computeFogFactor(float depthValue, float minDist, float maxDist) {
+    float fogFactor = clamp((depthValue - minDist) / (maxDist - minDist), 0.0, 1.0);
+    return fogFactor;
+}
+
 void main() {
     ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
-    
-    // Get the current color from the color image
-    vec4 sceneColor = imageLoad(colorImage, pixelCoords);
+
     
     // Get the depth for the current pixel
     float depth = texture(depthImage, vec2(pixelCoords) / vec2(imageSize(colorImage))).r;
 
     // Convert depth to world space distance (optional, depends on your depth setup)
-    float distance = depth * maxDistance;  // Replace with actual max distance based on your camera setup
+    //float distance = depth * 10000.0f;  // Replace with actual max distance based on your camera setup
+
+    float linearDepth = linearizeDepth(depth, 1.0, 10000.0);
+
+    vec4 sceneColor = imageLoad(colorImage, pixelCoords);
 
     // Calculate fog factor
-    float fogFactor = clamp((ubo.fogEnd - distance) / (ubo.fogEnd - ubo.fogStart), 0.0, 1.0);
+    float fogFactor = computeFogFactor(linearDepth, ubo.fogStart, ubo.fogEnd);
 
     // Blend the scene color with the fog color
-    vec3 finalColor = mix(ubo.fogColor, sceneColor.rgb, fogFactor);
+    vec4 finalColor = mix(sceneColor, vec4(ubo.fogColor.rgb, 1.0f), fogFactor);
 
-    // Write the final color to the image
-    imageStore(colorImage, pixelCoords, vec4(finalColor, sceneColor.a));
+    // Store the final color back to the color image
+    imageStore(colorImage, pixelCoords, finalColor);
 }

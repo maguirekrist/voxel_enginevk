@@ -39,8 +39,10 @@ add_executable(vulkan_guide
     vk_pipeline_builder.cpp
     vk_util.h
     vk_util.cpp
-    render/compute_shader.h
-    render/compute_shader.cpp)
+    render/mesh_manager.h
+    render/mesh_manager.cpp
+    render/material_manager.h
+    render/material_manager.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")

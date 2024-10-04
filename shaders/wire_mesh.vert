@@ -6,7 +6,6 @@ layout (location = 2) in vec3 vColor;
 
 layout ( push_constant ) uniform constants
 {
-    vec4 data;
     mat4 render_matrix;
 } PushConstants;
 

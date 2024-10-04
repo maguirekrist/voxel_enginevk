@@ -16,6 +16,8 @@ public:
     World _world{ &_chunkManager };
     Player _player;
 
+    void cleanup();
+
     //Main Tick entry
     void update();
 private:

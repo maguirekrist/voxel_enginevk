@@ -35,6 +35,7 @@ private:
         _continental = FastNoise::NewFromEncodedNodeTree("FwAK16M8w/Wov7geBb8UrkdAIgCkcA1BCtejPA0ABAAAALgeZUAIAAAAAAA/AFyPwj8=");
     }   
 
+
     // Noise generators
     FastNoise::SmartNode<> _erosion;
     FastNoise::SmartNode<> _peaks;

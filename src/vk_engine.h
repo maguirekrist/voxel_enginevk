@@ -11,6 +11,8 @@
 #include <vulkan/vulkan_core.h>
 #include <utils/concurrentqueue.h>
 #include <vk_util.h>
+#include <render/mesh_manager.h>
+#include <render/material_manager.h>
 
 class FunctionQueue {
 public:
@@ -41,7 +43,7 @@ public:
 	}
 
 	bool _isInitialized{ false };
-	bool bUseValidationLayers{ false };
+	bool bUseValidationLayers{ true };
 	int _frameNumber {0};
 
 	bool bFocused = false;
@@ -61,12 +63,14 @@ public:
 	std::vector<VkImageView> _swapchainImageViews;
 	//VkExtent2D _swapchainExtend;
 
+	//Queues
 	VkQueue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
-
-	//Transfer Queue
 	VkQueue _transferQueue;
 	uint32_t _transferQueueFamily;
+
+	MeshManager _meshManager;
+	MaterialManager _materialManager;
 
 	VkRenderPass _renderPass;
 	VkRenderPass _offscreenPass;
@@ -75,10 +79,7 @@ public:
 
 	Material _computeMaterial;
 
-	std::unordered_map<std::string, Material> _materials;
-    std::unordered_map<std::string, std::shared_ptr<Mesh>> _meshes;
-
-	std::vector<RenderObject> _renderObjects;
+	//std::vector<RenderObject> _renderObjects;
 	CubeEngine _game{ *this };
 	Camera _camera;
 	std::optional<RaycastResult> _targetBlock;
@@ -88,6 +89,7 @@ public:
 	TimePoint _lastFpsTime;
 	float _fps;
 	
+	VkSampler _sampler;
 	VkImageView _depthImageView;
 	AllocatedImage _depthImage;
 	VkFormat _depthFormat;
@@ -97,23 +99,21 @@ public:
 	VkImageView _fullscreenImageView;
 
 	FunctionQueue _mainDeletionQueue;
-	moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUploadQueue;
-	moodycamel::ConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUnloadQueue;
 	moodycamel::ConcurrentQueue<std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>> > > _meshSwapQueue;
 	VmaAllocator _allocator;
 
 	vkutil::DescriptorAllocator _descriptorAllocator;
 	vkutil::DescriptorLayoutCache _descriptorLayoutCache;
 
-	VkDescriptorSet _fogUboSet;
+	std::array<VkDescriptorSet, 3> _computeDescriptorSets;
+	AllocatedBuffer _fogUboBuffer;
+
+	VkDescriptorSetLayout _sampledImageSetLayout;
+	VkDescriptorSet _sampledImageSet;
 
 	VkDescriptorSetLayout _uboSetLayout;
 	VkDescriptorSetLayout _chunkSetLayout;
 	VkDescriptorPool _dPool;
-
-	UploadContext _uploadContext;
-
-	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 
 	FrameData _frames[FRAME_OVERLAP];
 
@@ -123,17 +123,6 @@ public:
 
 	FrameData& get_current_frame();
 
-	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
-
-	Material* get_material(const std::string& name);
-
-	AllocatedBuffer create_buffer(size_t size, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage);
-
-	void upload_mesh(Mesh& mesh);
-	void unload_mesh(std::shared_ptr<Mesh>&& mesh);
-
-	//??
-	//Mesh* get_mesh(const std::string& name);
 
 	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
 
@@ -151,7 +140,7 @@ public:
 
 	void handle_input();
 
-	void advance_frame();
+	uint32_t advance_frame();
 
 	VkCommandBuffer begin_recording();
 
@@ -164,38 +153,51 @@ private:
 
 	VulkanEngine() {};
 
+	//General Vulkan Init for renderering
 	void init_vulkan();
 	void init_swapchain();
-	void init_offscreen_images();
-	void init_offscreen_framebuffers();
 	void init_commands();
+
+	//Descriptor Layout Init
 	void init_descriptors();
 
+	//Initialize global image resources - required for offscreen image output 
+	void init_offscreen_images();
+
+	//Renderpass Init
 	void init_offscreen_renderpass();
 	void init_default_renderpass();
 
+	//Frame Buffer Init
 	void init_framebuffers();
+	void init_offscreen_framebuffers();
 	//void init_uniform_buffers();
+
 	void init_sync_structures();
+
+	//Pipeline creation
 	void init_pipelines();
 
 	void build_material_default();
 	void build_material_water();
 	void build_material_wireframe();
 	void build_postprocess_pipeline();
+	void build_present_pipeline();
 
+	//Buffer updates
 	void update_uniform_buffers();
+	void update_fog_ubo();
 	void update_chunk_buffer();
 	
-	void run_compute(VkCommandBuffer cmd, Material computeMaterial, VkDescriptorSet descriptorSet);
+
+	void run_compute(VkCommandBuffer cmd, const Material& computeMaterial, VkDescriptorSet* descriptorSets, size_t setCount);
+
+	void draw_fullscreen(VkCommandBuffer cmd, Material* presentMaterial);
 
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
 
-	void handle_transfers();
-	std::thread _transferThread;
 
-	bool load_shader_module(const std::string& filePath, VkShaderModule* outShaderModule);
-
-	void build_target_block_view(const glm::vec3& worldPos);
-	RenderObject build_chunk_debug_view(const Chunk& chunk);
+	//Test Functions
+	// void build_target_block_view(const glm::vec3& worldPos);
+	// RenderObject build_chunk_debug_view(const Chunk& chunk);
 };

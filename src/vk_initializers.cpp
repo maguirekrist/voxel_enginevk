@@ -1,55 +1,6 @@
 ﻿#include <vk_initializers.h>
 #include <vulkan/vulkan_core.h>
 
-bool vkinit::load_shader_module(const std::string& filePath, VkDevice device, VkShaderModule* outShaderModule)
-{
-	//open the file. With cursor at the end
-	std::ifstream file(filePath, std::ios::ate | std::ios::binary);
-
-	if (!file.is_open()) {
-		fmt::println("Unable to find file at path: {}", filePath);
-		return false;
-	}
-
-
-	//find what the size of the file is by looking up the location of the cursor
-	//because the cursor is at the end, it gives the size directly in bytes
-	size_t fileSize = (size_t)file.tellg();
-
-	//spirv expects the buffer to be on uint32, so make sure to reserve an int vector big enough for the entire file
-	std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
-
-	//put file cursor at beginning
-	file.seekg(0);
-
-	//load the entire file into the buffer
-	file.read((char*)buffer.data(), fileSize);
-
-	//now that the file is loaded into the buffer, we can close it
-	file.close();
-
-	//create a new shader module, using the buffer we loaded
-	VkShaderModuleCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.pNext = nullptr;
-
-	//codeSize has to be in bytes, so multiply the ints in the buffer by size of int to know the real size of the buffer
-	createInfo.codeSize = buffer.size() * sizeof(uint32_t);
-	createInfo.pCode = buffer.data();
-
-	//check that the creation goes well.
-	VkShaderModule shaderModule;
-	auto result = vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule);
-    if (result != VK_SUCCESS)
-    {
-        fmt::println("Could not create shader module {}: Vulkan Error {}", filePath, result);
-        return false;
-    }
-
-	*outShaderModule = shaderModule;
-	return true;
-}
-
 VkPipelineShaderStageCreateInfo vkinit::pipeline_shader_stage_create_info(VkShaderStageFlagBits stageBits, VkShaderModule shaderModule)
 {
     VkPipelineShaderStageCreateInfo info{};
@@ -196,6 +147,29 @@ VkPushConstantRange vkinit::pushconstrant_range(size_t size, VkShaderStageFlags 
     return push_constant;
 }
 
+VkSamplerCreateInfo vkinit::sampler_create_info()
+{
+    VkSamplerCreateInfo samplerInfo = {};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;  // Magnification filter
+    samplerInfo.minFilter = VK_FILTER_LINEAR;  // Minification filter
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;  // Addressing mode for U axis
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;  // Addressing mode for V axis
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;  // Addressing mode for W axis
+    samplerInfo.anisotropyEnable = VK_FALSE;
+    samplerInfo.maxAnisotropy = 16;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;  // Border color if using border addressing mode
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;  // Use normalized coordinates [0, 1]
+    samplerInfo.compareEnable = VK_FALSE;  // No comparison
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;  // Mipmap mode
+    samplerInfo.mipLodBias = 0.0f;  // LOD bias
+    samplerInfo.minLod = 0.0f;  // Minimum LOD
+    samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+
+    return samplerInfo;
+}
+
 VkPipelineLayoutCreateInfo vkinit::pipeline_layout_create_info()
 {
     VkPipelineLayoutCreateInfo info{};
@@ -260,8 +234,8 @@ VkPipelineDepthStencilStateCreateInfo vkinit::depth_stencil_create_info(bool bDe
     info.depthWriteEnable = bDepthWrite ? VK_TRUE : VK_FALSE;
     info.depthCompareOp = bDepthTest ? compareOp : VK_COMPARE_OP_ALWAYS;
     info.depthBoundsTestEnable = VK_FALSE;
-    info.minDepthBounds = 0.0f; // Optional
-    info.maxDepthBounds = 1.0f; // Optional
+    // info.minDepthBounds = 0.0f; // Optional
+    // info.maxDepthBounds = 1.0f; // Optional
     info.stencilTestEnable = VK_FALSE;
 
     return info;

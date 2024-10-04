@@ -31,6 +31,8 @@ public:
 
     ChunkManager(VulkanEngine& renderer);
 
+    void cleanup();
+
     ~ChunkManager();
 
     void updatePlayerPosition(int x, int z);

@@ -3,6 +3,11 @@
 
 #include "tracy/Tracy.hpp"
 
+void CubeEngine::cleanup()
+{
+    _chunkManager.cleanup();
+}
+
 void CubeEngine::update()
 {
     ZoneScopedN("GameUpdate");

@@ -32,7 +32,7 @@ namespace vkinit {
 	VkDescriptorSetLayoutBinding descriptorset_layout_binding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding);
 	VkPushConstantRange pushconstrant_range(size_t size, VkShaderStageFlags accessFlags);
 
-	bool load_shader_module(const std::string& filePath, VkDevice device, VkShaderModule* outShaderModule);
+	VkSamplerCreateInfo sampler_create_info();
 
 	VkFenceCreateInfo fence_create_info(VkFenceCreateFlags createFlags = 0);
 	VkSemaphoreCreateInfo semaphore_create_info();

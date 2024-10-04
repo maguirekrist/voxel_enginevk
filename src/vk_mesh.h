@@ -70,6 +70,12 @@ struct FogUBO {
     glm::vec3 fogColor;
     float fogStart;
     float fogEnd;
+    glm::vec3 fogCenter;
+    float fogRadius;
+    float fogMaxDst;
+    float nearPlane;
+    float farPlane;
+    glm::mat4 invViewProject;
 };
 
 struct ChunkPushConstants {

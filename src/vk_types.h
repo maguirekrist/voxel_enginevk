@@ -48,6 +48,11 @@ struct AllocatedImage {
     VmaAllocation _allocation;
 };
 
+struct QueueFamily {
+	VkQueue _queue;
+	uint32_t _queueFamily;
+};
+
 struct UploadContext {
 	VkFence _uploadFence;
 	VkCommandPool _commandPool;

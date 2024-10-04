@@ -5,39 +5,9 @@
 namespace vkutil {
 
     //Transitions a written image to a image ready to be procesed by a compute shader
-    void transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout targetLayout)
-    {
-        // Define an image memory barrier
-        VkImageMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.oldLayout = currentLayout; // The layout used in the off-screen render pass
-        barrier.newLayout = targetLayout; // The layout for compute shader access
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = image;
-
-        // Define the aspect mask based on the image format (assumed to be color here)
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
-
-        // Set up access masks for synchronization
-        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; // Previous access mask
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT; // Access needed for compute shader
-
-        // Insert the pipeline barrier
-        vkCmdPipelineBarrier(
-            cmd,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // Previous stage
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,          // Stage where the compute shader reads the image
-            0,                                             // No additional flags
-            0, nullptr,                                    // No memory barriers
-            0, nullptr,                                    // No buffer barriers
-            1, &barrier                                    // One image memory barrier
-        );
-    }
+    void transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout targetLayout);
+    bool load_shader_module(const std::string& filePath, VkDevice device, VkShaderModule* outShaderModule);
+    AllocatedBuffer create_buffer(VmaAllocator allocator, size_t size, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage);
 
     class DescriptorAllocator {
     public:

@@ -1,4 +1,120 @@
 #include "vk_util.h"
+#include "vk_initializers.h"
+
+
+std::string getShaderPath(const std::string& shaderName) {
+	// Get the executable path
+	std::filesystem::path exePath = std::filesystem::current_path();
+
+	// Navigate to the shaders directory
+	return (exePath / "shaders" / shaderName).string();
+}
+
+bool vkutil::load_shader_module(const std::string& filePath, VkDevice device, VkShaderModule* outShaderModule)
+{
+
+	const auto& path = getShaderPath(filePath);
+
+	//open the file. With cursor at the end
+	std::ifstream file(path, std::ios::ate | std::ios::binary);
+
+	if (!file.is_open()) {
+		fmt::println("Unable to find file at path: {}", path);
+		return false;
+	}
+
+
+	//find what the size of the file is by looking up the location of the cursor
+	//because the cursor is at the end, it gives the size directly in bytes
+	size_t fileSize = (size_t)file.tellg();
+
+	//spirv expects the buffer to be on uint32, so make sure to reserve an int vector big enough for the entire file
+	std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
+
+	//put file cursor at beginning
+	file.seekg(0);
+
+	//load the entire file into the buffer
+	file.read((char*)buffer.data(), fileSize);
+
+	//now that the file is loaded into the buffer, we can close it
+	file.close();
+
+	//create a new shader module, using the buffer we loaded
+	VkShaderModuleCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.pNext = nullptr;
+
+	//codeSize has to be in bytes, so multiply the ints in the buffer by size of int to know the real size of the buffer
+	createInfo.codeSize = buffer.size() * sizeof(uint32_t);
+	createInfo.pCode = buffer.data();
+
+	//check that the creation goes well.
+	VkShaderModule shaderModule;
+	auto result = vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule);
+    if (result != VK_SUCCESS)
+    {
+        //fmt::println("Could not create shader module Vulkan Error {}", result);
+        return false;
+    }
+
+	*outShaderModule = shaderModule;
+	return true;
+}
+
+void vkutil::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout targetLayout)
+{
+	// Define an image memory barrier
+	VkImageMemoryBarrier barrier{};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = currentLayout; // The layout used in the off-screen render pass
+	barrier.newLayout = targetLayout; // The layout for compute shader access
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = image;
+
+	// Define the aspect mask based on the image format (assumed to be color here)
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+
+	// Set up access masks for synchronization
+	barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; // Previous access mask
+	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT; // Access needed for compute shader
+
+	// Insert the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmd,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // Previous stage
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,          // Stage where the compute shader reads the image
+		0,                                             // No additional flags
+		0, nullptr,                                    // No memory barriers
+		0, nullptr,                                    // No buffer barriers
+		1, &barrier                                    // One image memory barrier
+	);
+}
+
+AllocatedBuffer vkutil::create_buffer(VmaAllocator allocator, size_t size, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage)
+{
+	VkBufferCreateInfo bufferInfo = vkinit::buffer_create_info(size, bufferUsage);
+
+	std::string debugMsg = "THIS IS A TEST";
+
+	VmaAllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = memUsage;
+	vmaallocInfo.pUserData = static_cast<void*>(const_cast<char*>(debugMsg.c_str()));
+
+	AllocatedBuffer buffer = {};
+
+	vmaCreateBuffer(allocator, &bufferInfo, &vmaallocInfo,
+		&buffer._buffer,
+		&buffer._allocation,
+		nullptr);
+
+	return buffer;
+}
 
 VkDescriptorPool createPool(VkDevice device, const vkutil::DescriptorAllocator::PoolSizes& poolSizes, int count, VkDescriptorPoolCreateFlags flags)
 	{

@@ -29,6 +29,22 @@ ChunkManager::ChunkManager(VulkanEngine& renderer)
     _updatingWorldState = false;
 }
 
+void ChunkManager::cleanup()
+{
+    _renderedChunks.clear();
+    _transparentObjects.clear();
+    for(auto& [key, chunk] : _chunks)
+    {
+        std::shared_ptr<Mesh> mesh = std::move(chunk->_mesh->get());
+        std::shared_ptr<Mesh> waterMesh = std::move(chunk->_waterMesh->get());
+
+        chunk.reset();
+
+        _renderer._meshManager.unload_mesh(std::move(mesh));
+        _renderer._meshManager.unload_mesh(std::move(waterMesh));
+    }
+}
+
 ChunkManager::~ChunkManager()
 {
     _running = false;
@@ -36,6 +52,7 @@ ChunkManager::~ChunkManager()
     for (std::thread &worker : _workers) {
         worker.join();
     }
+    
     _updateThread.join();
 }
 
@@ -66,13 +83,13 @@ void ChunkManager::updatePlayerPosition(int x, int z)
     {
         auto chunk = _chunks[chunkCoord].get();
         RenderObject object;
-        object.material = _renderer.get_material("defaultmesh");
+        object.material = _renderer._materialManager.get_material("defaultmesh");
         object.mesh = chunk->_mesh;
         object.xzPos = glm::ivec2(chunk->_position.x, chunk->_position.y);
         _renderedChunks.push_back(object);
 
         RenderObject waterObject;
-        waterObject.material = _renderer.get_material("watermesh");
+        waterObject.material = _renderer._materialManager.get_material("watermesh");
         waterObject.mesh = chunk->_waterMesh;
         waterObject.xzPos = glm::ivec2(chunk->_position.x, chunk->_position.y);
         _transparentObjects.push_back(waterObject);
@@ -308,12 +325,12 @@ void ChunkManager::meshChunk(int threadId)
                     {
                         chunk->_hasWater = true;
                         _renderer._meshSwapQueue.enqueue(std::make_pair(newWaterMesh, chunk->_waterMesh));
-                        _renderer._mainMeshUploadQueue.enqueue(newWaterMesh);
+                        _renderer._meshManager._mainMeshUploadQueue.enqueue(newWaterMesh);
                     }
 
                     _renderer._meshSwapQueue.enqueue(std::make_pair(newMesh, chunk->_mesh));
                     
-                    _renderer._mainMeshUploadQueue.enqueue(newMesh);
+                    _renderer._meshManager._mainMeshUploadQueue.enqueue(newMesh);
                     
                     ///_renderer._mainMeshUnloaßdQueue.enqueue(std::move(oldMesh));
                 }
