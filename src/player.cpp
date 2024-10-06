@@ -2,7 +2,7 @@
 
 Player::Player()
 {
-    _position = glm::vec3(0.0f, 50.0f, 0.0f);
+    _position = glm::vec3(0.0f, 120.0f, 0.0f);
     _front = glm::vec3(0.0f, 0.0f, 1.0f);
     _up = glm::vec3(0.0f, 1.0f, 0.0f);
 }

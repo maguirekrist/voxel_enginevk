@@ -107,6 +107,8 @@ public:
 
 	std::array<VkDescriptorSet, 3> _computeDescriptorSets;
 	AllocatedBuffer _fogUboBuffer;
+	VkDescriptorSetLayout _fogSetLayout;
+	VkDescriptorSet _fogSet;
 
 	VkDescriptorSetLayout _sampledImageSetLayout;
 	VkDescriptorSet _sampledImageSet;
@@ -123,12 +125,9 @@ public:
 
 	FrameData& get_current_frame();
 
+	void draw_chunks(VkCommandBuffer cmd, const std::vector<RenderObject>& chunks, bool isTransparent);
 
-	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
-
-	void draw_chunks(VkCommandBuffer cmd);
-
-	void draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial);
+	void draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial, bool isTransparent);
 
 	void calculate_fps();
 

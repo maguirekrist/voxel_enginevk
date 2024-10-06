@@ -192,13 +192,17 @@ void VulkanEngine::update_uniform_buffers()
 void VulkanEngine::update_fog_ubo()
 {
 	FogUBO fogUBO;
-	fogUBO.fogColor = static_cast<glm::vec3>(Color{9, 0, 87});
-	fogUBO.fogStart = 800.0f;
-	fogUBO.fogEnd = 1200.0f;
+	fogUBO.fogColor = static_cast<glm::vec3>(Colors::skyblueHigh);
+	fogUBO.fogEndColor = static_cast<glm::vec3>(Colors::skyblueLow);
+
+	fogUBO.fogCenter = _game._player._position;
+	fogUBO.fogRadius = (CHUNK_SIZE * DEFAULT_VIEW_DISTANCE) - 60.0f;
+	fogUBO.screenSize = glm::ivec2(_windowExtent.width, _windowExtent.height);
+	fogUBO.invViewProject = glm::inverse(_camera._projection * _camera._view);
 
 	void* data;
 	vmaMapMemory(_allocator, _fogUboBuffer._allocation, &data);
-	memcpy(data, &fogUBO, sizeof(CameraUBO));
+	memcpy(data, &fogUBO, sizeof(FogUBO));
 	vmaUnmapMemory(_allocator, _fogUboBuffer._allocation);
 }
 
@@ -347,6 +351,8 @@ void VulkanEngine::draw()
 	rpOffscreenInfo.clearValueCount = 2;
 	rpOffscreenInfo.pClearValues = &clearValues[0];
 
+	update_fog_ubo();
+
 	vkCmdBeginRenderPass(cmd, &rpOffscreenInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 	{
@@ -359,7 +365,7 @@ void VulkanEngine::draw()
 			auto oldMesh = meshSwap.second->update(meshSwap.first);
 			_meshManager.unload_mesh(std::move(oldMesh));
 		}
-		draw_chunks(cmd);
+		draw_chunks(cmd, _game._chunkManager._renderedChunks, false);
 		//draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
 	}
 	
@@ -377,6 +383,8 @@ void VulkanEngine::draw()
 
 	run_compute(cmd, _computeMaterial, _computeDescriptorSets.data(), _computeDescriptorSets.size());
 
+
+
 	//Do a swapchain renderpass
 	VkRenderPassBeginInfo rpInfo = {};
 	rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -393,6 +401,8 @@ void VulkanEngine::draw()
 
 	//Render off-screen image to the present renderpass
 	draw_fullscreen(cmd, _materialManager.get_material("present"));
+
+	draw_chunks(cmd, _game._chunkManager._transparentObjects, true);
 
 	vkCmdEndRenderPass(cmd);
 	VK_CHECK(vkEndCommandBuffer(cmd));
@@ -557,7 +567,7 @@ void VulkanEngine::init_swapchain()
 	vkb::SwapchainBuilder swapchainBuilder{_chosenGPU,_device,_surface };
 
 	vkb::Swapchain vkbSwapchain = swapchainBuilder
-		.use_default_format_selection()
+		.set_desired_format({VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_PASS_THROUGH_EXT})
 		//use vsync present mode
 		.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
@@ -878,13 +888,29 @@ void VulkanEngine::init_default_renderpass()
 	color_attachment_ref.attachment = 0;
 	color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-	VkAttachmentDescription attachments[2] = { color_attachment };
+	VkAttachmentDescription depth_attachment = {};
+    depth_attachment.flags = 0;
+    depth_attachment.format = _depthFormat;
+    depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference depth_attachment_ref = {};
+    depth_attachment_ref.attachment = 1;
+    depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentDescription attachments[2] = { color_attachment, depth_attachment };
 
 	//we are going to create 1 subpass, which is the minimum you can do
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &color_attachment_ref;
+	subpass.pDepthStencilAttachment = &depth_attachment_ref;
 
 	VkSubpassDependency dependency = {};
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -894,19 +920,27 @@ void VulkanEngine::init_default_renderpass()
 	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-	VkSubpassDependency dependencies[2] = { dependency };
+	VkSubpassDependency depth_dependency = {};
+	depth_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	depth_dependency.dstSubpass = 0;
+	depth_dependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	depth_dependency.srcAccessMask = 0;
+	depth_dependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	depth_dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+	VkSubpassDependency dependencies[2] = { dependency, depth_dependency };
 
 	VkRenderPassCreateInfo render_pass_info = {};
 	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
 	//connect the color attachment to the info
-	render_pass_info.attachmentCount = 1;
+	render_pass_info.attachmentCount = 2;
 	render_pass_info.pAttachments = &attachments[0];
 	//connect the subpass to the info
 	render_pass_info.subpassCount = 1;
 	render_pass_info.pSubpasses = &subpass;
 
-	render_pass_info.dependencyCount = 1;
+	render_pass_info.dependencyCount = 2;
 	render_pass_info.pDependencies = &dependencies[0];
 
 	VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr, &_renderPass));
@@ -961,9 +995,10 @@ void VulkanEngine::init_framebuffers()
 
 		VkImageView attachments[2];
 		attachments[0] = _swapchainImageViews[i];
+		attachments[1] = _depthImageView;
 
 		fb_info.pAttachments = attachments;
-		fb_info.attachmentCount = 1;
+		fb_info.attachmentCount = 2;
 		VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, &_framebuffers[i]));
 
 		_mainDeletionQueue.push_function([=, this]() {
@@ -998,10 +1033,10 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_pipelines()
 {	
+	build_postprocess_pipeline();
 	build_material_default();
 	build_material_water();
 	//build_material_wireframe();
-	build_postprocess_pipeline();
 	build_present_pipeline();
 }
 
@@ -1221,10 +1256,10 @@ void VulkanEngine::build_material_water()
 	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
 	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
-	VkDescriptorSetLayout setLayouts[] = { _uboSetLayout, _chunkSetLayout };
+	VkDescriptorSetLayout setLayouts[] = { _uboSetLayout, _chunkSetLayout, _fogSetLayout };
 
 	//EXAMPLE: assigning descriptor set to this pipelien
-	pipeline_layout_info.setLayoutCount = 2;
+	pipeline_layout_info.setLayoutCount = 3;
 	pipeline_layout_info.pSetLayouts = setLayouts;
 
 	//EXAMPLE: Assigning a push_constrant to this pipeline from vkinit:
@@ -1298,7 +1333,7 @@ void VulkanEngine::build_material_water()
 
 	//finally build the pipeline
 	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(_device, _offscreenPass);
+	meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
 
 	_materialManager.create_material(meshPipeline, meshPipelineLayout, "watermesh");
 
@@ -1445,19 +1480,18 @@ void VulkanEngine::build_postprocess_pipeline()
 		.bind_image(0, &depthImageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
 		.build(depthImageSet, depthImageSetLayout);
 
-	VkDescriptorSet fogSet;
-	VkDescriptorSetLayout fogSetLayout;
 	VkDescriptorBufferInfo fogBufferInfo{
 		.buffer = _fogUboBuffer._buffer,
 		.offset = 0,
 		.range = sizeof(FogUBO)
 	};
 	vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
-		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-		.build(fogSet, fogSetLayout);
+		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+		.build(_fogSet, _fogSetLayout);
 
-	_computeDescriptorSets = { colorImageSet, depthImageSet, fogSet };
-	std::array<VkDescriptorSetLayout, 3> layouts = { colorImageSetLayout, depthImageSetLayout, fogSetLayout };
+
+	_computeDescriptorSets = { colorImageSet, depthImageSet, _fogSet };
+	std::array<VkDescriptorSetLayout, 3> layouts = { colorImageSetLayout, depthImageSetLayout, _fogSetLayout };
 
 	VkPipelineShaderStageCreateInfo computeShaderStageInfo = vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_COMPUTE_BIT, computeShaderModule);
 
@@ -1495,47 +1529,7 @@ FrameData &VulkanEngine::get_current_frame()
 	return _frames[_frameNumber % FRAME_OVERLAP];
 }
 
-void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject *first, int count)
-{
-	// Mesh* lastMesh = nullptr;
-	// Material* lastMaterial = nullptr;
-	// for (int i = 0; i < count; i++)
-	// {
-	// 	RenderObject& object = first[i];
-
-	// 	//only bind the pipeline if it doesn't match with the already bound one
-	// 	if (object.material != lastMaterial) {
-
-	// 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
-	// 		lastMaterial = object.material;
-	// 	}
-
-
-	// 	// glm::mat4 model = object.transformMatrix;
-	// 	// //final render matrix, that we are calculating on the cpu
-	// 	// glm::mat4 mesh_matrix = _camera._projection * _camera._view * model;
-
-	// 	// MeshPushConstants constants;
-	// 	// constants.render_matrix = mesh_matrix;
-
-	// 	//upload the mesh to the GPU via push constants
-	// 	//vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
-	// 		//only bind the mesh if it's a different one from last bind
-	// 	if (object.mesh.get() != lastMesh) {
-	// 		//bind the mesh vertex buffer with offset 0
-	// 		VkDeviceSize offset = 0;
-	// 		vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
-
-	// 		vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-
-	// 		lastMesh = object.mesh.get();
-	// 	}
-	// 	//we can now draw
-	// 	vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
-	// }
-}
-
-void VulkanEngine::draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial)
+void VulkanEngine::draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial, bool isTransparent)
 {
 	if(object.mesh == nullptr) return;
 	if(!object.mesh->get()->_isActive) return;
@@ -1563,6 +1557,18 @@ void VulkanEngine::draw_object(VkCommandBuffer cmd, const RenderObject& object, 
 		&get_current_frame()._chunkDescriptor,
 		0,
 		nullptr);
+
+		if(isTransparent)
+		{
+			vkCmdBindDescriptorSets(cmd, 
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			object.material->pipelineLayout,
+			2, 
+			1, 
+			&_fogSet,
+			0,
+			nullptr);
+		}
 	}
 
 
@@ -1586,7 +1592,7 @@ void VulkanEngine::draw_object(VkCommandBuffer cmd, const RenderObject& object, 
 	vkCmdDrawIndexed(cmd, object.mesh->get()->_indices.size(), 1, 0, 0, 0);
 }
 
-void VulkanEngine::draw_chunks(VkCommandBuffer cmd)
+void VulkanEngine::draw_chunks(VkCommandBuffer cmd, const std::vector<RenderObject>& chunks, bool isTransparent)
 {
 	//Game is not finished with initial loading, do not render anything yet.
 	if(_game._chunkManager._initLoad) return;
@@ -1594,18 +1600,11 @@ void VulkanEngine::draw_chunks(VkCommandBuffer cmd)
 	Mesh* lastMesh = nullptr;
 	Material* lastMaterial = nullptr;
 
-	for(int i = 0; i < _game._chunkManager._renderedChunks.size(); i++)
+	for(int i = 0; i < chunks.size(); i++)
 	{
-		auto& object = _game._chunkManager._renderedChunks[i];
+		auto& object = chunks[i];
 
-		draw_object(cmd, object, lastMesh, lastMaterial);
-	}
-
-	for(int i = 0; i < _game._chunkManager._transparentObjects.size(); i++)
-	{
-		auto& object = _game._chunkManager._transparentObjects[i];
-
-		draw_object(cmd, object, lastMesh, lastMaterial);
+		draw_object(cmd, object, lastMesh, lastMaterial, isTransparent);
 	}
 
 }

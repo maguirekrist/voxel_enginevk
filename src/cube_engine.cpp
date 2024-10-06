@@ -16,5 +16,8 @@ void CubeEngine::update()
     //handling input from SDL.
     
     glm::ivec2 worldCoord = { _player._position.x, _player._position.z };
+
+    //fmt::println("Player position: x{}, y {}, z{}", _player._position.x, _player._position.y, _player._position.z);
+
     _chunkManager.updatePlayerPosition(worldCoord.x, worldCoord.y);
 }

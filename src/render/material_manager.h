@@ -10,4 +10,11 @@ public:
 
 	Material* get_material(const std::string& name);
 private:
+
+
+	void build_material_default();
+	void build_material_water();
+	void build_material_wireframe();
+	void build_postprocess_pipeline();
+	void build_present_pipeline();
 };

@@ -255,7 +255,7 @@ void ChunkMesher::add_face_to_opaque_mesh(int x, int y, int z, FaceDirection fac
 
     glm::ivec3 blockPos{x,y,z};
     Block& block = _chunk._blocks[x][y][z];
-    glm::vec3 color = blockColor[block._type];
+    glm::vec3 color = static_cast<glm::vec3>(blockColor[block._type]);
 
     for (int i = 0; i < 4; ++i) {
         //get the neighbors light-level
@@ -279,7 +279,7 @@ void ChunkMesher::add_face_to_water_mesh(int x, int y, int z, FaceDirection face
 {
     glm::ivec3 blockPos{x,y,z};
     Block& block = _chunk._blocks[x][y][z];
-    glm::vec3 color = blockColor[block._type];
+    glm::vec3 color = static_cast<glm::vec3>(blockColor[block._type]);
 
     for (int i = 0; i < 4; ++i) {
         glm::ivec3 position = blockPos + faceVertices[face][i];

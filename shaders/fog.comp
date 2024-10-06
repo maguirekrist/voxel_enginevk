@@ -5,15 +5,27 @@ layout(set = 1, binding = 0) uniform sampler2D depthImage;        // Depth buffe
 
 layout(set = 2, binding = 0) uniform FogUBO {
     vec3 fogColor;
-    float fogStart;
-    float fogEnd;
+    vec3 fogEndColor;
+
+    //radial fog
+    vec3 fogCenter;
+    float fogRadius;
+    ivec2 screenSize; //width, height
+    mat4 inverseViewProject;
 } ubo;
 
 
 layout(local_size_x = 16, local_size_y = 16) in;         // Define workgroup size
 
+float camNear = 1.0f;
+float camFar = 10000.0f;
+
+float minHeight = 0.0f;
+float maxHeight = 15000.0f;
+
 float linearizeDepth(float depth, float near, float far) {
-    return near * far / (far - depth * (far - near));
+    float z = depth * 2.0 - 1.0; // Convert [0, 1] depth to NDC space [-1, 1]
+    return (2.0 * near * far) / (far + near - z * (far - near));
 }
 
 float computeFogFactor(float depthValue, float minDist, float maxDist) {
@@ -24,22 +36,43 @@ float computeFogFactor(float depthValue, float minDist, float maxDist) {
 void main() {
     ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
 
-    
+    vec2 uv = vec2(pixelCoords) / vec2(ubo.screenSize);
+
     // Get the depth for the current pixel
     float depth = texture(depthImage, vec2(pixelCoords) / vec2(imageSize(colorImage))).r;
 
     // Convert depth to world space distance (optional, depends on your depth setup)
     //float distance = depth * 10000.0f;  // Replace with actual max distance based on your camera setup
 
-    float linearDepth = linearizeDepth(depth, 1.0, 10000.0);
+    //float linearDepth = linearizeDepth(depth, camNear, camFar);
+
+    vec4 ndcPos = vec4((uv * 2.0 - 1.0), depth, 1.0);
+
+    vec4 worldPos = ubo.inverseViewProject * ndcPos;
+    worldPos /= worldPos.w;
+
+
+    //float heightFactor = clamp((worldPos.y - minHeight) / (maxHeight - minHeight), 0.0, 1.0);
+    float heightFactor = smoothstep(minHeight, maxHeight, worldPos.y);
+    vec3 fogColor = mix(ubo.fogColor, ubo.fogEndColor, heightFactor);
+
+    float distanceToCenter = length(worldPos.xyz - ubo.fogCenter);
+
+    float delta = (distanceToCenter - ubo.fogRadius);
+
+    float fogFactor = computeFogFactor(distanceToCenter, ubo.fogRadius, ubo.fogRadius + 60.0f);
+
+
+
+    //float linearDepth = linearizeDepth(depth, 1.0, 10000.0);
 
     vec4 sceneColor = imageLoad(colorImage, pixelCoords);
 
     // Calculate fog factor
-    float fogFactor = computeFogFactor(linearDepth, ubo.fogStart, ubo.fogEnd);
+    //float fogFactor = computeFogFactor(linearDepth, ubo.fogStart, ubo.fogEnd);
 
     // Blend the scene color with the fog color
-    vec4 finalColor = mix(sceneColor, vec4(ubo.fogColor.rgb, 1.0f), fogFactor);
+    vec4 finalColor = mix(sceneColor, vec4(fogColor, 1.0f), fogFactor);
 
     // Store the final color back to the color image
     imageStore(colorImage, pixelCoords, finalColor);

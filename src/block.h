@@ -8,7 +8,7 @@ public:
 
     constexpr Color(int r, int g, int b) : _red(r), _green(g), _blue(b) {}
 
-    operator glm::vec3() const {
+    explicit operator glm::vec3() const {
         return glm::vec3(_red / 255.0f, _green / 255.0f, _blue / 255.0f);
     }
 
@@ -44,6 +44,9 @@ namespace Colors {
     constexpr glm::vec3 lightBlue{ 0.0f, 1.0f, 1.0f };
     constexpr Color black{0, 0, 0};
     constexpr Color lightGreen{6, 128, 0};
+
+    constexpr Color skyblueHigh{ 150, 191, 255 };
+    constexpr Color skyblueLow{ 20, 110, 255 }; 
 };
 
 constexpr FaceDirection faceDirections[6] = { FRONT_FACE, BACK_FACE, RIGHT_FACE, LEFT_FACE, TOP_FACE, BOTTOM_FACE };
@@ -155,8 +158,8 @@ constexpr glm::ivec3 faceVertices[6][4] = {
 enum BlockType {
     AIR = 0,
     GROUND = 1,
-    WATER = 3,
-    STONE = 4
+    WATER = 2,
+    STONE = 3
 };
 
 constexpr Color blockColor[3] = {

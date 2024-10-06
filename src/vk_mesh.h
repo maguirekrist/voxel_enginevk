@@ -67,15 +67,19 @@ struct CameraUBO {
 };
 
 struct FogUBO {
-    glm::vec3 fogColor;
-    float fogStart;
-    float fogEnd;
-    glm::vec3 fogCenter;
-    float fogRadius;
-    float fogMaxDst;
-    float nearPlane;
-    float farPlane;
-    glm::mat4 invViewProject;
+    glm::vec3 fogColor;  // 12 bytes
+    float padding1[1];   // 12 bytes of padding to align the next vec3
+
+    glm::vec3 fogEndColor;
+    float padding;
+
+    glm::vec3 fogCenter; // 12 bytes
+    float fogRadius;     // 4 bytes, occupies the same 16-byte slot as fogCenter
+
+    glm::ivec2 screenSize; // 8 bytes
+    float padding2[2];     // 8 bytes of padding to align the next mat4
+
+    glm::mat4 invViewProject; // 64 bytes
 };
 
 struct ChunkPushConstants {
