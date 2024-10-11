@@ -23,6 +23,8 @@
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
+#include "scenes/game_scene.h"
+#include "scenes/blueprint_builder_scene.h"
 
 void VulkanEngine::calculate_fps()
 {
@@ -76,7 +78,8 @@ void VulkanEngine::init()
 
 	init_pipelines();
 
-	//everything went fine
+	init_scenes();
+
 	_isInitialized = true;
 }
 
@@ -176,6 +179,13 @@ void VulkanEngine::handle_input()
 	}
 }
 
+void VulkanEngine::set_scene(Scene *scene)
+{
+	//Not sure if waiting for the fence is necessary here
+	//VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
+	_currentScene = scene;
+}
+
 void VulkanEngine::update_uniform_buffers()
 {
 	CameraUBO cameraUBO;
@@ -222,62 +232,6 @@ void VulkanEngine::update_chunk_buffer()
 	}
 
 	vmaUnmapMemory(_allocator, get_current_frame()._chunkBuffer._allocation);
-}
-
-void VulkanEngine::run_compute(VkCommandBuffer cmd, const Material& computeMaterial, VkDescriptorSet* descriptorSets, size_t setCount)
-{
-	// Bind the compute pipeline
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, computeMaterial.pipeline);
-
-    // Bind the descriptor set (which contains the image resources)
-    vkCmdBindDescriptorSets(
-        cmd,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        computeMaterial.pipelineLayout,
-        0, setCount, // First set, 1 descriptor set
-        descriptorSets,
-        0, nullptr // Dynamic offsets
-    );
-
-    // Dispatch the compute shader (assuming a full-screen image size)
-    // Adjust the work group size based on your compute shader's `local_size_x` and `local_size_y`
-    uint32_t workGroupSizeX = (_windowExtent.width + 15) / 16; // Assuming local size of 16 in shader
-    uint32_t workGroupSizeY = (_windowExtent.height + 15) / 16;
-
-    vkCmdDispatch(cmd, workGroupSizeX, workGroupSizeY, 1);
-
-    // Insert a memory barrier to ensure the compute shader has finished executing
-    VkMemoryBarrier memoryBarrier{};
-    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; // Writes in compute shader
-    memoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT; // Reads and writes in subsequent shaders or pipeline stages
-
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, // Source stage
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, // Destination stages
-        0,
-        1, &memoryBarrier,
-        0, nullptr,
-        0, nullptr
-    );
-}
-
-void VulkanEngine::draw_fullscreen(VkCommandBuffer cmd, Material* presentMaterial)
-{
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, presentMaterial->pipeline);
-	vkCmdBindDescriptorSets(
-		cmd,
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		presentMaterial->pipelineLayout,
-		0, 1, // First set, 1 descriptor set
-		&_sampledImageSet,
-		0, nullptr // Dynamic offsets
-	);
-
-	vkCmdDraw(cmd, 3, 1, 0, 0);
-
-
 }
 
 //returns the swapChainImageIndex
@@ -331,80 +285,7 @@ void VulkanEngine::draw()
 
 	VkCommandBuffer cmd = begin_recording();
 
-	VkClearValue clearValue;
-	clearValue.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
-
-	VkClearValue depthClear;
-	depthClear.depthStencil.depth = 1.f;
-
-	VkClearValue clearValues[] = { clearValue, depthClear };
-	//start the offscreen renderpass.
-	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpOffscreenInfo = {};
-	rpOffscreenInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	rpOffscreenInfo.pNext = nullptr;
-	rpOffscreenInfo.renderPass = _offscreenPass;
-	rpOffscreenInfo.renderArea.offset.x = 0;
-	rpOffscreenInfo.renderArea.offset.y = 0;
-	rpOffscreenInfo.renderArea.extent = _windowExtent;
-	rpOffscreenInfo.framebuffer = _offscreenFramebuffer;
-	rpOffscreenInfo.clearValueCount = 2;
-	rpOffscreenInfo.pClearValues = &clearValues[0];
-
-	update_fog_ubo();
-
-	vkCmdBeginRenderPass(cmd, &rpOffscreenInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	{
-		ZoneScopedN("Draw Chunks & Objects");
-		update_uniform_buffers();
-
-		std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>>> meshSwap;
-		while(_meshSwapQueue.try_dequeue(meshSwap))
-		{	
-			auto oldMesh = meshSwap.second->update(meshSwap.first);
-			_meshManager.unload_mesh(std::move(oldMesh));
-		}
-		draw_chunks(cmd, _game._chunkManager._renderedChunks, false);
-		//draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
-	}
-	
-	//TODO: Implement secondary command buffers, use this call to record secondary command buffers to the primary command buffer.
-	//vkCmdExecuteCommands(cmd, get_current_frame()._secondaryCommandBuffers.size(), get_current_frame()._secondaryCommandBuffers.data());
-	
-	//draw_objects(cmd, _game._chunkManager._renderChunks.data(), _game._chunkManager._renderChunks.size());
-
-	//finalize the render pass
-	vkCmdEndRenderPass(cmd);
-
-	//Transition is TRANSITION EVEN NEEDED?
-	//vkutil::transition_image(cmd, _fullscreenImage._image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
-
-
-	run_compute(cmd, _computeMaterial, _computeDescriptorSets.data(), _computeDescriptorSets.size());
-
-
-
-	//Do a swapchain renderpass
-	VkRenderPassBeginInfo rpInfo = {};
-	rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	rpInfo.pNext = nullptr;
-	rpInfo.renderPass = _renderPass;
-	rpInfo.renderArea.offset.x = 0;
-	rpInfo.renderArea.offset.y = 0;
-	rpInfo.renderArea.extent = _windowExtent;
-	rpInfo.framebuffer = _framebuffers[swapchainImageIndex];
-	rpInfo.clearValueCount = 1;
-	rpInfo.pClearValues = &clearValue;
-
-	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	//Render off-screen image to the present renderpass
-	draw_fullscreen(cmd, _materialManager.get_material("present"));
-
-	draw_chunks(cmd, _game._chunkManager._transparentObjects, true);
-
-	vkCmdEndRenderPass(cmd);
+	_currentScene->render(cmd);
 	VK_CHECK(vkEndCommandBuffer(cmd));
 	
 
@@ -862,71 +743,48 @@ void VulkanEngine::init_offscreen_renderpass()
 
 void VulkanEngine::init_default_renderpass()
 {
-	
 	// the renderpass will use this color attachment.
-	VkAttachmentDescription color_attachment = {};
-	//the attachment will have the format needed by the swapchain
-	color_attachment.format = _swapchainImageFormat;
-	//1 sample, we won't be doing MSAA
-	color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	// we Clear when this attachment is loaded
-	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	// we keep the attachment stored when the renderpass ends
-	color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	//we don't care about stencil
-	color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	VkAttachmentDescription color_attachment = vkinit::attachment_description(_swapchainImageFormat, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-	//we don't know or care about the starting layout of the attachment
-	color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	VkAttachmentReference color_attachment_ref = {
+		.attachment = 0,
+		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	};
 
-	//after the renderpass ends, the image has to be on a layout ready for display
-	color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	VkAttachmentDescription depth_attachment = vkinit::attachment_description(_depthFormat, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
 
-	VkAttachmentReference color_attachment_ref = {};
-	//attachment number will index into the pAttachments array in the parent renderpass itself
-	color_attachment_ref.attachment = 0;
-	color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentDescription depth_attachment = {};
-    depth_attachment.flags = 0;
-    depth_attachment.format = _depthFormat;
-    depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-
-    VkAttachmentReference depth_attachment_ref = {};
-    depth_attachment_ref.attachment = 1;
-    depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference depth_attachment_ref = {
+		.attachment = 1,
+		.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+	};
 
 	VkAttachmentDescription attachments[2] = { color_attachment, depth_attachment };
 
 	//we are going to create 1 subpass, which is the minimum you can do
-	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &color_attachment_ref;
-	subpass.pDepthStencilAttachment = &depth_attachment_ref;
+	VkSubpassDescription subpass = {
+		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &color_attachment_ref,
+		.pDepthStencilAttachment = &depth_attachment_ref
+	};
 
-	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.srcAccessMask = 0;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	VkSubpassDependency dependency = {
+		.srcSubpass = VK_SUBPASS_EXTERNAL,
+		.dstSubpass = 0,
+		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.srcAccessMask = 0,
+		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+	};
 
-	VkSubpassDependency depth_dependency = {};
-	depth_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	depth_dependency.dstSubpass = 0;
-	depth_dependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	depth_dependency.srcAccessMask = 0;
-	depth_dependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	depth_dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	VkSubpassDependency depth_dependency = {
+		.srcSubpass = VK_SUBPASS_EXTERNAL,
+		.dstSubpass = 0,
+		.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		.srcAccessMask = 0,
+		.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+	};
 
 	VkSubpassDependency dependencies[2] = { dependency, depth_dependency };
 
@@ -1008,6 +866,15 @@ void VulkanEngine::init_framebuffers()
 	}
 }
 
+void VulkanEngine::init_scenes()
+{
+	_scenes["game"] = std::make_unique<GameScene>();
+	_scenes["blueprint"] = std::make_unique<BlueprintBuilderScene>();
+
+	//set default scene
+	set_scene(_scenes["game"].get());
+}
+
 void VulkanEngine::init_sync_structures()
 {
 	VkFenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
@@ -1033,578 +900,14 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_pipelines()
 {	
-	build_postprocess_pipeline();
-	build_material_default();
-	build_material_water();
-	//build_material_wireframe();
-	build_present_pipeline();
-}
-
-void VulkanEngine::build_present_pipeline()
-{
-	VkShaderModule fragShader;
-	vkutil::load_shader_module("present_full.frag.spv", _device, &fragShader);
-
-	VkShaderModule vertexShader;
-	vkutil::load_shader_module("present_full.vert.spv", _device, &vertexShader);
-
-	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-	VkDescriptorImageInfo sampleImageInfo{
-		.sampler = _sampler,
-		.imageView = _fullscreenImageView,
-		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
-	};
-	vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
-		.bind_image(0, &sampleImageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(_sampledImageSet, _sampledImageSetLayout);
-
-	pipeline_layout_info.setLayoutCount = 1;
-	pipeline_layout_info.pSetLayouts = &_sampledImageSetLayout;
-
-	VkPipelineLayout meshPipelineLayout;
-
-	VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
-
-	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
-	PipelineBuilder pipelineBuilder;
-
-	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-
-	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
-	//we are just going to draw triangle list
-	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-	//build viewport and scissor from the swapchain extents
-	pipelineBuilder._viewport.x = 0.0f;
-	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)_windowExtent.width;
-	pipelineBuilder._viewport.height = (float)_windowExtent.height;
-	pipelineBuilder._viewport.minDepth = 0.0f;
-	pipelineBuilder._viewport.maxDepth = 1.0f;
-
-
-	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = _windowExtent;
-
-	//configure the rasterizer to draw filled triangles
-	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-
-	//we don't use multisampling, so just run the default one
-	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-
-	//a single blend attachment with no blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
-
-	//default depthtesting
-	pipelineBuilder._depthStencil = std::nullopt;
-
-	//use the triangle layout we created
-	pipelineBuilder._pipelineLayout = meshPipelineLayout;
-
-	//build the mesh pipeline
-	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 0;  // No vertex buffers
-	vertexInputInfo.pVertexBindingDescriptions = nullptr;
-	vertexInputInfo.vertexAttributeDescriptionCount = 0;  // No vertex attributes
-	vertexInputInfo.pVertexAttributeDescriptions = nullptr;
-
-	//connect the pipeline builder vertex input info to the one we get from Vertex
-	pipelineBuilder._vertexInputInfo = vertexInputInfo;
-
-
-	//clear the shader stages for the builder
-	pipelineBuilder._shaderStages.clear();
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragShader));
-
-	//finally build the pipeline
-	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
-
-	_materialManager.create_material(meshPipeline, meshPipelineLayout, "present");
-
-	vkDestroyShaderModule(_device, fragShader, nullptr);
-	vkDestroyShaderModule(_device, vertexShader, nullptr);
-
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyPipeline(_device, meshPipeline, nullptr);
-
-		vkDestroyPipelineLayout(_device, meshPipelineLayout, nullptr);
-	});
-
-}
-
-
-void VulkanEngine::build_material_default()
-{
-	VkShaderModule trimeshFragShader;
-	vkutil::load_shader_module("tri_mesh.frag.spv", _device, &trimeshFragShader);
-
-	VkShaderModule trimeshVertexShader;
-	vkutil::load_shader_module("tri_mesh.vert.spv", _device, &trimeshVertexShader);
-
-	//build the pipeline layout that controls the inputs/outputs of the shader
-	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
-	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-	VkDescriptorSetLayout setLayouts[] = { _uboSetLayout, _chunkSetLayout };
-
-	//EXAMPLE: assigning descriptor set to this pipelien
-	pipeline_layout_info.setLayoutCount = 2;
-	pipeline_layout_info.pSetLayouts = setLayouts;
-
-	//EXAMPLE: Assigning a push_constrant to this pipeline from vkinit:
-
-	VkPushConstantRange push_constant = vkinit::pushconstrant_range(sizeof(ChunkPushConstants), VK_SHADER_STAGE_VERTEX_BIT);
-	pipeline_layout_info.pPushConstantRanges = &push_constant;
-	pipeline_layout_info.pushConstantRangeCount = 1;
-
-	VkPipelineLayout meshPipelineLayout;
-
-	VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
-
-	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
-	PipelineBuilder pipelineBuilder;
-
-	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-
-	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
-	//we are just going to draw triangle list
-	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-	//build viewport and scissor from the swapchain extents
-	pipelineBuilder._viewport.x = 0.0f;
-	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)_windowExtent.width;
-	pipelineBuilder._viewport.height = (float)_windowExtent.height;
-	pipelineBuilder._viewport.minDepth = 0.0f;
-	pipelineBuilder._viewport.maxDepth = 1.0f;
-
-
-	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = _windowExtent;
-
-	//configure the rasterizer to draw filled triangles
-	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-
-	//we don't use multisampling, so just run the default one
-	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-
-	//a single blend attachment with no blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
-
-	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-	//use the triangle layout we created
-	pipelineBuilder._pipelineLayout = meshPipelineLayout;
-
-	//build the mesh pipeline
-
-	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
-
-	//connect the pipeline builder vertex input info to the one we get from Vertex
-	pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-	pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-
-	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-
-
-	//clear the shader stages for the builder
-	pipelineBuilder._shaderStages.clear();
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, trimeshVertexShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, trimeshFragShader));
-
-	//finally build the pipeline
-	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(_device, _offscreenPass);
-
-	_materialManager.create_material(meshPipeline, meshPipelineLayout, "defaultmesh");
-
-	vkDestroyShaderModule(_device, trimeshFragShader, nullptr);
-	vkDestroyShaderModule(_device, trimeshVertexShader, nullptr);
-
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyPipeline(_device, meshPipeline, nullptr);
-
-		vkDestroyPipelineLayout(_device, meshPipelineLayout, nullptr);
-	});
-}
-
-void VulkanEngine::build_material_water()
-{
-	VkShaderModule waterFragShader;
-	vkutil::load_shader_module("water_mesh.frag.spv", _device, &waterFragShader);
-
-	VkShaderModule waterVertexShader;
-	vkutil::load_shader_module("water_mesh.vert.spv", _device, &waterVertexShader);
-
-	//build the pipeline layout that controls the inputs/outputs of the shader
-	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
-	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-	VkDescriptorSetLayout setLayouts[] = { _uboSetLayout, _chunkSetLayout, _fogSetLayout };
-
-	//EXAMPLE: assigning descriptor set to this pipelien
-	pipeline_layout_info.setLayoutCount = 3;
-	pipeline_layout_info.pSetLayouts = setLayouts;
-
-	//EXAMPLE: Assigning a push_constrant to this pipeline from vkinit:
-
-	VkPushConstantRange push_constant = vkinit::pushconstrant_range(sizeof(ChunkPushConstants), VK_SHADER_STAGE_VERTEX_BIT);
-	pipeline_layout_info.pPushConstantRanges = &push_constant;
-	pipeline_layout_info.pushConstantRangeCount = 1;
-
-	VkPipelineLayout meshPipelineLayout;
-
-	VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
-
-	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
-	PipelineBuilder pipelineBuilder;
-
-	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-
-	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
-	//we are just going to draw triangle list
-	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-	//build viewport and scissor from the swapchain extents
-	pipelineBuilder._viewport.x = 0.0f;
-	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)_windowExtent.width;
-	pipelineBuilder._viewport.height = (float)_windowExtent.height;
-	pipelineBuilder._viewport.minDepth = 0.0f;
-	pipelineBuilder._viewport.maxDepth = 1.0f;
-
-
-	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = _windowExtent;
-
-	//configure the rasterizer to draw filled triangles
-	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-
-	//we don't use multisampling, so just run the default one
-	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-
-	//a single blend attachment with no blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state_blending();
-
-
-	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, false, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-	//use the triangle layout we created
-	pipelineBuilder._pipelineLayout = meshPipelineLayout;
-
-	//build the mesh pipeline
-
-	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
-
-	//connect the pipeline builder vertex input info to the one we get from Vertex
-	pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-	pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-
-	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-
-
-	//clear the shader stages for the builder
-	pipelineBuilder._shaderStages.clear();
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, waterVertexShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, waterFragShader));
-
-	//finally build the pipeline
-	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
-
-	_materialManager.create_material(meshPipeline, meshPipelineLayout, "watermesh");
-
-	vkDestroyShaderModule(_device, waterFragShader, nullptr);
-	vkDestroyShaderModule(_device, waterVertexShader, nullptr);
-
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyPipeline(_device, meshPipeline, nullptr);
-
-		vkDestroyPipelineLayout(_device, meshPipelineLayout, nullptr);
-	});
-}
-
-void VulkanEngine::build_material_wireframe()
-{
-	VkShaderModule wiremeshFragShader;
-	vkutil::load_shader_module("wire_mesh.frag.spv", _device, &wiremeshFragShader);
-
-	VkShaderModule wiremeshVertexShader;
-	vkutil::load_shader_module("wire_mesh.vert.spv", _device, &wiremeshVertexShader);
-
-	//build the pipeline layout that controls the inputs/outputs of the shader
-	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
-	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-	//EXAMPLE: Assigning a push_constrant to this pipeline from vkinit:
-	// pipeline_layout_info.pPushConstantRanges = &push_constant;
-	// pipeline_layout_info.pushConstantRangeCount = 1;
-
-	VkPushConstantRange push_constant = vkinit::pushconstrant_range(sizeof(ChunkPushConstants), VK_SHADER_STAGE_VERTEX_BIT);
-	pipeline_layout_info.pPushConstantRanges = &push_constant;
-	pipeline_layout_info.pushConstantRangeCount = 1;
-
-	VkPipelineLayout meshPipelineLayout;
-
-	VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
-
-	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
-	PipelineBuilder pipelineBuilder;
-
-	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-
-	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
-	//we are just going to draw triangle list
-	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-
-	//build viewport and scissor from the swapchain extents
-	pipelineBuilder._viewport.x = 0.0f;
-	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)_windowExtent.width;
-	pipelineBuilder._viewport.height = (float)_windowExtent.height;
-	pipelineBuilder._viewport.minDepth = 0.0f;
-	pipelineBuilder._viewport.maxDepth = 1.0f;
-
-	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = _windowExtent;
-
-	//configure the rasterizer to draw filled triangles
-	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-
-	//we don't use multisampling, so just run the default one
-	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-
-	//a single blend attachment with blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
-
-	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-	//use the triangle layout we created
-	pipelineBuilder._pipelineLayout = meshPipelineLayout;
-
-	//build the mesh pipeline
-
-	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
-
-	//connect the pipeline builder vertex input info to the one we get from Vertex
-	pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-	pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-
-	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-
-
-	//clear the shader stages for the builder
-	pipelineBuilder._shaderStages.clear();
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, wiremeshVertexShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, wiremeshFragShader));
-
-	//finally build the pipeline
-	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(_device, _offscreenPass);
-
-	_materialManager.create_material(meshPipeline, meshPipelineLayout, "wireframe");
-
-	vkDestroyShaderModule(_device, wiremeshFragShader, nullptr);
-	vkDestroyShaderModule(_device, wiremeshVertexShader, nullptr);
-
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyPipeline(_device, meshPipeline, nullptr);
-
-		vkDestroyPipelineLayout(_device, meshPipelineLayout, nullptr);
-	});
-
-
-}
-
-void VulkanEngine::build_postprocess_pipeline()
-{
-	VkShaderModule computeShaderModule;
-	vkutil::load_shader_module("fog.comp.spv", _device, &computeShaderModule);
-
-	_fogUboBuffer = vkutil::create_buffer(_allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-	update_fog_ubo();
-
-	_mainDeletionQueue.push_function([=, this]() {
-		vmaDestroyBuffer(_allocator, _fogUboBuffer._buffer, _fogUboBuffer._allocation);
-	});
-
-	VkDescriptorSet colorImageSet;
-	VkDescriptorSetLayout colorImageSetLayout;
-	VkDescriptorImageInfo colorImageInfo{
-		.sampler = VK_NULL_HANDLE,
-		.imageView = _fullscreenImageView,
-		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
-	};
-	vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
-		.bind_image(0, &colorImageInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
-		.build(colorImageSet, colorImageSetLayout);
-
-	VkDescriptorSet depthImageSet;
-	VkDescriptorSetLayout depthImageSetLayout;
-	VkDescriptorImageInfo depthImageInfo{
-		.sampler = _sampler,
-		.imageView = _depthImageView,
-		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-	};
-	vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
-		.bind_image(0, &depthImageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
-		.build(depthImageSet, depthImageSetLayout);
-
-	VkDescriptorBufferInfo fogBufferInfo{
-		.buffer = _fogUboBuffer._buffer,
-		.offset = 0,
-		.range = sizeof(FogUBO)
-	};
-	vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
-		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(_fogSet, _fogSetLayout);
-
-
-	_computeDescriptorSets = { colorImageSet, depthImageSet, _fogSet };
-	std::array<VkDescriptorSetLayout, 3> layouts = { colorImageSetLayout, depthImageSetLayout, _fogSetLayout };
-
-	VkPipelineShaderStageCreateInfo computeShaderStageInfo = vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_COMPUTE_BIT, computeShaderModule);
-
-
-	// Define pipeline layout (descriptor set layouts need to be set up based on your compute shader)
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
-
-	pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(layouts.size()); // Assuming one descriptor set layout
-	pipelineLayoutInfo.pSetLayouts = layouts.data(); // Descriptor set layout containing the image resources
-
-	if (vkCreatePipelineLayout(_device, &pipelineLayoutInfo, nullptr, &_computeMaterial.pipelineLayout) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create compute pipeline layout!");
-	}
-
-	// Create compute pipeline
-	VkComputePipelineCreateInfo pipelineInfo{};
-	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-	pipelineInfo.stage = computeShaderStageInfo;
-	pipelineInfo.layout = _computeMaterial.pipelineLayout;
-
-	if (vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_computeMaterial.pipeline) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create compute pipeline!");
-	}
-
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyPipeline(_device, _computeMaterial.pipeline, nullptr);
-		vkDestroyPipelineLayout(_device, _computeMaterial.pipelineLayout, nullptr);
-	});
-
-	vkDestroyShaderModule(_device, computeShaderModule, nullptr);
+	_materialManager.build_postprocess_pipeline();
+	_materialManager.build_material_default();
+	_materialManager.build_material_water();
+	_materialManager.build_material_wireframe();
+	_materialManager.build_present_pipeline();
 }
 
 FrameData &VulkanEngine::get_current_frame()
 {
 	return _frames[_frameNumber % FRAME_OVERLAP];
-}
-
-void VulkanEngine::draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial, bool isTransparent)
-{
-	if(object.mesh == nullptr) return;
-	if(!object.mesh->get()->_isActive) return;
-
-	//only bind the pipeline if it doesn't match with the already bound one
-	if (object.material != lastMaterial) {
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
-		lastMaterial = object.material;
-
-		//BIND DESCRIPTORS
-		vkCmdBindDescriptorSets(cmd, 
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		object.material->pipelineLayout,
-		0,
-		1,
-		&get_current_frame()._globalDescriptor,
-		0,
-		nullptr);
-
-		vkCmdBindDescriptorSets(cmd, 
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		object.material->pipelineLayout,
-		1, 
-		1, 
-		&get_current_frame()._chunkDescriptor,
-		0,
-		nullptr);
-
-		if(isTransparent)
-		{
-			vkCmdBindDescriptorSets(cmd, 
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			object.material->pipelineLayout,
-			2, 
-			1, 
-			&_fogSet,
-			0,
-			nullptr);
-		}
-	}
-
-
-	//EXAMPLE: PUSH CONTRAINTS
-	ChunkPushConstants constants;
-	constants.chunk_translate = object.xzPos;
-	vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ChunkPushConstants), &constants);
-
-	//only bind the mesh if it's a different one from last bind
-	if(object.mesh->get().get() != lastMesh) {
-					//bind the mesh vertex buffer with offset 0
-		VkDeviceSize offset = 0;
-		vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->get()->_vertexBuffer._buffer, &offset);
-
-		vkCmdBindIndexBuffer(cmd, object.mesh->get()->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-
-		lastMesh = object.mesh->get().get();
-	}
-
-	//we can now draw
-	vkCmdDrawIndexed(cmd, object.mesh->get()->_indices.size(), 1, 0, 0, 0);
-}
-
-void VulkanEngine::draw_chunks(VkCommandBuffer cmd, const std::vector<RenderObject>& chunks, bool isTransparent)
-{
-	//Game is not finished with initial loading, do not render anything yet.
-	if(_game._chunkManager._initLoad) return;
-
-	Mesh* lastMesh = nullptr;
-	Material* lastMaterial = nullptr;
-
-	for(int i = 0; i < chunks.size(); i++)
-	{
-		auto& object = chunks[i];
-
-		draw_object(cmd, object, lastMesh, lastMaterial, isTransparent);
-	}
-
 }

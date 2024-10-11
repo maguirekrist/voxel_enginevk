@@ -25,6 +25,7 @@
 #include <tuple>
 #include <condition_variable>
 #include <barrier>
+#include <bitset>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
@@ -66,6 +67,9 @@ using Duration = std::chrono::duration<float>;
 struct Material {
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
+
+	//TODO: Have a Material own its own resources like descriptor sets, etc.
+	
 };
 
 struct FrameData {

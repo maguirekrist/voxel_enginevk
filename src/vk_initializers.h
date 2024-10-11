@@ -6,6 +6,24 @@
 #include <vk_types.h>
 #include <vulkan/vulkan_core.h>
 
+// Use enum class for your configuration flags
+enum class ClearFlags : uint8_t {
+    None      = 0,         // 00
+    Color     = 1 << 0,    // 01
+    Depth     = 1 << 1     // 10
+};
+
+// Allow combining flags using bitwise OR
+constexpr ClearFlags operator|(ClearFlags lhs, ClearFlags rhs) {
+    return static_cast<ClearFlags>(
+        static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
+}
+
+// Allow checking flags using bitwise AND
+constexpr bool operator&(ClearFlags lhs, ClearFlags rhs) {
+    return (static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs)) != 0;
+}
+
 namespace vkinit {
 
 	//vulkan init code goes here
@@ -24,7 +42,7 @@ namespace vkinit {
 	VkCommandBufferBeginInfo command_buffer_begin_info(VkCommandBufferUsageFlags flags = 0);
 	VkSubmitInfo submit_info(VkCommandBuffer* cmd);
 
-	VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer);
+	VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer, ClearFlags clearFlags = ClearFlags::Color | ClearFlags::Depth);
 	VkCommandBufferBeginInfo init_command_buffer();
 	VkCommandBufferInheritanceInfo init_inheritance_info(VkRenderPass renderPass);
 
@@ -33,6 +51,8 @@ namespace vkinit {
 	VkPushConstantRange pushconstrant_range(size_t size, VkShaderStageFlags accessFlags);
 
 	VkSamplerCreateInfo sampler_create_info();
+
+	VkAttachmentDescription attachment_description(VkFormat format, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkImageLayout initialLayout, VkImageLayout finalLayout);
 
 	VkFenceCreateInfo fence_create_info(VkFenceCreateFlags createFlags = 0);
 	VkSemaphoreCreateInfo semaphore_create_info();

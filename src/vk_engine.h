@@ -13,6 +13,7 @@
 #include <vk_util.h>
 #include <render/mesh_manager.h>
 #include <render/material_manager.h>
+#include "scenes/scene.h"
 
 class FunctionQueue {
 public:
@@ -80,8 +81,10 @@ public:
 	Material _computeMaterial;
 
 	//std::vector<RenderObject> _renderObjects;
+	std::unordered_map<std::string, std::unique_ptr<Scene>> _scenes;
 	CubeEngine _game{ *this };
 	Camera _camera;
+	Scene* _currentScene;
 	std::optional<RaycastResult> _targetBlock;
 
 	float _deltaTime;
@@ -107,7 +110,6 @@ public:
 
 	std::array<VkDescriptorSet, 3> _computeDescriptorSets;
 	AllocatedBuffer _fogUboBuffer;
-	VkDescriptorSetLayout _fogSetLayout;
 	VkDescriptorSet _fogSet;
 
 	VkDescriptorSetLayout _sampledImageSetLayout;
@@ -125,10 +127,6 @@ public:
 
 	FrameData& get_current_frame();
 
-	void draw_chunks(VkCommandBuffer cmd, const std::vector<RenderObject>& chunks, bool isTransparent);
-
-	void draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial, bool isTransparent);
-
 	void calculate_fps();
 
 	//initializes everything in the engine
@@ -138,6 +136,8 @@ public:
 	void cleanup();
 
 	void handle_input();
+
+	void set_scene(Scene* scene);
 
 	uint32_t advance_frame();
 
@@ -172,24 +172,17 @@ private:
 	void init_offscreen_framebuffers();
 	//void init_uniform_buffers();
 
+	void init_scenes();
+
 	void init_sync_structures();
 
 	//Pipeline creation
 	void init_pipelines();
 
-	void build_material_default();
-	void build_material_water();
-	void build_material_wireframe();
-	void build_postprocess_pipeline();
-	void build_present_pipeline();
-
 	//Buffer updates
 	void update_uniform_buffers();
 	void update_fog_ubo();
 	void update_chunk_buffer();
-	
-
-	void run_compute(VkCommandBuffer cmd, const Material& computeMaterial, VkDescriptorSet* descriptorSets, size_t setCount);
 
 	void draw_fullscreen(VkCommandBuffer cmd, Material* presentMaterial);
 

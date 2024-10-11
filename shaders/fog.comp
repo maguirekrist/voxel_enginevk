@@ -51,6 +51,7 @@ void main() {
     vec4 worldPos = ubo.inverseViewProject * ndcPos;
     worldPos /= worldPos.w;
 
+    
 
     //float heightFactor = clamp((worldPos.y - minHeight) / (maxHeight - minHeight), 0.0, 1.0);
     float heightFactor = smoothstep(minHeight, maxHeight, worldPos.y);

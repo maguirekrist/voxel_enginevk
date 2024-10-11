@@ -170,6 +170,20 @@ VkSamplerCreateInfo vkinit::sampler_create_info()
     return samplerInfo;
 }
 
+VkAttachmentDescription vkinit::attachment_description(VkFormat format, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp, VkImageLayout initialLayout, VkImageLayout finalLayout)
+{
+    VkAttachmentDescription description = {};
+    description.format = format;
+    description.samples = VK_SAMPLE_COUNT_1_BIT;
+    description.loadOp = loadOp;
+    description.storeOp = storeOp;
+    description.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    description.initialLayout = initialLayout;
+    description.finalLayout = finalLayout;
+    return description;
+}
+
 VkPipelineLayoutCreateInfo vkinit::pipeline_layout_create_info()
 {
     VkPipelineLayoutCreateInfo info{};
@@ -332,19 +346,26 @@ VkSubmitInfo vkinit::submit_info(VkCommandBuffer *cmd)
 	return info;
 }
 
-VkRenderPassBeginInfo vkinit::render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer)
-{
-    	//make a clear-color from frame number. This will flash with a 120*pi frame period.
-	VkClearValue clearValue;
-	//float flash = abs(sin(_frameNumber / 120.f));
-	clearValue.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
 
-	//clear depth at 1
-	VkClearValue depthClear;
-	depthClear.depthStencil.depth = 1.f;
+VkRenderPassBeginInfo vkinit::render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer, ClearFlags clearFlags)
+{
+    std::vector<VkClearValue> clearValues(2);
+
+    if (clearFlags & ClearFlags::Color)
+	{
+		VkClearValue clearValue;
+		clearValue.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+		clearValues.push_back(clearValue);
+	}
+
+    if (clearFlags & ClearFlags::Depth)
+	{
+		//clear depth at 1
+		VkClearValue depthClear;
+		depthClear.depthStencil.depth = 1.f;
+		clearValues.push_back(depthClear);
+	}
 	
-	//start the main renderpass.
-	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
 	VkRenderPassBeginInfo rpInfo = {};
 	rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	rpInfo.pNext = nullptr;
@@ -356,11 +377,8 @@ VkRenderPassBeginInfo vkinit::render_pass_begin_info(VkRenderPass renderPass, Vk
 	rpInfo.framebuffer = frameBuffer;
 
 	//connect clear values
-	rpInfo.clearValueCount = 2;
-
-	VkClearValue clearValues[] = { clearValue, depthClear };
-
-	rpInfo.pClearValues = &clearValues[0];
+	rpInfo.clearValueCount = clearValues.size();
+	rpInfo.pClearValues = clearValues.data();
 
     return rpInfo;
 }
