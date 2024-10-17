@@ -9,10 +9,9 @@ class VulkanEngine;
 
 class CubeEngine {
 public:
-    CubeEngine(VulkanEngine& renderer) : _renderer(renderer), _chunkManager(_renderer) {}
+    CubeEngine();
 
-    VulkanEngine& _renderer;
-    ChunkManager _chunkManager{ _renderer };
+    ChunkManager _chunkManager;
     World _world{ &_chunkManager };
     Player _player;
 

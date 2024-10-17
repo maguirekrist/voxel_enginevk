@@ -2,19 +2,17 @@
 #include "chunk_manager.h"
 #include "chunk.h"
 #include "chunk_mesher.h"
-#include "vk_engine.h"
 #include "tracy/Tracy.hpp"
 #include "vk_mesh.h"
 #include <memory>
+#include "vk_engine.h"
 
-
-ChunkManager::ChunkManager(VulkanEngine& renderer) 
+ChunkManager::ChunkManager() 
         : _viewDistance(DEFAULT_VIEW_DISTANCE),
           _maxChunks((2 * DEFAULT_VIEW_DISTANCE + 1) * (2 * DEFAULT_VIEW_DISTANCE + 1)),
           _maxThreads(4),
           _running(true),
           _terrainGenerator(TerrainGenerator::instance()),
-          _renderer(renderer),
           _sync_point(4) 
 {
 
@@ -40,8 +38,8 @@ void ChunkManager::cleanup()
 
         chunk.reset();
 
-        _renderer._meshManager.unload_mesh(std::move(mesh));
-        _renderer._meshManager.unload_mesh(std::move(waterMesh));
+        VulkanEngine::instance()._meshManager.unload_mesh(std::move(mesh));
+        VulkanEngine::instance()._meshManager.unload_mesh(std::move(waterMesh));
     }
 }
 
@@ -83,13 +81,13 @@ void ChunkManager::updatePlayerPosition(int x, int z)
     {
         auto chunk = _chunks[chunkCoord].get();
         RenderObject object;
-        object.material = _renderer._materialManager.get_material("defaultmesh");
+        object.material = VulkanEngine::instance()._materialManager.get_material("defaultmesh");
         object.mesh = chunk->_mesh;
         object.xzPos = glm::ivec2(chunk->_position.x, chunk->_position.y);
         _renderedChunks.push_back(object);
 
         RenderObject waterObject;
-        waterObject.material = _renderer._materialManager.get_material("watermesh");
+        waterObject.material = VulkanEngine::instance()._materialManager.get_material("watermesh");
         waterObject.mesh = chunk->_waterMesh;
         waterObject.xzPos = glm::ivec2(chunk->_position.x, chunk->_position.y);
         _transparentObjects.push_back(waterObject);
@@ -324,13 +322,13 @@ void ChunkManager::meshChunk(int threadId)
                     if(waterMesh._vertices.size() > 0)
                     {
                         chunk->_hasWater = true;
-                        _renderer._meshSwapQueue.enqueue(std::make_pair(newWaterMesh, chunk->_waterMesh));
-                        _renderer._meshManager._mainMeshUploadQueue.enqueue(newWaterMesh);
+                        VulkanEngine::instance()._meshManager._meshSwapQueue.enqueue(std::make_pair(newWaterMesh, chunk->_waterMesh));
+                        VulkanEngine::instance()._meshManager._mainMeshUploadQueue.enqueue(newWaterMesh);
                     }
 
-                    _renderer._meshSwapQueue.enqueue(std::make_pair(newMesh, chunk->_mesh));
+                    VulkanEngine::instance()._meshManager._meshSwapQueue.enqueue(std::make_pair(newMesh, chunk->_mesh));
                     
-                    _renderer._meshManager._mainMeshUploadQueue.enqueue(newMesh);
+                    VulkanEngine::instance()._meshManager._mainMeshUploadQueue.enqueue(newMesh);
                     
                     ///_renderer._mainMeshUnloaßdQueue.enqueue(std::move(oldMesh));
                 }

@@ -19,7 +19,6 @@
 #include "VkBootstrap.h"
 #include "vk_mesh.h"
 #include "vk_types.h"
-#include "vk_pipeline_builder.h"
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
@@ -93,8 +92,10 @@ void VulkanEngine::cleanup()
 
 		_mainDeletionQueue.flush();
 
-		//Handle deletion of meshes
-		_game.cleanup();
+		for(auto& scene : _scenes)
+		{
+			scene.second->cleanup();
+		}
 		_meshManager.cleanup();
 		
 
@@ -128,55 +129,23 @@ void VulkanEngine::handle_input()
 			case SDL_MOUSEBUTTONDOWN:
 				if(bFocused == false)
 				{
-					fmt::println("Mouse Button down");
 					bFocused = true;
 					SDL_SetWindowGrab(_window, SDL_TRUE);
 					SDL_SetRelativeMouseMode(SDL_TRUE);
 					SDL_ShowCursor(SDL_FALSE);
-				} else {
-					_targetBlock = _camera.get_target_block(_game._world, _game._player);
-					if(_targetBlock.has_value())
-					{
-						auto block = _targetBlock.value()._block;
-						auto chunk = _targetBlock.value()._chunk;
-						glm::vec3 worldBlockPos = _targetBlock.value()._worldPos;
-						//build_target_block_view(worldBlockPos);
-						//fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
-						fmt::println("Current chunk: Chunk(x: {}, y: {})", chunk->_position.x, chunk->_position.y);
-					}
-				}
-				break;
-			case SDL_MOUSEMOTION:
-				if (bFocused == true)
-				{
-					_game._player.handle_mouse_move(e.motion.xrel, e.motion.yrel);
 				}
 				break;
 			case SDL_QUIT:
 				bQuit = true;
 				break;
 		}
+
+		if(bFocused) {
+			_currentScene->handle_input(e);
+		}
 	}
 
-	if (state[SDL_SCANCODE_W])
-	{
-		_game._player.move_forward();
-	}
-
-	if (state[SDL_SCANCODE_S])
-	{
-		_game._player.move_backward();
-	}
-
-	if (state[SDL_SCANCODE_A])
-	{
-		_game._player.move_left();
-	}
-
-	if (state[SDL_SCANCODE_D])
-	{
-		_game._player.move_right();
-	}
+	_currentScene->handle_keystate(state);
 }
 
 void VulkanEngine::set_scene(Scene *scene)
@@ -184,54 +153,6 @@ void VulkanEngine::set_scene(Scene *scene)
 	//Not sure if waiting for the fence is necessary here
 	//VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
 	_currentScene = scene;
-}
-
-void VulkanEngine::update_uniform_buffers()
-{
-	CameraUBO cameraUBO;
-	cameraUBO.projection = _camera._projection;
-	cameraUBO.view = _camera._view;
-	cameraUBO.viewproject = _camera._projection * _camera._view; 
-
-	void* data;
-	vmaMapMemory(_allocator, get_current_frame()._cameraBuffer._allocation, &data);
-	memcpy(data, &cameraUBO, sizeof(CameraUBO));
-	vmaUnmapMemory(_allocator, get_current_frame()._cameraBuffer._allocation);
-}
-
-void VulkanEngine::update_fog_ubo()
-{
-	FogUBO fogUBO;
-	fogUBO.fogColor = static_cast<glm::vec3>(Colors::skyblueHigh);
-	fogUBO.fogEndColor = static_cast<glm::vec3>(Colors::skyblueLow);
-
-	fogUBO.fogCenter = _game._player._position;
-	fogUBO.fogRadius = (CHUNK_SIZE * DEFAULT_VIEW_DISTANCE) - 60.0f;
-	fogUBO.screenSize = glm::ivec2(_windowExtent.width, _windowExtent.height);
-	fogUBO.invViewProject = glm::inverse(_camera._projection * _camera._view);
-
-	void* data;
-	vmaMapMemory(_allocator, _fogUboBuffer._allocation, &data);
-	memcpy(data, &fogUBO, sizeof(FogUBO));
-	vmaUnmapMemory(_allocator, _fogUboBuffer._allocation);
-}
-
-void VulkanEngine::update_chunk_buffer()
-{
-	if(_game._chunkManager._initLoad == true) return;
-
-	void* objectData;
-	vmaMapMemory(_allocator, get_current_frame()._chunkBuffer._allocation, &objectData);
-
-	ChunkBufferObject* objectSSBO = (ChunkBufferObject*)objectData;
-
-	for (int i = 0; i < _game._chunkManager._renderedChunks.size(); i++)
-	{
-		auto& object = _game._chunkManager._renderedChunks[i];
-		objectSSBO[i].chunkPosition = object.xzPos;
-	}
-
-	vmaUnmapMemory(_allocator, get_current_frame()._chunkBuffer._allocation);
 }
 
 //returns the swapChainImageIndex
@@ -285,7 +206,7 @@ void VulkanEngine::draw()
 
 	VkCommandBuffer cmd = begin_recording();
 
-	_currentScene->render(cmd);
+	_currentScene->render(cmd, swapchainImageIndex);
 	VK_CHECK(vkEndCommandBuffer(cmd));
 	
 
@@ -351,14 +272,10 @@ void VulkanEngine::run()
 		std::chrono::duration<float> test = now - _lastFrameTime;
 		_deltaTime = test.count();
 		_lastFrameTime = now;
-		_game._player._moveSpeed = DEFAULT_MOVE_SPEED * _deltaTime;
-
 
 		handle_input();
 
-		_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
-
-		_game.update();
+		_currentScene->update(_deltaTime);
 
 		draw();
 	}
@@ -530,56 +447,6 @@ void VulkanEngine::init_offscreen_images()
 
 void VulkanEngine::init_descriptors()
 {
-	//create a descriptor pool that will hold 10 uniform buffers
-	std::vector<VkDescriptorPoolSize> sizes =
-	{
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 }
-	};
-
-	VkDescriptorPoolCreateInfo pool_info = {};
-	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	pool_info.flags = 0;
-	pool_info.maxSets = 10;
-	pool_info.poolSizeCount = (uint32_t)sizes.size();
-	pool_info.pPoolSizes = sizes.data();
-
-	if (vkCreateDescriptorPool(_device, &pool_info, nullptr, &_dPool) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create descriptor pool!");
-	}
-
-	//information about the binding.
-	VkDescriptorSetLayoutBinding camBufferBinding = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,VK_SHADER_STAGE_VERTEX_BIT,0);
-
-	VkDescriptorSetLayoutBinding bindings[] = { camBufferBinding };
-
-	VkDescriptorSetLayoutCreateInfo setinfo = {};
-	setinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	setinfo.pNext = nullptr;
-	setinfo.bindingCount = 1;
-	setinfo.flags = 0;
-	setinfo.pBindings = bindings;
-
-	if (vkCreateDescriptorSetLayout(_device, &setinfo, nullptr, &_uboSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create descriptor set layout!");
-	}
-
-	VkDescriptorSetLayoutBinding objectBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
-
-	VkDescriptorSetLayoutCreateInfo set2info = {};
-	set2info.bindingCount = 1;
-	set2info.flags = 0;
-	set2info.pNext = nullptr;
-	set2info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	set2info.pBindings = &objectBind;
-
-	vkCreateDescriptorSetLayout(_device, &set2info, nullptr, &_chunkSetLayout);
-
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyDescriptorSetLayout(_device, _uboSetLayout, nullptr);
-		vkDestroyDescriptorSetLayout(_device, _chunkSetLayout, nullptr);
-		vkDestroyDescriptorPool(_device, _dPool, nullptr);
-	});
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
@@ -587,50 +454,25 @@ void VulkanEngine::init_descriptors()
 		_frames[i]._chunkBuffer = vkutil::create_buffer(_allocator, sizeof(ChunkBufferObject) * MAXIMUM_CHUNKS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
 
+		VkDescriptorBufferInfo cameraBufferInfo{
+			.buffer = _frames[i]._cameraBuffer._buffer,
+			.offset = 0,
+			.range = sizeof(CameraUBO)
+		};
 
-		//allocate one descriptor set for each frame
-		VkDescriptorSetAllocateInfo camAllocInfo ={};
-		camAllocInfo.pNext = nullptr;
-		camAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		camAllocInfo.descriptorPool = _dPool;
-		camAllocInfo.descriptorSetCount = 1;
-		camAllocInfo.pSetLayouts = &_uboSetLayout;
+		VkDescriptorBufferInfo chunkBufferInfo{
+			.buffer = _frames[i]._chunkBuffer._buffer,
+			.offset = 0,
+			.range = sizeof(ChunkBufferObject) * MAXIMUM_CHUNKS
+		};
 
-		if (vkAllocateDescriptorSets(_device, &camAllocInfo, &_frames[i]._globalDescriptor) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to allocate descriptor set!");
-		}
+		vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
+			.bind_buffer(0, &cameraBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+			.build(_frames[i]._globalDescriptor, _uboSetLayout);
 
-		//allocate one descriptor set for each frame
-		VkDescriptorSetAllocateInfo bufferAllocInfo ={};
-		bufferAllocInfo.pNext = nullptr;
-		bufferAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		bufferAllocInfo.descriptorPool = _dPool;
-		bufferAllocInfo.descriptorSetCount = 1;
-		bufferAllocInfo.pSetLayouts = &_chunkSetLayout;
-
-		if (vkAllocateDescriptorSets(_device, &bufferAllocInfo, &_frames[i]._chunkDescriptor) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to allocate descriptor set!");
-		}
-
-		//information about the buffer we want to point at in the descriptor
-		VkDescriptorBufferInfo cameraBufferInfo;
-		cameraBufferInfo.buffer = _frames[i]._cameraBuffer._buffer;
-		cameraBufferInfo.offset = 0;
-		cameraBufferInfo.range = sizeof(CameraUBO);
-
-		VkDescriptorBufferInfo chunkBufferInfo;
-		chunkBufferInfo.buffer = _frames[i]._chunkBuffer._buffer;
-		chunkBufferInfo.offset = 0;
-		chunkBufferInfo.range = sizeof(ChunkBufferObject) * MAXIMUM_CHUNKS;
-
-
-		VkWriteDescriptorSet cameraWrite = vkinit::write_descriptor_buffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, _frames[i]._globalDescriptor,&cameraBufferInfo,0);
-
-		VkWriteDescriptorSet chunkWrite = vkinit::write_descriptor_buffer(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _frames[i]._chunkDescriptor, &chunkBufferInfo, 0);
-
-		VkWriteDescriptorSet setWrites[] = { cameraWrite, chunkWrite };
-
-		vkUpdateDescriptorSets(_device, 2, setWrites, 0, nullptr);
+		vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
+			.bind_buffer(0, &chunkBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+			.build(_frames[i]._chunkDescriptor, _chunkSetLayout);
 	}
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)

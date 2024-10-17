@@ -156,7 +156,7 @@ void MaterialManager::build_material_water()
 
 	VkPipelineLayout meshPipelineLayout;
 
-	VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
+	VK_CHECK(vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
 
 	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
 	PipelineBuilder pipelineBuilder;
@@ -323,47 +323,49 @@ void MaterialManager::build_postprocess_pipeline()
 	VkShaderModule computeShaderModule;
 	vkutil::load_shader_module("fog.comp.spv", VulkanEngine::instance()._device, &computeShaderModule);
 
-	_fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-	update_fog_ubo();
+	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	//update_fog_ubo();
 
-	_mainDeletionQueue.push_function([=, this]() {
-		vmaDestroyBuffer(_allocator, _fogUboBuffer._buffer, _fogUboBuffer._allocation);
-	});
+	// _mainDeletionQueue.push_function([=, this]() {
+	// 	vmaDestroyBuffer(_allocator, _fogUboBuffer._buffer, _fogUboBuffer._allocation);
+	// });
 
 	VkDescriptorSet colorImageSet;
 	VkDescriptorSetLayout colorImageSetLayout;
 	VkDescriptorImageInfo colorImageInfo{
 		.sampler = VK_NULL_HANDLE,
-		.imageView = _fullscreenImageView,
+		.imageView = VulkanEngine::instance()._fullscreenImageView,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 	};
-	vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
+	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
 		.bind_image(0, &colorImageInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.build(colorImageSet, colorImageSetLayout);
 
 	VkDescriptorSet depthImageSet;
 	VkDescriptorSetLayout depthImageSetLayout;
 	VkDescriptorImageInfo depthImageInfo{
-		.sampler = _sampler,
-		.imageView = _depthImageView,
+		.sampler = VulkanEngine::instance()._sampler,
+		.imageView = VulkanEngine::instance()._depthImageView,
 		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
 	};
-	vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
+	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
 		.bind_image(0, &depthImageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
 		.build(depthImageSet, depthImageSetLayout);
 
+	VkDescriptorSet fogSet;
+	VkDescriptorSetLayout fogSetLayout;
 	VkDescriptorBufferInfo fogBufferInfo{
-		.buffer = _fogUboBuffer._buffer,
+		.buffer = fogUboBuffer._buffer,
 		.offset = 0,
 		.range = sizeof(FogUBO)
 	};
-	vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
+	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
 		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(_fogSet, _fogSetLayout);
+		.build(fogSet, fogSetLayout);
 
 
-	_computeDescriptorSets = { colorImageSet, depthImageSet, _fogSet };
-	std::array<VkDescriptorSetLayout, 3> layouts = { colorImageSetLayout, depthImageSetLayout, _fogSetLayout };
+	VkDescriptorSet computeDescriptorSets[] = { colorImageSet, depthImageSet, fogSet };
+	std::array<VkDescriptorSetLayout, 3> layouts = { colorImageSetLayout, depthImageSetLayout, fogSetLayout };
 
 	VkPipelineShaderStageCreateInfo computeShaderStageInfo = vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_COMPUTE_BIT, computeShaderModule);
 
@@ -374,7 +376,9 @@ void MaterialManager::build_postprocess_pipeline()
 	pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(layouts.size()); // Assuming one descriptor set layout
 	pipelineLayoutInfo.pSetLayouts = layouts.data(); // Descriptor set layout containing the image resources
 
-	if (vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipelineLayoutInfo, nullptr, &_computeMaterial.pipelineLayout) != VK_SUCCESS) {
+	VkPipelineLayout computePipelineLayout;
+
+	if (vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create compute pipeline layout!");
 	}
 
@@ -382,11 +386,30 @@ void MaterialManager::build_postprocess_pipeline()
 	VkComputePipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 	pipelineInfo.stage = computeShaderStageInfo;
-	pipelineInfo.layout = _computeMaterial.pipelineLayout;
+	pipelineInfo.layout = computePipelineLayout;
 
-	if (vkCreateComputePipelines(VulkanEngine::instance()._device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_computeMaterial.pipeline) != VK_SUCCESS) {
+	VkPipeline computePipeline;
+
+	if (vkCreateComputePipelines(VulkanEngine::instance()._device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create compute pipeline!");
 	}
+
+	Material computeMaterial {
+		.pipeline = computePipeline,
+		.pipelineLayout = computePipelineLayout,
+		.resources = {
+			Resource{Resource::BUFFER, fogUboBuffer}
+		},
+		.descriptorSets = computeDescriptorSets,
+		.setCount = 3,	
+		.buffer_update = [=]() {
+			void* data;
+			vmaMapMemory(VulkanEngine::instance()._allocator, fogUboBuffer._allocation, &data);
+			memcpy(data, &FogUBO, sizeof(FogUBO));
+			vmaUnmapMemory(VulkanEngine::instance()._allocator, fogUboBuffer._allocation);
+		}
+	};
+
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, computeShaderModule, nullptr);
 }

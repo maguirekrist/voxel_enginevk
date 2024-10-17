@@ -4,7 +4,6 @@
 #pragma once
 
 #include "vk_types.h"
-#include <condition_variable>
 #include <vk_mesh.h>
 #include <camera.h>
 #include <cube_engine.h>
@@ -44,11 +43,11 @@ public:
 	}
 
 	bool _isInitialized{ false };
-	bool bUseValidationLayers{ true };
 	int _frameNumber {0};
 
 	bool bFocused = false;
 	bool bQuit = false;
+	bool bUseValidationLayers = true;
 	
 	VkInstance _instance;
 	VkDebugUtilsMessengerEXT _debug_messenger;
@@ -78,14 +77,8 @@ public:
 	VkFramebuffer _offscreenFramebuffer;
 	std::vector<VkFramebuffer> _framebuffers;
 
-	Material _computeMaterial;
-
-	//std::vector<RenderObject> _renderObjects;
 	std::unordered_map<std::string, std::unique_ptr<Scene>> _scenes;
-	CubeEngine _game{ *this };
-	Camera _camera;
 	Scene* _currentScene;
-	std::optional<RaycastResult> _targetBlock;
 
 	float _deltaTime;
 	TimePoint _lastFrameTime;
@@ -96,28 +89,22 @@ public:
 	VkImageView _depthImageView;
 	AllocatedImage _depthImage;
 	VkFormat _depthFormat;
-
 	VkFormat _colorFormat;
 	AllocatedImage _fullscreenImage;
 	VkImageView _fullscreenImageView;
 
 	FunctionQueue _mainDeletionQueue;
-	moodycamel::ConcurrentQueue<std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>> > > _meshSwapQueue;
+
 	VmaAllocator _allocator;
 
 	vkutil::DescriptorAllocator _descriptorAllocator;
 	vkutil::DescriptorLayoutCache _descriptorLayoutCache;
-
-	std::array<VkDescriptorSet, 3> _computeDescriptorSets;
-	AllocatedBuffer _fogUboBuffer;
-	VkDescriptorSet _fogSet;
 
 	VkDescriptorSetLayout _sampledImageSetLayout;
 	VkDescriptorSet _sampledImageSet;
 
 	VkDescriptorSetLayout _uboSetLayout;
 	VkDescriptorSetLayout _chunkSetLayout;
-	VkDescriptorPool _dPool;
 
 	FrameData _frames[FRAME_OVERLAP];
 
@@ -170,7 +157,6 @@ private:
 	//Frame Buffer Init
 	void init_framebuffers();
 	void init_offscreen_framebuffers();
-	//void init_uniform_buffers();
 
 	void init_scenes();
 
@@ -179,17 +165,8 @@ private:
 	//Pipeline creation
 	void init_pipelines();
 
-	//Buffer updates
-	void update_uniform_buffers();
-	void update_fog_ubo();
-	void update_chunk_buffer();
 
 	void draw_fullscreen(VkCommandBuffer cmd, Material* presentMaterial);
 
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
-
-
-	//Test Functions
-	// void build_target_block_view(const glm::vec3& worldPos);
-	// RenderObject build_chunk_debug_view(const Chunk& chunk);
 };

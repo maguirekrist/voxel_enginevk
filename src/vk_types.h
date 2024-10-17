@@ -64,12 +64,29 @@ using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 using Duration = std::chrono::duration<float>;
 
+struct Resource {
+	enum Type {
+		BUFFER,
+		IMAGE
+	} type;
+
+	union ResourceValue{
+		AllocatedBuffer buffer;
+		AllocatedImage image;
+	} value;
+};
+
 struct Material {
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 
 	//TODO: Have a Material own its own resources like descriptor sets, etc.
-	
+	std::vector<Resource> resources;
+	VkDescriptorSet *descriptorSets;
+	size_t setCount;
+
+	//Not sure if having a call back function make sense.
+	//std::function<void()> buffer_update;
 };
 
 struct FrameData {

@@ -14,6 +14,7 @@ public:
     //std::unordered_map<std::string, std::shared_ptr<Mesh>> _meshes;
     moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUploadQueue;
 	moodycamel::ConcurrentQueue<std::shared_ptr<Mesh>> _mainMeshUnloadQueue;
+    moodycamel::ConcurrentQueue<std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>> > > _meshSwapQueue;
     
     void upload_mesh(Mesh& mesh);
 	void unload_mesh(std::shared_ptr<Mesh>&& mesh);

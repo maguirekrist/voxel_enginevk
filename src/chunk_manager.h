@@ -29,7 +29,7 @@ public:
     std::unordered_set<ChunkCoord> _oldWorldChunks;
     bool _initLoad{true};
 
-    ChunkManager(VulkanEngine& renderer);
+    ChunkManager();
 
     void cleanup();
 
@@ -57,7 +57,6 @@ private:
     ChunkCoord _lastPlayerChunk = {0, 0};
 
     TerrainGenerator& _terrainGenerator;
-    VulkanEngine& _renderer;
 
     std::queue<WorldUpdateJob> _worldUpdateQueue;
     moodycamel::BlockingConcurrentQueue<Chunk*> _chunkGenQueue{_maxChunks};
