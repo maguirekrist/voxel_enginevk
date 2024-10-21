@@ -5,7 +5,7 @@ layout(location = 0) in vec3 inColor;
 //output write
 layout (location = 0) out vec4 outFragColor;
 
-layout(set = 2, binding = 0) uniform FogUBO {
+layout(set = 1, binding = 0) uniform FogUBO {
     vec3 fogColor;
     vec3 fopEndColor;
     
@@ -16,8 +16,8 @@ layout(set = 2, binding = 0) uniform FogUBO {
 } fogUbo;
 
 
-float camNear = 1.0f;
-float camFar = 10000.0f;
+// float camNear = 1.0f;
+// float camFar = 10000.0f;
 
 float computeFogFactor(float depthValue, float minDist, float maxDist) {
     float fogFactor = clamp((depthValue - minDist) / (maxDist - minDist), 0.0, 1.0);
@@ -40,7 +40,7 @@ void main()
 
     float distanceToCenter = length(worldPos.xyz - fogUbo.fogCenter);
 
-    float delta = distanceToCenter - fogUbo.fogRadius;
+    //float delta = distanceToCenter - fogUbo.fogRadius;
 
     float fogFactor = computeFogFactor(distanceToCenter, fogUbo.fogRadius, fogUbo.fogRadius + 60.0f);
 

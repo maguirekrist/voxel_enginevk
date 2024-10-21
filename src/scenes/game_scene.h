@@ -7,8 +7,10 @@
 
 class GameScene : public Scene {
 public:
+    GameScene();
     void render(VkCommandBuffer cmd, uint32_t swapchainImageIndex) override;
     
+    void init() override;
     void update(float deltaTime) override;
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
@@ -22,13 +24,11 @@ private:
 	void draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial);
 
     void update_fog_ubo();
-    void update_chunk_buffer();
+    //void update_chunk_buffer();
     void update_uniform_buffer();
     
-    // Shared Resources
-    std::array<VkDescriptorSet, 3> _computeDescriptorSets;
 	AllocatedBuffer _fogUboBuffer;
-	VkDescriptorSet _fogSet;
+    AllocatedBuffer _cameraUboBuffer;
 
     CubeEngine _game;
     Camera _camera;

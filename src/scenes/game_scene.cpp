@@ -4,6 +4,21 @@
 #include <vk_initializers.h>
 #include <vk_mesh.h>
 
+GameScene::GameScene() {
+
+}
+
+void GameScene::init()
+{
+	_fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	_cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogUboBuffer);
+	VulkanEngine::instance()._materialManager.build_material_default(_cameraUboBuffer);
+	VulkanEngine::instance()._materialManager.build_material_water(_fogUboBuffer, _cameraUboBuffer);
+	//VulkanEngine::instance()._materialManager.build_material_wireframe();
+	VulkanEngine::instance()._materialManager.build_present_pipeline();
+}
+
 void GameScene::render(VkCommandBuffer cmd, uint32_t swapchainImageIndex) {
 	VkRenderPassBeginInfo rpOffscreenInfo = vkinit::render_pass_begin_info(VulkanEngine::instance()._offscreenPass, VulkanEngine::instance()._windowExtent, VulkanEngine::instance()._offscreenFramebuffer, ClearFlags::Color | ClearFlags::Depth);
 
@@ -62,6 +77,7 @@ void GameScene::update(float deltaTime)
 
 void GameScene::cleanup()
 {
+	vmaDestroyBuffer(VulkanEngine::instance()._allocator, _fogUboBuffer._buffer, _fogUboBuffer._allocation);
     _game.cleanup();
 }
 
@@ -119,8 +135,8 @@ void GameScene::run_compute(VkCommandBuffer cmd, const Material &computeMaterial
         cmd,
         VK_PIPELINE_BIND_POINT_COMPUTE,
         computeMaterial.pipelineLayout,
-        0, computeMaterial.setCount,
-        computeMaterial.descriptorSets,
+        0, computeMaterial.descriptorSets.size(),
+        computeMaterial.descriptorSets.data(),
         0, nullptr
     );
 
@@ -155,8 +171,8 @@ void GameScene::draw_fullscreen(VkCommandBuffer cmd, Material *presentMaterial)
 		cmd,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		presentMaterial->pipelineLayout,
-		0, presentMaterial->setCount,
-		presentMaterial->descriptorSets,
+		0, presentMaterial->descriptorSets.size(),
+		presentMaterial->descriptorSets.data(),
 		0, nullptr
 	);
 
@@ -173,12 +189,14 @@ void GameScene::draw_object(VkCommandBuffer cmd, const RenderObject& object, Mes
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
 		lastMaterial = object.material;
 
+
+
 		vkCmdBindDescriptorSets(cmd, 
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		object.material->pipelineLayout,
 		0, 
-		object.material->setCount,
-		object.material->descriptorSets,
+		object.material->descriptorSets.size(),
+		object.material->descriptorSets.data(),
 		0,
 		nullptr);
 	}
@@ -246,25 +264,25 @@ void GameScene::update_uniform_buffer()
 	cameraUBO.viewproject = _camera._projection * _camera._view; 
 
 	void* data;
-	vmaMapMemory(VulkanEngine::instance()._allocator, VulkanEngine::instance().get_current_frame()._cameraBuffer._allocation, &data);
+	vmaMapMemory(VulkanEngine::instance()._allocator, _cameraUboBuffer._allocation, &data);
 	memcpy(data, &cameraUBO, sizeof(CameraUBO));
-	vmaUnmapMemory(VulkanEngine::instance()._allocator, VulkanEngine::instance().get_current_frame()._cameraBuffer._allocation);
+	vmaUnmapMemory(VulkanEngine::instance()._allocator, _cameraUboBuffer._allocation);
 }
 
-void GameScene::update_chunk_buffer()
-{
-	if(_game._chunkManager._initLoad == true) return;
+// void GameScene::update_chunk_buffer()
+// {
+// 	if(_game._chunkManager._initLoad == true) return;
 
-	void* objectData;
-	vmaMapMemory(VulkanEngine::instance()._allocator, VulkanEngine::instance().get_current_frame()._chunkBuffer._allocation, &objectData);
+// 	void* objectData;
+// 	vmaMapMemory(VulkanEngine::instance()._allocator, VulkanEngine::instance().get_current_frame()._chunkBuffer._allocation, &objectData);
 
-	ChunkBufferObject* objectSSBO = (ChunkBufferObject*)objectData;
+// 	ChunkBufferObject* objectSSBO = (ChunkBufferObject*)objectData;
 
-	for (int i = 0; i < _game._chunkManager._renderedChunks.size(); i++)
-	{
-		auto& object = _game._chunkManager._renderedChunks[i];
-		objectSSBO[i].chunkPosition = object.xzPos;
-	}
+// 	for (int i = 0; i < _game._chunkManager._renderedChunks.size(); i++)
+// 	{
+// 		auto& object = _game._chunkManager._renderedChunks[i];
+// 		objectSSBO[i].chunkPosition = object.xzPos;
+// 	}
 
-	vmaUnmapMemory(VulkanEngine::instance()._allocator, VulkanEngine::instance().get_current_frame()._chunkBuffer._allocation);
-}
+// 	vmaUnmapMemory(VulkanEngine::instance()._allocator, VulkanEngine::instance().get_current_frame()._chunkBuffer._allocation);
+// }

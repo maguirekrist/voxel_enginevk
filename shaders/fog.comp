@@ -17,8 +17,8 @@ layout(set = 2, binding = 0) uniform FogUBO {
 
 layout(local_size_x = 16, local_size_y = 16) in;         // Define workgroup size
 
-float camNear = 1.0f;
-float camFar = 10000.0f;
+// float camNear = 1.0f;
+// float camFar = 10000.0f;
 
 float minHeight = 0.0f;
 float maxHeight = 15000.0f;
@@ -59,7 +59,7 @@ void main() {
 
     float distanceToCenter = length(worldPos.xyz - ubo.fogCenter);
 
-    float delta = (distanceToCenter - ubo.fogRadius);
+    //float delta = (distanceToCenter - ubo.fogRadius);
 
     float fogFactor = computeFogFactor(distanceToCenter, ubo.fogRadius, ubo.fogRadius + 60.0f);
 

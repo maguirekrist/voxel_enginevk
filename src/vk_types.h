@@ -42,11 +42,18 @@
 struct AllocatedBuffer {
     VkBuffer _buffer;
     VmaAllocation _allocation;
+	size_t _size;
 };
 
 struct AllocatedImage {
     VkImage _image;
     VmaAllocation _allocation;
+};
+
+struct ImageResource {
+	AllocatedImage image;
+	VkImageView view;
+	VkSampler sampler;
 };
 
 struct QueueFamily {
@@ -72,7 +79,7 @@ struct Resource {
 
 	union ResourceValue{
 		AllocatedBuffer buffer;
-		AllocatedImage image;
+		ImageResource image;
 	} value;
 };
 
@@ -81,9 +88,8 @@ struct Material {
 	VkPipelineLayout pipelineLayout;
 
 	//TODO: Have a Material own its own resources like descriptor sets, etc.
-	std::vector<Resource> resources;
-	VkDescriptorSet *descriptorSets;
-	size_t setCount;
+	std::vector<Resource*> resources;
+	std::vector<VkDescriptorSet> descriptorSets;
 
 	//Not sure if having a call back function make sense.
 	//std::function<void()> buffer_update;
@@ -96,11 +102,11 @@ struct FrameData {
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
 	//std::vector<VkCommandBuffer> _secondaryCommandBuffers;
-	AllocatedBuffer _chunkBuffer;
-	VkDescriptorSet _chunkDescriptor;
+	// AllocatedBuffer _chunkBuffer;
+	// VkDescriptorSet _chunkDescriptor;
 
-	AllocatedBuffer _cameraBuffer;
-	VkDescriptorSet _globalDescriptor;
+	// AllocatedBuffer _cameraBuffer;
+	// VkDescriptorSet _globalDescriptor;
 
 };
 

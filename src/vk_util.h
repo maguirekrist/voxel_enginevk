@@ -8,6 +8,7 @@ namespace vkutil {
     void transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout targetLayout);
     bool load_shader_module(const std::string& filePath, VkDevice device, VkShaderModule* outShaderModule);
     AllocatedBuffer create_buffer(VmaAllocator allocator, size_t size, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage);
+    AllocatedImage create_image(VmaAllocator allocator, VkExtent3D extent, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage memUsage);
 
     class DescriptorAllocator {
     public:

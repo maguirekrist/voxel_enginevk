@@ -34,7 +34,132 @@ void MaterialManager::cleanup()
 	}
 }
 
-void MaterialManager::build_material_default()
+
+void MaterialManager::build_graphics_pipeline(const std::vector<Resource*>& resources, const std::string& vertex_shader, const std::string& fragment_shader, const std::string& name)
+{
+	VkShaderModule vertexShader;
+	vkutil::load_shader_module(vertex_shader, VulkanEngine::instance()._device, &vertexShader);
+
+	VkShaderModule fragmentShader;
+	vkutil::load_shader_module(fragment_shader, VulkanEngine::instance()._device, &fragmentShader);
+
+	std::vector<VkDescriptorSet> descriptorSets;
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+
+	for (auto resource : resources) {
+		if (resource->type == Resource::IMAGE) {
+			VkDescriptorSetLayout imageSetLayout;
+			VkDescriptorSet imageSet;
+			VkDescriptorImageInfo imageInfo{
+				.sampler = VK_NULL_HANDLE,
+				.imageView = resource->value.image.view,
+				.imageLayout = VK_IMAGE_LAYOUT_GENERAL
+			};
+			vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+				.bind_image(0, &imageInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+				.build(imageSet, imageSetLayout);
+			descriptorSets.push_back(imageSet);
+			descriptorSetLayouts.push_back(imageSetLayout);
+		}
+
+		if (resource->type == Resource::BUFFER) {
+			VkDescriptorSetLayout bufferSetLayout;
+			VkDescriptorSet bufferSet;
+			VkDescriptorBufferInfo bufferInfo{
+				.buffer = resource->value.buffer._buffer,
+				.offset = 0,
+				.range = resource->value.buffer._size
+			};
+			vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+				.bind_buffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+				.build(bufferSet, bufferSetLayout);
+			descriptorSets.push_back(bufferSet);
+			descriptorSetLayouts.push_back(bufferSetLayout);
+		}
+	}
+
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
+	pipelineLayoutInfo.setLayoutCount = descriptorSetLayouts.size();
+	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+	VkPipelineLayout pipelineLayout;
+	VK_CHECK(vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+
+	PipelineBuilder pipelineBuilder;
+
+	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
+	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+
+	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
+	//we are just going to draw triangle list
+	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+	//build viewport and scissor from the swapchain extents
+	pipelineBuilder._viewport.x = 0.0f;
+	pipelineBuilder._viewport.y = 0.0f;
+	pipelineBuilder._viewport.width = (float)VulkanEngine::instance()._windowExtent.width;
+	pipelineBuilder._viewport.height = (float)VulkanEngine::instance()._windowExtent.height;
+	pipelineBuilder._viewport.minDepth = 0.0f;
+	pipelineBuilder._viewport.maxDepth = 1.0f;
+
+
+	pipelineBuilder._scissor.offset = { 0, 0 };
+	pipelineBuilder._scissor.extent = VulkanEngine::instance()._windowExtent;
+
+	//configure the rasterizer to draw filled triangles
+	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
+
+	//we don't use multisampling, so just run the default one
+	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
+
+	//a single blend attachment with no blending and writing to RGBA
+	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+
+	//default depthtesting
+	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+
+	//use the triangle layout we created
+	pipelineBuilder._pipelineLayout = pipelineLayout;
+
+	//build the mesh pipeline
+	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
+
+	//connect the pipeline builder vertex input info to the one we get from Vertex
+	pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
+	pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
+
+	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
+	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
+
+
+	//clear the shader stages for the builder
+	pipelineBuilder._shaderStages.clear();
+
+	pipelineBuilder._shaderStages.push_back(
+		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
+
+	pipelineBuilder._shaderStages.push_back(
+		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
+
+	//finally build the pipeline
+	VkPipeline meshPipeline;
+	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, VulkanEngine::instance()._offscreenPass);
+
+	Material graphicsMaterial {
+		.pipeline = meshPipeline,
+		.pipelineLayout = pipelineLayout,
+		.resources = resources,
+		.descriptorSets = descriptorSets
+	};
+
+	_materials[name] = graphicsMaterial;
+
+	vkDestroyShaderModule(VulkanEngine::instance()._device, fragmentShader, nullptr);
+	vkDestroyShaderModule(VulkanEngine::instance()._device, vertexShader, nullptr);
+
+}
+
+void MaterialManager::build_material_default(AllocatedBuffer cameraBuffer)
 {
 	VkShaderModule trimeshFragShader;
 	vkutil::load_shader_module("tri_mesh.frag.spv", VulkanEngine::instance()._device, &trimeshFragShader);
@@ -42,14 +167,26 @@ void MaterialManager::build_material_default()
 	VkShaderModule trimeshVertexShader;
 	vkutil::load_shader_module("tri_mesh.vert.spv", VulkanEngine::instance()._device, &trimeshVertexShader);
 
+
+	VkDescriptorSet cameraSet;
+	VkDescriptorSetLayout cameraSetLayout;
+	VkDescriptorBufferInfo cameraBufferInfo{
+		.buffer = cameraBuffer._buffer,
+		.offset = 0,
+		.range = sizeof(CameraUBO)
+	};
+	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+			.bind_buffer(0, &cameraBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+			.build(cameraSet, cameraSetLayout);
+
 	//build the pipeline layout that controls the inputs/outputs of the shader
 	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
 	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
-	VkDescriptorSetLayout setLayouts[] = { _uboSetLayout, _chunkSetLayout };
+	VkDescriptorSetLayout setLayouts[] = { cameraSetLayout };
 
 	//EXAMPLE: assigning descriptor set to this pipelien
-	pipeline_layout_info.setLayoutCount = 2;
+	pipeline_layout_info.setLayoutCount = 1;
 	pipeline_layout_info.pSetLayouts = setLayouts;
 
 	//EXAMPLE: Assigning a push_constrant to this pipeline from vkinit:
@@ -124,13 +261,22 @@ void MaterialManager::build_material_default()
 	VkPipeline meshPipeline;
 	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, VulkanEngine::instance()._offscreenPass);
 
-	create_material(meshPipeline, meshPipelineLayout, "defaultmesh");
+	Material material{
+		.pipeline = meshPipeline,
+		.pipelineLayout = meshPipelineLayout,
+		.descriptorSets = { cameraSet },
+		.resources = {}
+	};
+
+	_materials["defaultmesh"] = material;
+
+	//create_material(meshPipeline, meshPipelineLayout, "defaultmesh");
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, trimeshFragShader, nullptr);
 	vkDestroyShaderModule(VulkanEngine::instance()._device, trimeshVertexShader, nullptr);
 }
 
-void MaterialManager::build_material_water()
+void MaterialManager::build_material_water(AllocatedBuffer fogUboBuffer, AllocatedBuffer cameraBuffer)
 {
 	VkShaderModule waterFragShader;
 	vkutil::load_shader_module("water_mesh.frag.spv", VulkanEngine::instance()._device, &waterFragShader);
@@ -142,10 +288,33 @@ void MaterialManager::build_material_water()
 	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
 	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
-	VkDescriptorSetLayout setLayouts[] = { _uboSetLayout, _chunkSetLayout, _fogSetLayout };
+
+	VkDescriptorSet cameraSet;
+	VkDescriptorSetLayout cameraSetLayout;
+	VkDescriptorBufferInfo cameraBufferInfo{
+		.buffer = cameraBuffer._buffer,
+		.offset = 0,
+		.range = sizeof(CameraUBO)
+	};
+	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+			.bind_buffer(0, &cameraBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+			.build(cameraSet, cameraSetLayout);
+	
+	VkDescriptorSet fogSet;
+	VkDescriptorSetLayout fogSetLayout;
+	VkDescriptorBufferInfo fogBufferInfo{
+		.buffer = fogUboBuffer._buffer,
+		.offset = 0,
+		.range = fogUboBuffer._size
+	};
+	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+		.build(fogSet, fogSetLayout);
+
+	VkDescriptorSetLayout setLayouts[] = { cameraSetLayout, fogSetLayout };
 
 	//EXAMPLE: assigning descriptor set to this pipelien
-	pipeline_layout_info.setLayoutCount = 3;
+	pipeline_layout_info.setLayoutCount = 2;
 	pipeline_layout_info.pSetLayouts = setLayouts;
 
 	//EXAMPLE: Assigning a push_constrant to this pipeline from vkinit:
@@ -221,7 +390,15 @@ void MaterialManager::build_material_water()
 	VkPipeline meshPipeline;
 	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, VulkanEngine::instance()._renderPass);
 
-	create_material(meshPipeline, meshPipelineLayout, "watermesh");
+	Material material{
+		.pipeline = meshPipeline,
+		.pipelineLayout = meshPipelineLayout,
+		.descriptorSets = {cameraSet, fogSet},
+		.resources = {}
+	};
+
+	// create_material(meshPipeline, meshPipelineLayout, "watermesh");
+	_materials["watermesh"] = material;
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, waterFragShader, nullptr);
 	vkDestroyShaderModule(VulkanEngine::instance()._device, waterVertexShader, nullptr);
@@ -318,23 +495,16 @@ void MaterialManager::build_material_wireframe()
 	vkDestroyShaderModule(VulkanEngine::instance()._device, wiremeshVertexShader, nullptr);
 }
 
-void MaterialManager::build_postprocess_pipeline()
+void MaterialManager::build_postprocess_pipeline(AllocatedBuffer fogUboBuffer)
 {
 	VkShaderModule computeShaderModule;
 	vkutil::load_shader_module("fog.comp.spv", VulkanEngine::instance()._device, &computeShaderModule);
-
-	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-	//update_fog_ubo();
-
-	// _mainDeletionQueue.push_function([=, this]() {
-	// 	vmaDestroyBuffer(_allocator, _fogUboBuffer._buffer, _fogUboBuffer._allocation);
-	// });
 
 	VkDescriptorSet colorImageSet;
 	VkDescriptorSetLayout colorImageSetLayout;
 	VkDescriptorImageInfo colorImageInfo{
 		.sampler = VK_NULL_HANDLE,
-		.imageView = VulkanEngine::instance()._fullscreenImageView,
+		.imageView = VulkanEngine::instance()._fullscreenImage.view,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 	};
 	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
@@ -345,7 +515,7 @@ void MaterialManager::build_postprocess_pipeline()
 	VkDescriptorSetLayout depthImageSetLayout;
 	VkDescriptorImageInfo depthImageInfo{
 		.sampler = VulkanEngine::instance()._sampler,
-		.imageView = VulkanEngine::instance()._depthImageView,
+		.imageView = VulkanEngine::instance()._depthImage.view,
 		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
 	};
 	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
@@ -357,14 +527,13 @@ void MaterialManager::build_postprocess_pipeline()
 	VkDescriptorBufferInfo fogBufferInfo{
 		.buffer = fogUboBuffer._buffer,
 		.offset = 0,
-		.range = sizeof(FogUBO)
+		.range = fogUboBuffer._size
 	};
 	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
 		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
 		.build(fogSet, fogSetLayout);
 
 
-	VkDescriptorSet computeDescriptorSets[] = { colorImageSet, depthImageSet, fogSet };
 	std::array<VkDescriptorSetLayout, 3> layouts = { colorImageSetLayout, depthImageSetLayout, fogSetLayout };
 
 	VkPipelineShaderStageCreateInfo computeShaderStageInfo = vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_COMPUTE_BIT, computeShaderModule);
@@ -397,19 +566,11 @@ void MaterialManager::build_postprocess_pipeline()
 	Material computeMaterial {
 		.pipeline = computePipeline,
 		.pipelineLayout = computePipelineLayout,
-		.resources = {
-			Resource{Resource::BUFFER, fogUboBuffer}
-		},
-		.descriptorSets = computeDescriptorSets,
-		.setCount = 3,	
-		.buffer_update = [=]() {
-			void* data;
-			vmaMapMemory(VulkanEngine::instance()._allocator, fogUboBuffer._allocation, &data);
-			memcpy(data, &FogUBO, sizeof(FogUBO));
-			vmaUnmapMemory(VulkanEngine::instance()._allocator, fogUboBuffer._allocation);
-		}
+		.resources = { },
+		.descriptorSets = { colorImageSet, depthImageSet, fogSet }
 	};
 
+	_materials["compute"] = computeMaterial;
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, computeShaderModule, nullptr);
 }
@@ -425,20 +586,20 @@ void MaterialManager::build_present_pipeline()
 	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
 	VkDescriptorImageInfo sampleImageInfo{
-		.sampler = _sampler,
-		.imageView = _fullscreenImageView,
+		.sampler = VulkanEngine::instance()._sampler,
+		.imageView = VulkanEngine::instance()._fullscreenImage.view,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 	};
-	vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
+	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
 		.bind_image(0, &sampleImageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(_sampledImageSet, _sampledImageSetLayout);
+		.build(VulkanEngine::instance()._sampledImageSet, VulkanEngine::instance()._sampledImageSetLayout);
 
 	pipeline_layout_info.setLayoutCount = 1;
-	pipeline_layout_info.pSetLayouts = &_sampledImageSetLayout;
+	pipeline_layout_info.pSetLayouts = &VulkanEngine::instance()._sampledImageSetLayout;
 
 	VkPipelineLayout meshPipelineLayout;
 
-	VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
+	VK_CHECK(vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
 
 	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
 	PipelineBuilder pipelineBuilder;
@@ -472,7 +633,7 @@ void MaterialManager::build_present_pipeline()
 	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
 
 	//default depthtesting
-	pipelineBuilder._depthStencil = std::nullopt;
+	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(false, false, VK_COMPARE_OP_ALWAYS);
 
 	//use the triangle layout we created
 	pipelineBuilder._pipelineLayout = meshPipelineLayout;
@@ -502,7 +663,19 @@ void MaterialManager::build_present_pipeline()
 	VkPipeline meshPipeline;
 	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, VulkanEngine::instance()._renderPass);
 
-	create_material(meshPipeline, meshPipelineLayout, "present");
+
+
+	//create_material(meshPipeline, meshPipelineLayout, "present");
+	VkDescriptorSet descriptors[] = { VulkanEngine::instance()._sampledImageSet };
+
+	Material material{
+		.pipeline = meshPipeline,
+		.pipelineLayout = meshPipelineLayout,
+		.descriptorSets = { VulkanEngine::instance()._sampledImageSet },
+		.resources = {}
+	};
+
+	_materials["present"] = material;
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, fragShader, nullptr);
 	vkDestroyShaderModule(VulkanEngine::instance()._device, vertexShader, nullptr);

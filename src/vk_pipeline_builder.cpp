@@ -42,7 +42,7 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
 	pipelineInfo.pRasterizationState = &_rasterizer;
 	pipelineInfo.pMultisampleState = &_multisampling;
 	pipelineInfo.pColorBlendState = &colorBlending;
-	pipelineInfo.pDepthStencilState = _depthStencil.has_value() ? &(_depthStencil.value()) : nullptr;
+	pipelineInfo.pDepthStencilState = _depthStencil.has_value() ? &(_depthStencil.value()) : nullptr; //TODO: Validate this is working correctly
 	pipelineInfo.layout = _pipelineLayout;
 	pipelineInfo.renderPass = pass;
 	pipelineInfo.subpass = 0;

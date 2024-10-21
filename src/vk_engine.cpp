@@ -23,7 +23,12 @@
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 #include "scenes/game_scene.h"
-#include "scenes/blueprint_builder_scene.h"
+//#include "scenes/blueprint_builder_scene.h"
+
+VulkanEngine::VulkanEngine()
+{
+
+}
 
 void VulkanEngine::calculate_fps()
 {
@@ -72,10 +77,6 @@ void VulkanEngine::init()
 	init_offscreen_framebuffers();
 
 	init_sync_structures();
-
-	init_descriptors();
-
-	init_pipelines();
 
 	init_scenes();
 
@@ -396,47 +397,44 @@ void VulkanEngine::init_offscreen_images()
 
 	_colorFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
-	//SET-UP OFF-SCREEN IMAGE
-	VkImageCreateInfo color_info = vkinit::image_create_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, windowImageExtent);
-	VmaAllocationCreateInfo cimg_allocinfo = {};
-	cimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	cimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	vmaCreateImage(_allocator, &color_info, &cimg_allocinfo, &_fullscreenImage._image, &_fullscreenImage._allocation, nullptr);
+	auto fullscreenImage = vkutil::create_image(_allocator, windowImageExtent, _colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
 	//build an image-view for the depth image to use for rendering
-	VkImageViewCreateInfo cview_info = vkinit::imageview_create_info(_colorFormat, _fullscreenImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
+	VkImageViewCreateInfo cview_info = vkinit::imageview_create_info(_colorFormat, fullscreenImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
 
-	VK_CHECK(vkCreateImageView(_device, &cview_info, nullptr, &_fullscreenImageView));
+	VkImageView fullscreenImageView;
+	VK_CHECK(vkCreateImageView(_device, &cview_info, nullptr, &fullscreenImageView));
 
 	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyImageView(_device, _fullscreenImageView, nullptr);
-		vmaDestroyImage(_allocator, _fullscreenImage._image, _fullscreenImage._allocation);
+		vkDestroyImageView(_device, fullscreenImageView, nullptr);
+		vmaDestroyImage(_allocator, fullscreenImage._image, fullscreenImage._allocation);
 	});
+
+	_fullscreenImage = {
+		.image = fullscreenImage,
+		.view = fullscreenImageView
+	};
 
 	//CREATE DEPTH IMAGE
-
 	_depthFormat = VK_FORMAT_D32_SFLOAT;
 
-	//the depth image will be an image with the format we selected and Depth Attachment usage flag
-	VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, windowImageExtent);
-
-	//for the depth image, we want to allocate it from GPU local memory
-	VmaAllocationCreateInfo dimg_allocinfo = {};
-	dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	//allocate and create the image
-	vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &_depthImage._image, &_depthImage._allocation, nullptr);
+	auto depthImage = vkutil::create_image(_allocator, windowImageExtent, _depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
 	//build an image-view for the depth image to use for rendering
-	VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, _depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
+	VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-	VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImageView));
+	VkImageView depthImageView;
+	VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &depthImageView));
 
 	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyImageView(_device, _depthImageView, nullptr);
-		vmaDestroyImage(_allocator, _depthImage._image, _depthImage._allocation);
+		vkDestroyImageView(_device, depthImageView, nullptr);
+		vmaDestroyImage(_allocator, depthImage._image, depthImage._allocation);
 	});
+
+	_depthImage = {
+		.image = depthImage,
+		.view = depthImageView
+	};
 
 	//Initialize our sampler
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info();
@@ -444,46 +442,6 @@ void VulkanEngine::init_offscreen_images()
 
 }
 
-
-void VulkanEngine::init_descriptors()
-{
-
-	for (int i = 0; i < FRAME_OVERLAP; i++)
-	{
-		_frames[i]._cameraBuffer = vkutil::create_buffer(_allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-		_frames[i]._chunkBuffer = vkutil::create_buffer(_allocator, sizeof(ChunkBufferObject) * MAXIMUM_CHUNKS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-
-
-		VkDescriptorBufferInfo cameraBufferInfo{
-			.buffer = _frames[i]._cameraBuffer._buffer,
-			.offset = 0,
-			.range = sizeof(CameraUBO)
-		};
-
-		VkDescriptorBufferInfo chunkBufferInfo{
-			.buffer = _frames[i]._chunkBuffer._buffer,
-			.offset = 0,
-			.range = sizeof(ChunkBufferObject) * MAXIMUM_CHUNKS
-		};
-
-		vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
-			.bind_buffer(0, &cameraBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-			.build(_frames[i]._globalDescriptor, _uboSetLayout);
-
-		vkutil::DescriptorBuilder::begin(&_descriptorLayoutCache, &_descriptorAllocator)
-			.bind_buffer(0, &chunkBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-			.build(_frames[i]._chunkDescriptor, _chunkSetLayout);
-	}
-
-	for (int i = 0; i < FRAME_OVERLAP; i++)
-	{
-		// add storage buffers to deletion queues
-		_mainDeletionQueue.push_function([=, this]() {
-			vmaDestroyBuffer(_allocator, _frames[i]._cameraBuffer._buffer, _frames[i]._cameraBuffer._allocation);
-			vmaDestroyBuffer(_allocator, _frames[i]._chunkBuffer._buffer, _frames[i]._chunkBuffer._allocation);
-		});
-	};
-}
 
 void VulkanEngine::init_commands()
 {
@@ -619,16 +577,16 @@ void VulkanEngine::init_default_renderpass()
 		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
 	};
 
-	VkSubpassDependency depth_dependency = {
-		.srcSubpass = VK_SUBPASS_EXTERNAL,
-		.dstSubpass = 0,
-		.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-		.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-		.srcAccessMask = 0,
-		.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-	};
+	// VkSubpassDependency depth_dependency = {
+	// 	.srcSubpass = VK_SUBPASS_EXTERNAL,
+	// 	.dstSubpass = 0,
+	// 	.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+	// 	.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+	// 	.srcAccessMask = 0,
+	// 	.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+	// };
 
-	VkSubpassDependency dependencies[2] = { dependency, depth_dependency };
+	VkSubpassDependency dependencies[1] = { dependency };
 
 	VkRenderPassCreateInfo render_pass_info = {};
 	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -640,7 +598,7 @@ void VulkanEngine::init_default_renderpass()
 	render_pass_info.subpassCount = 1;
 	render_pass_info.pSubpasses = &subpass;
 
-	render_pass_info.dependencyCount = 2;
+	render_pass_info.dependencyCount = 1;
 	render_pass_info.pDependencies = &dependencies[0];
 
 	VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr, &_renderPass));
@@ -656,7 +614,7 @@ void VulkanEngine::init_offscreen_framebuffers()
 	fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	fb_info.pNext = nullptr;
 
-	VkImageView attachments[2] = { _fullscreenImageView, _depthImageView };
+	VkImageView attachments[2] = { _fullscreenImage.view, _depthImage.view };
 
 	fb_info.renderPass = _offscreenPass;
 	fb_info.attachmentCount = 2;
@@ -695,7 +653,7 @@ void VulkanEngine::init_framebuffers()
 
 		VkImageView attachments[2];
 		attachments[0] = _swapchainImageViews[i];
-		attachments[1] = _depthImageView;
+		attachments[1] = _depthImage.view;
 
 		fb_info.pAttachments = attachments;
 		fb_info.attachmentCount = 2;
@@ -710,8 +668,10 @@ void VulkanEngine::init_framebuffers()
 
 void VulkanEngine::init_scenes()
 {
-	_scenes["game"] = std::make_unique<GameScene>();
-	_scenes["blueprint"] = std::make_unique<BlueprintBuilderScene>();
+	auto gameScene = std::make_unique<GameScene>();
+	gameScene->init();
+	_scenes["game"] = std::move(gameScene);
+	//_scenes["blueprint"] = std::make_unique<BlueprintBuilderScene>();
 
 	//set default scene
 	set_scene(_scenes["game"].get());
@@ -738,15 +698,6 @@ void VulkanEngine::init_sync_structures()
 			vkDestroySemaphore(_device, _frames[i]._renderSemaphore, nullptr);
 		});
 	}
-}
-
-void VulkanEngine::init_pipelines()
-{	
-	_materialManager.build_postprocess_pipeline();
-	_materialManager.build_material_default();
-	_materialManager.build_material_water();
-	_materialManager.build_material_wireframe();
-	_materialManager.build_present_pipeline();
 }
 
 FrameData &VulkanEngine::get_current_frame()

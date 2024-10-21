@@ -12,13 +12,13 @@ layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 viewproject;
 } ubo;
 
-struct ChunkBufferData {
-    ivec2 position;
-};
+// struct ChunkBufferData {
+//     ivec2 position;
+// };
 
-layout (set = 1, binding = 0) readonly buffer ChunkBufferObject {
-    ChunkBufferData chunks[];
-} chunkBuffer;
+// layout (set = 1, binding = 0) readonly buffer ChunkBufferObject {
+//     ChunkBufferData chunks[];
+// } chunkBuffer;
 
 layout ( push_constant ) uniform constants
 {

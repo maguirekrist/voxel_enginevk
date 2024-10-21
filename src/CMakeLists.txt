@@ -42,7 +42,13 @@ add_executable(vulkan_guide
     render/mesh_manager.h
     render/mesh_manager.cpp
     render/material_manager.h
-    render/material_manager.cpp)
+    render/material_manager.cpp
+    scenes/scene.h
+    scenes/game_scene.h
+    scenes/game_scene.cpp
+    scenes/blueprint_builder_scene.h
+    scenes/blueprint_builder_scene.cpp
+    )
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")

@@ -3,6 +3,11 @@
 
 #include "tracy/Tracy.hpp"
 
+CubeEngine::CubeEngine()
+{
+    
+}
+
 void CubeEngine::cleanup()
 {
     _chunkManager.cleanup();

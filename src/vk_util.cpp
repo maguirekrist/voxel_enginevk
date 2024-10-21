@@ -113,11 +113,28 @@ AllocatedBuffer vkutil::create_buffer(VmaAllocator allocator, size_t size, VkBuf
 		&buffer._allocation,
 		nullptr);
 
+	buffer._size = size;
+
 	return buffer;
 }
 
+AllocatedImage vkutil::create_image(VmaAllocator allocator, VkExtent3D extent, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage memUsage)
+{
+    VkImageCreateInfo imageInfo = vkinit::image_create_info(format, usage, extent);
+
+    VmaAllocationCreateInfo allocInfo = {
+		.usage = memUsage,
+		.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+	};
+
+	AllocatedImage image;
+	vmaCreateImage(allocator, &imageInfo, &allocInfo, &image._image, &image._allocation, nullptr);
+	
+	return image;
+}
+
 VkDescriptorPool createPool(VkDevice device, const vkutil::DescriptorAllocator::PoolSizes& poolSizes, int count, VkDescriptorPoolCreateFlags flags)
-	{
+{
 		std::vector<VkDescriptorPoolSize> sizes;
 		sizes.reserve(poolSizes.sizes.size());
 		for (auto sz : poolSizes.sizes) {

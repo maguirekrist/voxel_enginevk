@@ -86,12 +86,10 @@ public:
 	float _fps;
 	
 	VkSampler _sampler;
-	VkImageView _depthImageView;
-	AllocatedImage _depthImage;
+	ImageResource _depthImage;
 	VkFormat _depthFormat;
 	VkFormat _colorFormat;
-	AllocatedImage _fullscreenImage;
-	VkImageView _fullscreenImageView;
+	ImageResource _fullscreenImage;
 
 	FunctionQueue _mainDeletionQueue;
 
@@ -102,9 +100,6 @@ public:
 
 	VkDescriptorSetLayout _sampledImageSetLayout;
 	VkDescriptorSet _sampledImageSet;
-
-	VkDescriptorSetLayout _uboSetLayout;
-	VkDescriptorSetLayout _chunkSetLayout;
 
 	FrameData _frames[FRAME_OVERLAP];
 
@@ -137,15 +132,12 @@ public:
 	void run();
 private:
 
-	VulkanEngine() {};
+	VulkanEngine();
 
 	//General Vulkan Init for renderering
 	void init_vulkan();
 	void init_swapchain();
 	void init_commands();
-
-	//Descriptor Layout Init
-	void init_descriptors();
 
 	//Initialize global image resources - required for offscreen image output 
 	void init_offscreen_images();
@@ -161,10 +153,6 @@ private:
 	void init_scenes();
 
 	void init_sync_structures();
-
-	//Pipeline creation
-	void init_pipelines();
-
 
 	void draw_fullscreen(VkCommandBuffer cmd, Material* presentMaterial);
 
