@@ -4,6 +4,9 @@ add_library(vkbootstrap STATIC)
 add_library(glm INTERFACE)
 add_library(vma INTERFACE)
 
+if(APPLE)
+    set(CMAKE_RPATH "/Users/mkrist/VulkanSDK/1.3.290.0/macOS/lib")
+endif()
 
 add_library(stb_image INTERFACE)
 

@@ -120,7 +120,7 @@ struct Material {
 struct PushConstant {
 	VkShaderStageFlags stageFlags;
 	uint32_t size;
-	std::function<const void*(const RenderObject&)> build_constant;
+	std::function<ObjectPushConstants(const RenderObject&)> build_constant;
 };
 
 struct RenderObject {
