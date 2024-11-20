@@ -1,6 +1,14 @@
 #pragma once
 
-#include "vk_types.h"
+#include "vk_mesh.h"
+
+struct PipelineMetadata {
+	bool depthTest = true;
+	bool depthWrite = true;
+	VkCompareOp compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	bool enableBlending = false;
+	VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+};
 
 class MaterialManager {
 public:
@@ -8,16 +16,17 @@ public:
 
 	void cleanup();
 	
-	void build_graphics_pipeline(const std::vector<Resource*>& resources, const std::string& vertex_shader, const std::string& fragment_shader, const std::string& name);
+	void build_graphics_pipeline(
+		const std::vector<std::shared_ptr<Resource>>& resources,
+		const std::vector<PushConstant>& pConstants,
+		const PipelineMetadata&& metadata,
+		const std::string& vertex_shader,
+		const std::string& fragment_shader,
+		const std::string& name);
 
-
-	void build_material_default(AllocatedBuffer cameraBuffer);
-	void build_material_water(AllocatedBuffer fogUboBuffer, AllocatedBuffer cameraBuffer);
-	void build_material_wireframe();
-	void build_postprocess_pipeline(AllocatedBuffer fogUboBuffer);
+	void build_postprocess_pipeline(std::shared_ptr<Resource> fogUboBuffer);
 	void build_present_pipeline();
 	
 private:
     std::unordered_map<std::string, Material> _materials;
-    Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
 };

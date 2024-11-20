@@ -91,3 +91,25 @@ Mesh Mesh::create_cube_mesh()
 
     return cubeMesh;
 }
+
+Mesh Mesh::create_quad_mesh()
+{
+	Mesh quadMesh;
+
+	// Define the four vertices of the quad in normalized coordinates
+    // You can adjust the position values to scale the quad if needed.
+    quadMesh._vertices = {
+        { glm::vec3(-0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) }, // Bottom-left
+        { glm::vec3(0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) },  // Bottom-right
+        { glm::vec3(0.5f, 0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) },   // Top-right
+        { glm::vec3(-0.5f, 0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) }   // Top-left
+    };
+
+    // Define the indices for the quad (two triangles)
+    quadMesh._indices = {
+        0, 1, 2, // First triangle
+        2, 3, 0  // Second triangle
+    };
+
+    return quadMesh;
+}

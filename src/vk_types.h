@@ -71,29 +71,7 @@ using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 using Duration = std::chrono::duration<float>;
 
-struct Resource {
-	enum Type {
-		BUFFER,
-		IMAGE
-	} type;
 
-	union ResourceValue{
-		AllocatedBuffer buffer;
-		ImageResource image;
-	} value;
-};
-
-struct Material {
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
-
-	//TODO: Have a Material own its own resources like descriptor sets, etc.
-	std::vector<Resource*> resources;
-	std::vector<VkDescriptorSet> descriptorSets;
-
-	//Not sure if having a call back function make sense.
-	//std::function<void()> buffer_update;
-};
 
 struct FrameData {
 	VkSemaphore _presentSemaphore, _renderSemaphore;
@@ -101,24 +79,18 @@ struct FrameData {
 
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
-	//std::vector<VkCommandBuffer> _secondaryCommandBuffers;
-	// AllocatedBuffer _chunkBuffer;
-	// VkDescriptorSet _chunkDescriptor;
-
-	// AllocatedBuffer _cameraBuffer;
-	// VkDescriptorSet _globalDescriptor;
-
 };
 
 
 //we will add our main reusable types here
+//we will add our main reusable types here
 #define VK_CHECK(x)                                                 \
-	do                                                              \
-	{                                                               \
-		VkResult err = x;                                           \
-		if (err)                                                    \
-		{                                                           \
-			std::cout << "Detected Vulkan error: {}" << err << std::endl;         \
-			abort();                                                \
-		}                                                           \
-	} while (0)
+do                                                              \
+{                                                               \
+VkResult err = x;                                           \
+if (err)                                                    \
+{                                                           \
+std::cout << "Detected Vulkan error: " << err << std::endl; \
+abort();                                                \
+}                                                           \
+} while (0)

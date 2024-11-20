@@ -20,5 +20,4 @@ public:
     //Main Tick entry
     void update();
 private:
-    //void load_chunks();
 };

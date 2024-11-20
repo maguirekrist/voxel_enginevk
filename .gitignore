@@ -2,3 +2,8 @@
 /bin
 .cache
 .venv
+.idea
+/.vscode
+.vscode
+/cmake-build-debug
+/cmake-build-debug-visual-studio

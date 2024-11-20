@@ -347,25 +347,8 @@ VkSubmitInfo vkinit::submit_info(VkCommandBuffer *cmd)
 }
 
 
-VkRenderPassBeginInfo vkinit::render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer, ClearFlags clearFlags)
+VkRenderPassBeginInfo vkinit::render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer, VkClearValue* clears, size_t clearSize)
 {
-    std::vector<VkClearValue> clearValues(2);
-
-    if (clearFlags & ClearFlags::Color)
-	{
-		VkClearValue clearValue;
-		clearValue.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
-		clearValues.push_back(clearValue);
-	}
-
-    if (clearFlags & ClearFlags::Depth)
-	{
-		//clear depth at 1
-		VkClearValue depthClear;
-		depthClear.depthStencil.depth = 1.f;
-		clearValues.push_back(depthClear);
-	}
-	
 	VkRenderPassBeginInfo rpInfo = {};
 	rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	rpInfo.pNext = nullptr;
@@ -377,8 +360,8 @@ VkRenderPassBeginInfo vkinit::render_pass_begin_info(VkRenderPass renderPass, Vk
 	rpInfo.framebuffer = frameBuffer;
 
 	//connect clear values
-	rpInfo.clearValueCount = clearValues.size();
-	rpInfo.pClearValues = clearValues.data();
+	rpInfo.clearValueCount = clearSize;
+	rpInfo.pClearValues = clears;
 
     return rpInfo;
 }

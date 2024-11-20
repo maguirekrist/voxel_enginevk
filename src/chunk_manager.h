@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vk_mesh.h"
+#include <vk_mesh.h>
 #include <barrier>
 #include <chunk.h>
 #include <memory>
@@ -22,8 +22,8 @@ public:
     std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>> _chunks;
 
     //Render chunk data
-    std::vector<RenderObject> _renderedChunks;
-    std::vector<RenderObject> _transparentObjects;
+    std::vector<std::shared_ptr<RenderObject>> _renderedChunks;
+    std::vector<std::shared_ptr<RenderObject>> _transparentObjects;
 
     std::unordered_set<ChunkCoord> _worldChunks;
     std::unordered_set<ChunkCoord> _oldWorldChunks;
@@ -38,6 +38,9 @@ public:
     void updatePlayerPosition(int x, int z);
 
     Chunk* get_chunk(ChunkCoord coord);
+
+    void save_chunk(const Chunk& chunk, const std::string& filename);
+    std::unique_ptr<Chunk> load_chunk(const std::string& filename);
 
 private:
     void updateWorldState();
@@ -55,8 +58,6 @@ private:
     size_t _maxChunks;
     size_t _maxThreads;
     ChunkCoord _lastPlayerChunk = {0, 0};
-
-    TerrainGenerator& _terrainGenerator;
 
     std::queue<WorldUpdateJob> _worldUpdateQueue;
     moodycamel::BlockingConcurrentQueue<Chunk*> _chunkGenQueue{_maxChunks};

@@ -17,8 +17,8 @@ class TerrainGenerator {
 public:
     static TerrainGenerator& instance()
     {
-        static TerrainGenerator *instance = new TerrainGenerator();
-        return *instance;
+        static TerrainGenerator instance;
+        return instance;
     }
 
     // void GenerateChunk(int chunkX, int chunkZ, std::vector<uint8_t>& blockData);
@@ -26,15 +26,23 @@ public:
     //std::vector<float> GenerateDensityMap(int chunkX, int chunkZ);
     //float SampleNoise3D(int x, int y, int z);
     float NormalizeHeight(std::vector<float>& map, int yScale, int xScale, int x, int y);
+
+    
 private:
     TerrainGenerator() {
+        std::cout << "Creating Terrain Generator" << std::endl;
         _seed = Random::generate(0, 1337);
-
         _erosion = FastNoise::NewFromEncodedNodeTree("FwAAAAAAexQuv83MTL5mZgbAIgApXJNBZmZmvxAAbxKDOg0ACAAAAArXI0AHAAB7FC4/AAAAgD8Aw/XwQQ==");
         _peaks = FastNoise::NewFromEncodedNodeTree("EwCamRk/IgDXo3A/zcwMQBcAuB6FPpqZqcA9Cte+w/XoQCIAexS+QK5HwUAQAIXr0UAPAAkAAABcjyJACQAAXI/CPgB7FK4/AI/C9T0=");
         _continental = FastNoise::NewFromEncodedNodeTree("FwAK16M8w/Wov7geBb8UrkdAIgCkcA1BCtejPA0ABAAAALgeZUAIAAAAAAA/AFyPwj8=");
     }   
 
+    ~TerrainGenerator() {
+        std::cout << "Destroying Terrain Generator" << std::endl;
+        _erosion.reset();
+        _peaks.reset();
+        _continental.reset();
+    }
 
     // Noise generators
     FastNoise::SmartNode<> _erosion;

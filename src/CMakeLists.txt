@@ -48,7 +48,13 @@ add_executable(vulkan_guide
     scenes/game_scene.cpp
     scenes/blueprint_builder_scene.h
     scenes/blueprint_builder_scene.cpp
-    )
+    render/scene_renderer.h
+    render/scene_renderer.cpp
+    render/render_queue.h
+    render/render_queue.cpp
+        render/resource.cpp
+        render/resource.h
+)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")

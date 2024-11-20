@@ -1,7 +1,9 @@
 #pragma once
-
-#include <memory>
 #include <vk_types.h>
+
+struct PushConstant;
+struct RenderObject;
+struct Resource;
 
 struct VertexInputDescription {
 
@@ -9,10 +11,6 @@ struct VertexInputDescription {
     std::vector<VkVertexInputAttributeDescription> attributes;
 
     VkPipelineVertexInputStateCreateFlags flags = 0;
-};
-
-struct MeshPushConstants {
-    glm::ivec2 translation;
 };
 
 struct Vertex {
@@ -37,6 +35,7 @@ struct Mesh {
     bool _isActive{false};
 
     static Mesh create_cube_mesh();
+    static Mesh create_quad_mesh();
 };
 
 template<typename T>
@@ -47,6 +46,8 @@ private:
 public:
     SharedResource(std::shared_ptr<T> initialResource)
         : resource(initialResource) {}
+
+    SharedResource(T&& initialResource) : resource(std::make_shared<T>(initialResource)) {}
 
     // Get the current resource
     std::shared_ptr<T> get() const {
@@ -60,6 +61,7 @@ public:
         return oldResource;
     }
 };
+
 struct CameraUBO {
     glm::mat4 projection;
     glm::mat4 view;
@@ -82,7 +84,7 @@ struct FogUBO {
     glm::mat4 invViewProject; // 64 bytes
 };
 
-struct ChunkPushConstants {
+struct ObjectPushConstants {
     glm::ivec2 chunk_translate;
 };
 
@@ -96,8 +98,34 @@ struct UniformBuffer {
     AllocatedBuffer _uniformBuffer;
 };
 
+enum class RenderLayer {
+    Opaque,
+    Transparent
+};
+
+struct Material {
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+
+	//TODO: Have a Material own its own resources like descriptor sets, etc.
+	std::vector<VkDescriptorSet> descriptorSets;
+	std::vector<std::shared_ptr<Resource>> resources;
+
+	std::vector<PushConstant> pushConstants;
+
+	//Not sure if having a call back function make sense.
+	//std::function<void()> buffer_update;
+};
+
+struct PushConstant {
+	VkShaderStageFlags stageFlags;
+	uint32_t size;
+	std::function<const void*(const RenderObject&)> build_constant;
+};
+
 struct RenderObject {
 	std::shared_ptr<SharedResource<Mesh>> mesh;
 	Material* material;
 	glm::ivec2 xzPos;
+    RenderLayer layer;
 };

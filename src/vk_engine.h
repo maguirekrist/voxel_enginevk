@@ -3,16 +3,12 @@
 
 #pragma once
 
-#include "vk_types.h"
-#include <vk_mesh.h>
-#include <camera.h>
 #include <cube_engine.h>
 #include <vulkan/vulkan_core.h>
-#include <utils/concurrentqueue.h>
 #include <vk_util.h>
 #include <render/mesh_manager.h>
 #include <render/material_manager.h>
-#include "scenes/scene.h"
+#include <render/scene_renderer.h>
 
 class FunctionQueue {
 public:
@@ -77,8 +73,7 @@ public:
 	VkFramebuffer _offscreenFramebuffer;
 	std::vector<VkFramebuffer> _framebuffers;
 
-	std::unordered_map<std::string, std::unique_ptr<Scene>> _scenes;
-	Scene* _currentScene;
+	SceneRenderer _sceneRenderer;
 
 	float _deltaTime;
 	TimePoint _lastFrameTime;
@@ -92,6 +87,12 @@ public:
 	ImageResource _fullscreenImage;
 
 	FunctionQueue _mainDeletionQueue;
+
+	VkClearValue _colorClear{ .color = {{ 0.0f, 0.0f, 0.0f, 1.0f }}};
+	VkClearValue _depthClear{ .depthStencil = { .depth = 1.0f, .stencil = 0 }};
+
+	std::array<VkClearValue, 2> _clearColorAndDepth{_colorClear, _depthClear};
+	std::array<VkClearValue, 1> _clearColorOnly{_colorClear};
 
 	VmaAllocator _allocator;
 
@@ -118,8 +119,6 @@ public:
 	void cleanup();
 
 	void handle_input();
-
-	void set_scene(Scene* scene);
 
 	uint32_t advance_frame();
 
@@ -150,11 +149,7 @@ private:
 	void init_framebuffers();
 	void init_offscreen_framebuffers();
 
-	void init_scenes();
-
 	void init_sync_structures();
-
-	void draw_fullscreen(VkCommandBuffer cmd, Material* presentMaterial);
 
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
 };

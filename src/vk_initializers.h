@@ -42,7 +42,7 @@ namespace vkinit {
 	VkCommandBufferBeginInfo command_buffer_begin_info(VkCommandBufferUsageFlags flags = 0);
 	VkSubmitInfo submit_info(VkCommandBuffer* cmd);
 
-	VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer, ClearFlags clearFlags = ClearFlags::Color | ClearFlags::Depth);
+	VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass renderPass, VkExtent2D windowExtent, VkFramebuffer frameBuffer,  VkClearValue* clears, size_t clearSize);
 	VkCommandBufferBeginInfo init_command_buffer();
 	VkCommandBufferInheritanceInfo init_inheritance_info(VkRenderPass renderPass);
 

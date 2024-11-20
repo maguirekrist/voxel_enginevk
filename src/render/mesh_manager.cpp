@@ -2,6 +2,7 @@
 #include <vk_initializers.h>
 #include <tracy/Tracy.hpp>
 #include <vk_util.h>
+#include <tiny_obj_loader.h>
 
 void MeshManager::init(VkDevice device, VmaAllocator allocator, QueueFamily queue)
 {
@@ -82,6 +83,66 @@ void MeshManager::unload_mesh(std::shared_ptr<Mesh>&& mesh)
 	} else {
 		throw std::runtime_error("Attempted to unload a mesh that is referenced elsewhere.");
 	}
+}
+
+std::shared_ptr<Mesh> MeshManager::queue_from_obj(const std::string &path)
+{
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn, err;
+
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.c_str())) {
+		throw std::runtime_error(warn + err);
+	}
+
+	Mesh mesh;
+	// Reserve space for vertices and indices
+	mesh._vertices.reserve(attrib.vertices.size() / 3);
+	mesh._indices.reserve(shapes[0].mesh.indices.size());
+
+	// Iterate over shapes and their indices to populate vertices and indices
+	for (const auto& shape : shapes) {
+		for (const auto& index : shape.mesh.indices) {
+			Vertex vertex = {};
+
+			// Populate vertex position
+			vertex.position = {
+				attrib.vertices[3 * index.vertex_index + 0],
+				attrib.vertices[3 * index.vertex_index + 1],
+				attrib.vertices[3 * index.vertex_index + 2]
+			};
+
+			// Populate vertex normal
+			if (!attrib.normals.empty()) {
+				vertex.normal = {
+					attrib.normals[3 * index.normal_index + 0],
+					attrib.normals[3 * index.normal_index + 1],
+					attrib.normals[3 * index.normal_index + 2]
+				};
+			}
+
+			// Populate vertex color (if available)
+			if (!attrib.colors.empty()) {
+				vertex.color = {
+					attrib.colors[3 * index.vertex_index + 0],
+					attrib.colors[3 * index.vertex_index + 1],
+					attrib.colors[3 * index.vertex_index + 2]
+				};
+			} else {
+				// Default color if not available
+				vertex.color = {1.0f, 1.0f, 1.0f};
+			}
+
+			mesh._vertices.push_back(vertex);
+			mesh._indices.push_back(mesh._vertices.size() - 1);
+		}
+	}
+
+	auto meshPtr = std::make_shared<Mesh>(mesh);
+	_mainMeshUploadQueue.enqueue(meshPtr);
+
+	return meshPtr;
 }
 
 void MeshManager::immediate_submit(std::function<void(VkCommandBuffer cmd)> &&function)

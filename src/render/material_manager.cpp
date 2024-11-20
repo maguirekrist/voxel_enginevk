@@ -5,14 +5,8 @@
 #include <vk_mesh.h>
 #include <vk_engine.h>
 
-Material* MaterialManager::create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name)
-{
-	Material mat;
-	mat.pipeline = pipeline;
-	mat.pipelineLayout = layout;
-	_materials[name] = mat;
-	return &_materials[name];
-}
+#include <scenes/blueprint_builder_scene.h>
+
 
 Material* MaterialManager::get_material(const std::string &name)
 {
@@ -29,13 +23,20 @@ Material* MaterialManager::get_material(const std::string &name)
 void MaterialManager::cleanup()
 {
 	for(auto& material : _materials) {
+		
 		vkDestroyPipeline(VulkanEngine::instance()._device, material.second.pipeline, nullptr);
 		vkDestroyPipelineLayout(VulkanEngine::instance()._device, material.second.pipelineLayout, nullptr);
 	}
 }
 
 
-void MaterialManager::build_graphics_pipeline(const std::vector<Resource*>& resources, const std::string& vertex_shader, const std::string& fragment_shader, const std::string& name)
+void MaterialManager::build_graphics_pipeline(
+	const std::vector<std::shared_ptr<Resource>>& resources,
+	const std::vector<PushConstant>& pConstants,
+	const PipelineMetadata&& metadata,
+	const std::string& vertex_shader,
+	const std::string& fragment_shader, 
+	const std::string& name)
 {
 	VkShaderModule vertexShader;
 	vkutil::load_shader_module(vertex_shader, VulkanEngine::instance()._device, &vertexShader);
@@ -46,7 +47,7 @@ void MaterialManager::build_graphics_pipeline(const std::vector<Resource*>& reso
 	std::vector<VkDescriptorSet> descriptorSets;
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
 
-	for (auto resource : resources) {
+	for (const auto& resource : resources) {
 		if (resource->type == Resource::IMAGE) {
 			VkDescriptorSetLayout imageSetLayout;
 			VkDescriptorSet imageSet;
@@ -71,7 +72,7 @@ void MaterialManager::build_graphics_pipeline(const std::vector<Resource*>& reso
 				.range = resource->value.buffer._size
 			};
 			vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
-				.bind_buffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+				.bind_buffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build(bufferSet, bufferSetLayout);
 			descriptorSets.push_back(bufferSet);
 			descriptorSetLayouts.push_back(bufferSetLayout);
@@ -81,6 +82,17 @@ void MaterialManager::build_graphics_pipeline(const std::vector<Resource*>& reso
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
 	pipelineLayoutInfo.setLayoutCount = descriptorSetLayouts.size();
 	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+	
+	std::vector<VkPushConstantRange> pushConstantRanges;
+
+	for (const auto& pConstant : pConstants)
+	{
+		VkPushConstantRange push_constant = vkinit::pushconstrant_range(pConstant.size, pConstant.stageFlags);
+		pushConstantRanges.push_back(push_constant);
+	}
+	
+	pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
+	pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
 	VkPipelineLayout pipelineLayout;
 	VK_CHECK(vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
@@ -92,13 +104,13 @@ void MaterialManager::build_graphics_pipeline(const std::vector<Resource*>& reso
 
 	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
 	//we are just going to draw triangle list
-	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(metadata.topology);
 
 	//build viewport and scissor from the swapchain extents
 	pipelineBuilder._viewport.x = 0.0f;
 	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)VulkanEngine::instance()._windowExtent.width;
-	pipelineBuilder._viewport.height = (float)VulkanEngine::instance()._windowExtent.height;
+	pipelineBuilder._viewport.width = static_cast<float>(VulkanEngine::instance()._windowExtent.width);
+	pipelineBuilder._viewport.height = static_cast<float>(VulkanEngine::instance()._windowExtent.height);
 	pipelineBuilder._viewport.minDepth = 0.0f;
 	pipelineBuilder._viewport.maxDepth = 1.0f;
 
@@ -113,10 +125,10 @@ void MaterialManager::build_graphics_pipeline(const std::vector<Resource*>& reso
 	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 
 	//a single blend attachment with no blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+	pipelineBuilder._colorBlendAttachment = metadata.enableBlending ? vkinit::color_blend_attachment_state_blending() : vkinit::color_blend_attachment_state();
 
 	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(metadata.depthTest, metadata.depthWrite, metadata.compareOp);
 
 	//use the triangle layout we created
 	pipelineBuilder._pipelineLayout = pipelineLayout;
@@ -143,13 +155,15 @@ void MaterialManager::build_graphics_pipeline(const std::vector<Resource*>& reso
 
 	//finally build the pipeline
 	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, VulkanEngine::instance()._offscreenPass);
+	VkRenderPass render_pass = metadata.enableBlending ? VulkanEngine::instance()._renderPass : VulkanEngine::instance()._offscreenPass;
+	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, render_pass);
 
 	Material graphicsMaterial {
 		.pipeline = meshPipeline,
 		.pipelineLayout = pipelineLayout,
+		.descriptorSets = descriptorSets,
 		.resources = resources,
-		.descriptorSets = descriptorSets
+		.pushConstants = pConstants
 	};
 
 	_materials[name] = graphicsMaterial;
@@ -159,343 +173,7 @@ void MaterialManager::build_graphics_pipeline(const std::vector<Resource*>& reso
 
 }
 
-void MaterialManager::build_material_default(AllocatedBuffer cameraBuffer)
-{
-	VkShaderModule trimeshFragShader;
-	vkutil::load_shader_module("tri_mesh.frag.spv", VulkanEngine::instance()._device, &trimeshFragShader);
-
-	VkShaderModule trimeshVertexShader;
-	vkutil::load_shader_module("tri_mesh.vert.spv", VulkanEngine::instance()._device, &trimeshVertexShader);
-
-
-	VkDescriptorSet cameraSet;
-	VkDescriptorSetLayout cameraSetLayout;
-	VkDescriptorBufferInfo cameraBufferInfo{
-		.buffer = cameraBuffer._buffer,
-		.offset = 0,
-		.range = sizeof(CameraUBO)
-	};
-	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
-			.bind_buffer(0, &cameraBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-			.build(cameraSet, cameraSetLayout);
-
-	//build the pipeline layout that controls the inputs/outputs of the shader
-	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
-	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-	VkDescriptorSetLayout setLayouts[] = { cameraSetLayout };
-
-	//EXAMPLE: assigning descriptor set to this pipelien
-	pipeline_layout_info.setLayoutCount = 1;
-	pipeline_layout_info.pSetLayouts = setLayouts;
-
-	//EXAMPLE: Assigning a push_constrant to this pipeline from vkinit:
-
-	VkPushConstantRange push_constant = vkinit::pushconstrant_range(sizeof(ChunkPushConstants), VK_SHADER_STAGE_VERTEX_BIT);
-	pipeline_layout_info.pPushConstantRanges = &push_constant;
-	pipeline_layout_info.pushConstantRangeCount = 1;
-
-	VkPipelineLayout meshPipelineLayout;
-
-	VK_CHECK(vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
-
-	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
-	PipelineBuilder pipelineBuilder;
-
-	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-
-	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
-	//we are just going to draw triangle list
-	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-	//build viewport and scissor from the swapchain extents
-	pipelineBuilder._viewport.x = 0.0f;
-	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)VulkanEngine::instance()._windowExtent.width;
-	pipelineBuilder._viewport.height = (float)VulkanEngine::instance()._windowExtent.height;
-	pipelineBuilder._viewport.minDepth = 0.0f;
-	pipelineBuilder._viewport.maxDepth = 1.0f;
-
-
-	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = VulkanEngine::instance()._windowExtent;
-
-	//configure the rasterizer to draw filled triangles
-	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-
-	//we don't use multisampling, so just run the default one
-	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-
-	//a single blend attachment with no blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
-
-	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-	//use the triangle layout we created
-	pipelineBuilder._pipelineLayout = meshPipelineLayout;
-
-	//build the mesh pipeline
-
-	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
-
-	//connect the pipeline builder vertex input info to the one we get from Vertex
-	pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-	pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-
-	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-
-
-	//clear the shader stages for the builder
-	pipelineBuilder._shaderStages.clear();
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, trimeshVertexShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, trimeshFragShader));
-
-	//finally build the pipeline
-	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, VulkanEngine::instance()._offscreenPass);
-
-	Material material{
-		.pipeline = meshPipeline,
-		.pipelineLayout = meshPipelineLayout,
-		.descriptorSets = { cameraSet },
-		.resources = {}
-	};
-
-	_materials["defaultmesh"] = material;
-
-	//create_material(meshPipeline, meshPipelineLayout, "defaultmesh");
-
-	vkDestroyShaderModule(VulkanEngine::instance()._device, trimeshFragShader, nullptr);
-	vkDestroyShaderModule(VulkanEngine::instance()._device, trimeshVertexShader, nullptr);
-}
-
-void MaterialManager::build_material_water(AllocatedBuffer fogUboBuffer, AllocatedBuffer cameraBuffer)
-{
-	VkShaderModule waterFragShader;
-	vkutil::load_shader_module("water_mesh.frag.spv", VulkanEngine::instance()._device, &waterFragShader);
-
-	VkShaderModule waterVertexShader;
-	vkutil::load_shader_module("water_mesh.vert.spv", VulkanEngine::instance()._device, &waterVertexShader);
-
-	//build the pipeline layout that controls the inputs/outputs of the shader
-	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
-	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-
-	VkDescriptorSet cameraSet;
-	VkDescriptorSetLayout cameraSetLayout;
-	VkDescriptorBufferInfo cameraBufferInfo{
-		.buffer = cameraBuffer._buffer,
-		.offset = 0,
-		.range = sizeof(CameraUBO)
-	};
-	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
-			.bind_buffer(0, &cameraBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-			.build(cameraSet, cameraSetLayout);
-	
-	VkDescriptorSet fogSet;
-	VkDescriptorSetLayout fogSetLayout;
-	VkDescriptorBufferInfo fogBufferInfo{
-		.buffer = fogUboBuffer._buffer,
-		.offset = 0,
-		.range = fogUboBuffer._size
-	};
-	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
-		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(fogSet, fogSetLayout);
-
-	VkDescriptorSetLayout setLayouts[] = { cameraSetLayout, fogSetLayout };
-
-	//EXAMPLE: assigning descriptor set to this pipelien
-	pipeline_layout_info.setLayoutCount = 2;
-	pipeline_layout_info.pSetLayouts = setLayouts;
-
-	//EXAMPLE: Assigning a push_constrant to this pipeline from vkinit:
-
-	VkPushConstantRange push_constant = vkinit::pushconstrant_range(sizeof(ChunkPushConstants), VK_SHADER_STAGE_VERTEX_BIT);
-	pipeline_layout_info.pPushConstantRanges = &push_constant;
-	pipeline_layout_info.pushConstantRangeCount = 1;
-
-	VkPipelineLayout meshPipelineLayout;
-
-	VK_CHECK(vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
-
-	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
-	PipelineBuilder pipelineBuilder;
-
-	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-
-	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
-	//we are just going to draw triangle list
-	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-	//build viewport and scissor from the swapchain extents
-	pipelineBuilder._viewport.x = 0.0f;
-	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)VulkanEngine::instance()._windowExtent.width;
-	pipelineBuilder._viewport.height = (float)VulkanEngine::instance()._windowExtent.height;
-	pipelineBuilder._viewport.minDepth = 0.0f;
-	pipelineBuilder._viewport.maxDepth = 1.0f;
-
-
-	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = VulkanEngine::instance()._windowExtent;
-
-	//configure the rasterizer to draw filled triangles
-	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-
-	//we don't use multisampling, so just run the default one
-	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-
-	//a single blend attachment with no blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state_blending();
-
-
-	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, false, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-	//use the triangle layout we created
-	pipelineBuilder._pipelineLayout = meshPipelineLayout;
-
-	//build the mesh pipeline
-
-	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
-
-	//connect the pipeline builder vertex input info to the one we get from Vertex
-	pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-	pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-
-	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-
-
-	//clear the shader stages for the builder
-	pipelineBuilder._shaderStages.clear();
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, waterVertexShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, waterFragShader));
-
-	//finally build the pipeline
-	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, VulkanEngine::instance()._renderPass);
-
-	Material material{
-		.pipeline = meshPipeline,
-		.pipelineLayout = meshPipelineLayout,
-		.descriptorSets = {cameraSet, fogSet},
-		.resources = {}
-	};
-
-	// create_material(meshPipeline, meshPipelineLayout, "watermesh");
-	_materials["watermesh"] = material;
-
-	vkDestroyShaderModule(VulkanEngine::instance()._device, waterFragShader, nullptr);
-	vkDestroyShaderModule(VulkanEngine::instance()._device, waterVertexShader, nullptr);
-}
-
-void MaterialManager::build_material_wireframe()
-{
-	VkShaderModule wiremeshFragShader;
-	vkutil::load_shader_module("wire_mesh.frag.spv", VulkanEngine::instance()._device, &wiremeshFragShader);
-
-	VkShaderModule wiremeshVertexShader;
-	vkutil::load_shader_module("wire_mesh.vert.spv", VulkanEngine::instance()._device, &wiremeshVertexShader);
-
-	//build the pipeline layout that controls the inputs/outputs of the shader
-	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
-	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-	//EXAMPLE: Assigning a push_constrant to this pipeline from vkinit:
-	// pipeline_layout_info.pPushConstantRanges = &push_constant;
-	// pipeline_layout_info.pushConstantRangeCount = 1;
-
-	VkPushConstantRange push_constant = vkinit::pushconstrant_range(sizeof(ChunkPushConstants), VK_SHADER_STAGE_VERTEX_BIT);
-	pipeline_layout_info.pPushConstantRanges = &push_constant;
-	pipeline_layout_info.pushConstantRangeCount = 1;
-
-	VkPipelineLayout meshPipelineLayout;
-
-	VK_CHECK(vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
-
-	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
-	PipelineBuilder pipelineBuilder;
-
-	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-
-	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
-	//we are just going to draw triangle list
-	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-
-	//build viewport and scissor from the swapchain extents
-	pipelineBuilder._viewport.x = 0.0f;
-	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)VulkanEngine::instance()._windowExtent.width;
-	pipelineBuilder._viewport.height = (float)VulkanEngine::instance()._windowExtent.height;
-	pipelineBuilder._viewport.minDepth = 0.0f;
-	pipelineBuilder._viewport.maxDepth = 1.0f;
-
-	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = VulkanEngine::instance()._windowExtent;
-
-	//configure the rasterizer to draw filled triangles
-	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-
-	//we don't use multisampling, so just run the default one
-	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-
-	//a single blend attachment with blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
-
-	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-	//use the triangle layout we created
-	pipelineBuilder._pipelineLayout = meshPipelineLayout;
-
-	//build the mesh pipeline
-
-	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
-
-	//connect the pipeline builder vertex input info to the one we get from Vertex
-	pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-	pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-
-	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-
-
-	//clear the shader stages for the builder
-	pipelineBuilder._shaderStages.clear();
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, wiremeshVertexShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, wiremeshFragShader));
-
-	//finally build the pipeline
-	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, VulkanEngine::instance()._offscreenPass);
-
-	create_material(meshPipeline, meshPipelineLayout, "wireframe");
-
-	vkDestroyShaderModule(VulkanEngine::instance()._device, wiremeshFragShader, nullptr);
-	vkDestroyShaderModule(VulkanEngine::instance()._device, wiremeshVertexShader, nullptr);
-}
-
-void MaterialManager::build_postprocess_pipeline(AllocatedBuffer fogUboBuffer)
+void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUboBuffer)
 {
 	VkShaderModule computeShaderModule;
 	vkutil::load_shader_module("fog.comp.spv", VulkanEngine::instance()._device, &computeShaderModule);
@@ -525,9 +203,9 @@ void MaterialManager::build_postprocess_pipeline(AllocatedBuffer fogUboBuffer)
 	VkDescriptorSet fogSet;
 	VkDescriptorSetLayout fogSetLayout;
 	VkDescriptorBufferInfo fogBufferInfo{
-		.buffer = fogUboBuffer._buffer,
+		.buffer = fogUboBuffer->value.buffer._buffer,
 		.offset = 0,
-		.range = fogUboBuffer._size
+		.range = fogUboBuffer->value.buffer._size
 	};
 	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
 		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -566,8 +244,9 @@ void MaterialManager::build_postprocess_pipeline(AllocatedBuffer fogUboBuffer)
 	Material computeMaterial {
 		.pipeline = computePipeline,
 		.pipelineLayout = computePipelineLayout,
-		.resources = { },
-		.descriptorSets = { colorImageSet, depthImageSet, fogSet }
+		.descriptorSets = { colorImageSet, depthImageSet, fogSet },
+		.resources = { fogUboBuffer },
+		.pushConstants = {}
 	};
 
 	_materials["compute"] = computeMaterial;
@@ -633,7 +312,7 @@ void MaterialManager::build_present_pipeline()
 	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
 
 	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(false, false, VK_COMPARE_OP_ALWAYS);
+	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, false, VK_COMPARE_OP_LESS_OR_EQUAL);
 
 	//use the triangle layout we created
 	pipelineBuilder._pipelineLayout = meshPipelineLayout;

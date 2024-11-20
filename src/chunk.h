@@ -1,12 +1,8 @@
 #pragma once
-#include "terrain_gen.h"
 #include <memory>
-#include <vk_types.h>
 #include <vk_mesh.h>
 #include <block.h>
 #include <constants.h>
-
-
 
 
 struct ChunkCoord {
@@ -67,7 +63,7 @@ public:
 
     void reset(ChunkCoord newCoord);
 
-    void generate(TerrainGenerator generator);
+    void generate();
 
     static constexpr bool is_outside_chunk(const glm::ivec3& localPos)
     {

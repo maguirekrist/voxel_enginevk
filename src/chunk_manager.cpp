@@ -12,7 +12,6 @@ ChunkManager::ChunkManager()
           _maxChunks((2 * DEFAULT_VIEW_DISTANCE + 1) * (2 * DEFAULT_VIEW_DISTANCE + 1)),
           _maxThreads(4),
           _running(true),
-          _terrainGenerator(TerrainGenerator::instance()),
           _sync_point(4) 
 {
 
@@ -59,8 +58,6 @@ void ChunkManager::updatePlayerPosition(int x, int z)
     ChunkCoord playerChunk = {x / static_cast<int>(CHUNK_SIZE), z / static_cast<int>(CHUNK_SIZE)};  // Assuming 16x16 chunks
     if (playerChunk == _lastPlayerChunk && !_initLoad) return;
 
-    fmt::println("Main thread begin work!");
-
     auto changeX = playerChunk.x - _lastPlayerChunk.x;
     auto changeZ = playerChunk.z - _lastPlayerChunk.z;
     _lastPlayerChunk = playerChunk;
@@ -80,19 +77,25 @@ void ChunkManager::updatePlayerPosition(int x, int z)
     for(const auto& chunkCoord : _worldChunks)
     {
         auto chunk = _chunks[chunkCoord].get();
-        RenderObject object;
-        object.material = VulkanEngine::instance()._materialManager.get_material("defaultmesh");
-        object.mesh = chunk->_mesh;
-        object.xzPos = glm::ivec2(chunk->_position.x, chunk->_position.y);
+        auto object = std::make_shared<RenderObject>(RenderObject{
+            chunk->_mesh,
+            VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
+            glm::ivec2(chunk->_position.x, chunk->_position.y),
+            RenderLayer::Opaque
+        });
         _renderedChunks.push_back(object);
 
-        RenderObject waterObject;
-        waterObject.material = VulkanEngine::instance()._materialManager.get_material("watermesh");
-        waterObject.mesh = chunk->_waterMesh;
-        waterObject.xzPos = glm::ivec2(chunk->_position.x, chunk->_position.y);
+        auto waterObject = std::make_shared<RenderObject>(RenderObject{
+            chunk->_waterMesh,
+            VulkanEngine::instance()._materialManager.get_material("watermesh"),
+            glm::ivec2(chunk->_position.x, chunk->_position.y),
+            RenderLayer::Transparent
+        });
         _transparentObjects.push_back(waterObject);
     }
 
+    fmt::println("Active Renderable chunks: {}", _chunks.size());
+    fmt::println("Chunks to unload: {}", old_chunks.size());
 }
 
 void ChunkManager::updateWorldState()
@@ -166,8 +169,6 @@ void ChunkManager::worldUpdate()
 
         _updatingWorldState = true;
 
-        fmt::println("Worker thread begin work.");
-
         WorldUpdateJob updateJob = std::move(_worldUpdateQueue.front());
         _worldUpdateQueue.pop();
         {
@@ -196,21 +197,19 @@ void ChunkManager::worldUpdate()
         }
 
 
-        //Look into this
-        // while (!updateJob._chunksToUnload.empty())
-        // {
-        //     const auto coord = updateJob._chunksToUnload.front();
-        //     updateJob._chunksToUnload.pop();
+        // Look into this
+        while (!updateJob._chunksToUnload.empty())
+        {
+            const auto coord = updateJob._chunksToUnload.front();
+            updateJob._chunksToUnload.pop();
 
-        //     std::unique_ptr<Chunk> unloadChunk = std::move(_loadedChunks[coord]);
-        //     _loadedChunks.erase(coord);
+            std::unique_ptr<Chunk> unloadChunk = std::move(_chunks[coord]);
+            _chunks.erase(coord);
+            auto mesh = unloadChunk->_mesh.get()->get();
+            VulkanEngine::instance()._meshManager._mainMeshUnloadQueue.enqueue(mesh);
 
-        //     _renderer._mainMeshUnloadQueue.enqueue(&unloadChunk->_mesh);
-
-        //     _chunkPool.push_back(std::move(unloadChunk));
-        // }
-
-        fmt::println("Worker thread end work.");
+            // _chunkPool.push_back(std::move(unloadChunk));
+        }
 
         _updatingWorldState = false;
         _initLoad = false;
@@ -278,6 +277,37 @@ Chunk* ChunkManager::get_chunk(ChunkCoord coord)
     }
 }
 
+void ChunkManager::save_chunk(const Chunk &chunk, const std::string &filename)
+{
+    std::ofstream outFile(filename, std::ios::binary);
+
+    outFile.write(reinterpret_cast<const char*>(&chunk._position), sizeof(chunk._position));
+
+    for (const auto& block : chunk._blocks)
+    {
+        outFile.write(reinterpret_cast<const char*>(&block), sizeof(block));
+    }
+
+    outFile.close();
+}
+
+std::unique_ptr<Chunk> ChunkManager::load_chunk(const std::string &filename)
+{
+    auto chunk = std::make_unique<Chunk>();
+
+    std::ifstream inFile(filename, std::ios::binary);
+
+    inFile.read(reinterpret_cast<char*>(&chunk->_position), sizeof(chunk->_position));
+
+    for (auto& block : chunk->_blocks)
+    {
+        inFile.read(reinterpret_cast<char *>(&block), sizeof(block));
+    }
+
+    inFile.close();
+    return chunk;
+}
+
 void ChunkManager::meshChunk(int threadId)
 {
     tracy::SetThreadName(fmt::format("Chunk Update Thread: {}", threadId).c_str());
@@ -296,7 +326,7 @@ void ChunkManager::meshChunk(int threadId)
             if(_chunkGenQueue.wait_dequeue_timed(chunk, std::chrono::milliseconds(5)))
             {
                 if (chunk != nullptr) {
-                    chunk->generate(_terrainGenerator); 
+                    chunk->generate(); 
                 }
             } else {
                 break;

@@ -9,7 +9,7 @@ void Chunk::reset(ChunkCoord newCoord)
     // _mesh = std::make_shared<Mesh>();
 }
 
-void Chunk::generate(TerrainGenerator generator)
+void Chunk::generate()
 {
         ZoneScopedN("Generate chunk");
 
@@ -38,9 +38,9 @@ void Chunk::generate(TerrainGenerator generator)
         // }
 
 
-        std::vector<float> chunkHeightMap = generator.GenerateHeightMap(_position.x, _position.y);
+        std::vector<float> chunkHeightMap = TerrainGenerator::instance().GenerateHeightMap(_position.x, _position.y);
         for(int x = 0; x < CHUNK_SIZE; x++)
-            {
+        {
             for(int z = 0; z < CHUNK_SIZE; z++)
             {
                 // auto height = generator.NormalizeHeight(chunkHeightMap, CHUNK_HEIGHT, CHUNK_SIZE, x, z);

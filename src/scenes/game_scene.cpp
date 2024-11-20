@@ -5,30 +5,75 @@
 #include <vk_mesh.h>
 
 GameScene::GameScene() {
-
+	init();
 }
 
 void GameScene::init()
 {
-	_fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-	_cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-	VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogUboBuffer);
-	VulkanEngine::instance()._materialManager.build_material_default(_cameraUboBuffer);
-	VulkanEngine::instance()._materialManager.build_material_water(_fogUboBuffer, _cameraUboBuffer);
-	//VulkanEngine::instance()._materialManager.build_material_wireframe();
+	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	_cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
+	_fogResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(fogUboBuffer));
+
+	VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogResource);
+
+	auto translate = PushConstant{ 	
+				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT, 
+				.size = sizeof(ObjectPushConstants), 
+				.build_constant = [](const RenderObject& obj) -> const void* {
+					ObjectPushConstants push{};
+					push.chunk_translate = obj.xzPos;
+					return &push;
+				} 
+			};
+
+	//VulkanEngine::instance()._materialManager.build_material_default(_cameraUboResource, translate);
+	VulkanEngine::instance()._materialManager.build_graphics_pipeline(
+		{ _cameraUboResource },
+		{ translate },
+		{},
+		"tri_mesh.vert.spv",
+		"tri_mesh.frag.spv",
+		"defaultmesh"
+	);
+
+	VulkanEngine::instance()._materialManager.build_graphics_pipeline(
+		{_cameraUboResource, _fogResource}, // Order Matters here
+		{ translate },
+		{ .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = true},
+		"water_mesh.vert.spv",
+		"water_mesh.frag.spv",
+		"watermesh"
+	);
+	//
+	// VulkanEngine::instance()._materialManager.build_material_wireframe();
+	//  VulkanEngine::instance()._materialManager.build_graphics_pipeline(
+	//  	{_cameraUboResource},
+	//  	{ translate },
+	//  	{},
+	//  	"default.vert.spv",
+	//  	"default.frag.spv",
+	//  	"defaultobj");
+
+
 	VulkanEngine::instance()._materialManager.build_present_pipeline();
+	//
+	// //Load all the objects from the obj folder
+	// for (const auto& file : std::filesystem::directory_iterator("models")) {
+	// 	auto mesh = VulkanEngine::instance()._meshManager.queue_from_obj(file.path().string());
+	// 	_gameObjects.push_back(std::make_shared<RenderObject>(RenderObject{std::make_shared<SharedResource<Mesh>>(mesh), VulkanEngine::instance()._materialManager.get_material("defaultobj"), glm::vec2(0, 0), RenderLayer::Opaque }));
+	// 	fmt::println("Loaded object: {}", file.path().string());
+	// }
+
+
+	fmt::println("GameScene created!");
 }
 
-void GameScene::render(VkCommandBuffer cmd, uint32_t swapchainImageIndex) {
-	VkRenderPassBeginInfo rpOffscreenInfo = vkinit::render_pass_begin_info(VulkanEngine::instance()._offscreenPass, VulkanEngine::instance()._windowExtent, VulkanEngine::instance()._offscreenFramebuffer, ClearFlags::Color | ClearFlags::Depth);
-
-	update_fog_ubo();
-
-	vkCmdBeginRenderPass(cmd, &rpOffscreenInfo, VK_SUBPASS_CONTENTS_INLINE);
-
+void GameScene::render(RenderQueue& queue) {
 	{
 		ZoneScopedN("Draw Chunks & Objects");
 		update_uniform_buffer();
+		update_fog_ubo();
 
 		std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>>> meshSwap;
 		while(VulkanEngine::instance()._meshManager._meshSwapQueue.try_dequeue(meshSwap))
@@ -36,36 +81,10 @@ void GameScene::render(VkCommandBuffer cmd, uint32_t swapchainImageIndex) {
 			auto oldMesh = meshSwap.second->update(meshSwap.first);
 			VulkanEngine::instance()._meshManager.unload_mesh(std::move(oldMesh));
 		}
-		draw_objects(cmd, _game._chunkManager._renderedChunks);
-		//draw_objects(cmd, _renderObjects.data(), _renderObjects.size());
+		queue.add(_game._chunkManager._renderedChunks, RenderLayer::Opaque);
+		queue.add(_gameObjects, RenderLayer::Opaque);
+		queue.add(_game._chunkManager._transparentObjects, RenderLayer::Transparent);
 	}
-	
-	//vkCmdExecuteCommands(cmd, get_current_frame()._secondaryCommandBuffers.size(), get_current_frame()._secondaryCommandBuffers.data());
-	
-	//draw_objects(cmd, _game._chunkManager._renderChunks.data(), _game._chunkManager._renderChunks.size());
-
-	//finalize the render pass
-	vkCmdEndRenderPass(cmd);
-
-	//Transition is TRANSITION EVEN NEEDED?
-	//vkutil::transition_image(cmd, _fullscreenImage._image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
-
-
-	run_compute(cmd, *VulkanEngine::instance()._materialManager.get_material("compute"));
-
-
-
-	//Do a swapchain renderpass
-	VkRenderPassBeginInfo rpInfo = vkinit::render_pass_begin_info(VulkanEngine::instance()._renderPass, VulkanEngine::instance()._windowExtent, VulkanEngine::instance()._framebuffers[swapchainImageIndex], ClearFlags::Color);
-
-	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	//Render off-screen image to the present renderpass
-	draw_fullscreen(cmd, VulkanEngine::instance()._materialManager.get_material("present"));
-
-	draw_objects(cmd, _game._chunkManager._transparentObjects);
-
-	vkCmdEndRenderPass(cmd);
 }
 
 void GameScene::update(float deltaTime)
@@ -77,7 +96,6 @@ void GameScene::update(float deltaTime)
 
 void GameScene::cleanup()
 {
-	vmaDestroyBuffer(VulkanEngine::instance()._allocator, _fogUboBuffer._buffer, _fogUboBuffer._allocation);
     _game.cleanup();
 }
 
@@ -97,7 +115,7 @@ void GameScene::handle_input(const SDL_Event& event)
 			}
 			break;
 		case SDL_MOUSEMOTION:
-			_game._player.handle_mouse_move(event.motion.xrel, event.motion.yrel);
+			_game._player.handle_mouse_move(static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel));
 			break;
 	}
 }
@@ -125,120 +143,6 @@ void GameScene::handle_keystate(const Uint8* state)
 	}
 }
 
-void GameScene::run_compute(VkCommandBuffer cmd, const Material &computeMaterial)
-{
-    // Bind the compute pipeline
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, computeMaterial.pipeline);
-
-    // Bind the descriptor set (which contains the image resources)
-    vkCmdBindDescriptorSets(
-        cmd,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        computeMaterial.pipelineLayout,
-        0, computeMaterial.descriptorSets.size(),
-        computeMaterial.descriptorSets.data(),
-        0, nullptr
-    );
-
-    // Dispatch the compute shader (assuming a full-screen image size)
-    // Adjust the work group size based on your compute shader's `local_size_x` and `local_size_y`
-    uint32_t workGroupSizeX = (VulkanEngine::instance()._windowExtent.width + 15) / 16; // Assuming local size of 16 in shader
-    uint32_t workGroupSizeY = (VulkanEngine::instance()._windowExtent.height + 15) / 16;
-
-    vkCmdDispatch(cmd, workGroupSizeX, workGroupSizeY, 1);
-
-    // Insert a memory barrier to ensure the compute shader has finished executing
-    VkMemoryBarrier memoryBarrier{};
-    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; // Writes in compute shader
-    memoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT; // Reads and writes in subsequent shaders or pipeline stages
-
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, // Source stage
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, // Destination stages
-        0,
-        1, &memoryBarrier,
-        0, nullptr,
-        0, nullptr
-    );
-}
-
-void GameScene::draw_fullscreen(VkCommandBuffer cmd, Material *presentMaterial)
-{
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, presentMaterial->pipeline);
-	vkCmdBindDescriptorSets(
-		cmd,
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		presentMaterial->pipelineLayout,
-		0, presentMaterial->descriptorSets.size(),
-		presentMaterial->descriptorSets.data(),
-		0, nullptr
-	);
-
-	vkCmdDraw(cmd, 3, 1, 0, 0);
-}
-
-void GameScene::draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial)
-{
-	if(object.mesh == nullptr) return;
-	if(!object.mesh->get()->_isActive) return;
-
-	//only bind the pipeline if it doesn't match with the already bound one
-	if (object.material != lastMaterial) {
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
-		lastMaterial = object.material;
-
-
-
-		vkCmdBindDescriptorSets(cmd, 
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		object.material->pipelineLayout,
-		0, 
-		object.material->descriptorSets.size(),
-		object.material->descriptorSets.data(),
-		0,
-		nullptr);
-	}
-
-
-	//EXAMPLE: PUSH CONTRAINTS
-	ChunkPushConstants constants;
-	constants.chunk_translate = object.xzPos;
-	vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ChunkPushConstants), &constants);
-
-	//only bind the mesh if it's a different one from last bind
-	if(object.mesh->get().get() != lastMesh) {
-					//bind the mesh vertex buffer with offset 0
-		VkDeviceSize offset = 0;
-		vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->get()->_vertexBuffer._buffer, &offset);
-
-		vkCmdBindIndexBuffer(cmd, object.mesh->get()->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-
-		lastMesh = object.mesh->get().get();
-	}
-
-	//we can now draw
-	vkCmdDrawIndexed(cmd, object.mesh->get()->_indices.size(), 1, 0, 0, 0);
-}
-
-void GameScene::draw_objects(VkCommandBuffer cmd, const std::vector<RenderObject>& chunks)
-{
-	//Game is not finished with initial loading, do not render anything yet.
-	if(_game._chunkManager._initLoad) return;
-
-	Mesh* lastMesh = nullptr;
-	Material* lastMaterial = nullptr;
-
-	for(int i = 0; i < chunks.size(); i++)
-	{
-		auto& object = chunks[i];
-
-		draw_object(cmd, object, lastMesh, lastMaterial);
-	}
-
-}
-
 void GameScene::update_fog_ubo()
 {
 	FogUBO fogUBO;
@@ -251,9 +155,9 @@ void GameScene::update_fog_ubo()
 	fogUBO.invViewProject = glm::inverse(_camera._projection * _camera._view);
 
 	void* data;
-	vmaMapMemory(VulkanEngine::instance()._allocator, _fogUboBuffer._allocation, &data);
+	vmaMapMemory(VulkanEngine::instance()._allocator, _fogResource->value.buffer._allocation, &data);
 	memcpy(data, &fogUBO, sizeof(FogUBO));
-	vmaUnmapMemory(VulkanEngine::instance()._allocator, _fogUboBuffer._allocation);
+	vmaUnmapMemory(VulkanEngine::instance()._allocator, _fogResource->value.buffer._allocation);
 }
 
 void GameScene::update_uniform_buffer()
@@ -264,25 +168,7 @@ void GameScene::update_uniform_buffer()
 	cameraUBO.viewproject = _camera._projection * _camera._view; 
 
 	void* data;
-	vmaMapMemory(VulkanEngine::instance()._allocator, _cameraUboBuffer._allocation, &data);
+	vmaMapMemory(VulkanEngine::instance()._allocator, _cameraUboResource->value.buffer._allocation, &data);
 	memcpy(data, &cameraUBO, sizeof(CameraUBO));
-	vmaUnmapMemory(VulkanEngine::instance()._allocator, _cameraUboBuffer._allocation);
+	vmaUnmapMemory(VulkanEngine::instance()._allocator, _cameraUboResource->value.buffer._allocation);
 }
-
-// void GameScene::update_chunk_buffer()
-// {
-// 	if(_game._chunkManager._initLoad == true) return;
-
-// 	void* objectData;
-// 	vmaMapMemory(VulkanEngine::instance()._allocator, VulkanEngine::instance().get_current_frame()._chunkBuffer._allocation, &objectData);
-
-// 	ChunkBufferObject* objectSSBO = (ChunkBufferObject*)objectData;
-
-// 	for (int i = 0; i < _game._chunkManager._renderedChunks.size(); i++)
-// 	{
-// 		auto& object = _game._chunkManager._renderedChunks[i];
-// 		objectSSBO[i].chunkPosition = object.xzPos;
-// 	}
-
-// 	vmaUnmapMemory(VulkanEngine::instance()._allocator, VulkanEngine::instance().get_current_frame()._chunkBuffer._allocation);
-// }

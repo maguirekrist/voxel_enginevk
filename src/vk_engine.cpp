@@ -27,7 +27,6 @@
 
 VulkanEngine::VulkanEngine()
 {
-
 }
 
 void VulkanEngine::calculate_fps()
@@ -78,7 +77,7 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
-	init_scenes();
+	_sceneRenderer.init();
 
 	_isInitialized = true;
 }
@@ -89,16 +88,15 @@ void VulkanEngine::cleanup()
 
 		VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
 
-		_descriptorAllocator.cleanup();
-
 		_mainDeletionQueue.flush();
 
-		for(auto& scene : _scenes)
-		{
-			scene.second->cleanup();
-		}
+		_sceneRenderer.cleanup();
 		_meshManager.cleanup();
-		
+		_materialManager.cleanup();
+		_descriptorLayoutCache.cleanup();
+		_descriptorAllocator.cleanup();
+
+		vmaDestroyAllocator(_allocator);
 
 		vkDestroyDevice(_device, nullptr);
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
@@ -142,18 +140,11 @@ void VulkanEngine::handle_input()
 		}
 
 		if(bFocused) {
-			_currentScene->handle_input(e);
+			_sceneRenderer.get_current_scene()->handle_input(e);
 		}
 	}
 
-	_currentScene->handle_keystate(state);
-}
-
-void VulkanEngine::set_scene(Scene *scene)
-{
-	//Not sure if waiting for the fence is necessary here
-	//VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
-	_currentScene = scene;
+	_sceneRenderer.get_current_scene()->handle_keystate(state);
 }
 
 //returns the swapChainImageIndex
@@ -207,7 +198,7 @@ void VulkanEngine::draw()
 
 	VkCommandBuffer cmd = begin_recording();
 
-	_currentScene->render(cmd, swapchainImageIndex);
+	_sceneRenderer.render_scene(cmd, swapchainImageIndex);
 	VK_CHECK(vkEndCommandBuffer(cmd));
 	
 
@@ -276,7 +267,7 @@ void VulkanEngine::run()
 
 		handle_input();
 
-		_currentScene->update(_deltaTime);
+		_sceneRenderer.get_current_scene()->update(_deltaTime);
 
 		draw();
 	}
@@ -440,6 +431,9 @@ void VulkanEngine::init_offscreen_images()
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info();
 	VK_CHECK(vkCreateSampler(_device, &samplerInfo, nullptr, &_sampler));
 
+	_mainDeletionQueue.push_function([=, this]() {
+		vkDestroySampler(_device, _sampler, nullptr);
+	});
 }
 
 
@@ -544,14 +538,40 @@ void VulkanEngine::init_offscreen_renderpass()
 void VulkanEngine::init_default_renderpass()
 {
 	// the renderpass will use this color attachment.
-	VkAttachmentDescription color_attachment = vkinit::attachment_description(_swapchainImageFormat, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	VkAttachmentDescription color_attachment = {};
+	//the attachment will have the format needed by the swapchain
+	color_attachment.format = _swapchainImageFormat;
+	//1 sample, we won't be doing MSAA
+	color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	// we Clear when this attachment is loaded
+	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	// we keep the attachment stored when the renderpass ends
+	color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	//we don't care about stencil
+	color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+	//we don't know or care about the starting layout of the attachment
+	color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	//after the renderpass ends, the image has to be on a layout ready for display
+	color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
 	VkAttachmentReference color_attachment_ref = {
 		.attachment = 0,
 		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 	};
 
-	VkAttachmentDescription depth_attachment = vkinit::attachment_description(_depthFormat, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+	VkAttachmentDescription depth_attachment = {};
+	depth_attachment.flags = 0;
+	depth_attachment.format = _depthFormat;
+	depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+	depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+	depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
     VkAttachmentReference depth_attachment_ref = {
 		.attachment = 1,
@@ -577,16 +597,16 @@ void VulkanEngine::init_default_renderpass()
 		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
 	};
 
-	// VkSubpassDependency depth_dependency = {
-	// 	.srcSubpass = VK_SUBPASS_EXTERNAL,
-	// 	.dstSubpass = 0,
-	// 	.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-	// 	.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-	// 	.srcAccessMask = 0,
-	// 	.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-	// };
+	VkSubpassDependency depth_dependency = {
+		.srcSubpass = VK_SUBPASS_EXTERNAL,
+		.dstSubpass = 0,
+		.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		.srcAccessMask = 0,
+		.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+	};
 
-	VkSubpassDependency dependencies[1] = { dependency };
+	VkSubpassDependency dependencies[2] = { dependency, depth_dependency };
 
 	VkRenderPassCreateInfo render_pass_info = {};
 	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -598,7 +618,7 @@ void VulkanEngine::init_default_renderpass()
 	render_pass_info.subpassCount = 1;
 	render_pass_info.pSubpasses = &subpass;
 
-	render_pass_info.dependencyCount = 1;
+	render_pass_info.dependencyCount = 2;
 	render_pass_info.pDependencies = &dependencies[0];
 
 	VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr, &_renderPass));
@@ -664,17 +684,6 @@ void VulkanEngine::init_framebuffers()
 			vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
 		});
 	}
-}
-
-void VulkanEngine::init_scenes()
-{
-	auto gameScene = std::make_unique<GameScene>();
-	gameScene->init();
-	_scenes["game"] = std::move(gameScene);
-	//_scenes["blueprint"] = std::make_unique<BlueprintBuilderScene>();
-
-	//set default scene
-	set_scene(_scenes["game"].get());
 }
 
 void VulkanEngine::init_sync_structures()
