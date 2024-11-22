@@ -52,8 +52,9 @@ add_executable(vulkan_guide
     render/scene_renderer.cpp
     render/render_queue.h
     render/render_queue.cpp
-        render/resource.cpp
-        render/resource.h
+    render/resource.cpp
+    render/resource.h
+    utils/functionalqueue.h
 )
 
 

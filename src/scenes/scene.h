@@ -12,5 +12,8 @@ public:
     virtual void handle_keystate(const Uint8* state) = 0;
     virtual void cleanup() = 0;
 
+    bool post_processing = false;
+
     virtual ~Scene() = default;
+protected:
 };

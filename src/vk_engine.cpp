@@ -23,7 +23,6 @@
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 #include "scenes/game_scene.h"
-//#include "scenes/blueprint_builder_scene.h"
 
 VulkanEngine::VulkanEngine()
 {

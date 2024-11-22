@@ -15,7 +15,9 @@ void GameScene::init()
 	_cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
 	_fogResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(fogUboBuffer));
 
-	VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogResource);
+	this->post_processing = true;
+
+	//VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogResource);
 
 	auto translate = PushConstant{ 	
 				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT, 

@@ -16,6 +16,8 @@ struct Resource {
         ResourceValue() : buffer() {}
         explicit ResourceValue(const AllocatedBuffer& buffer) : buffer(buffer) {}
         explicit ResourceValue(const ImageResource& image) : image(image) {}
+
+        ~ResourceValue() {}
     } value;
 
     Resource(const Type type, ResourceValue&& value) : type(type) {
@@ -42,6 +44,7 @@ struct Resource {
 
     ~Resource()
     {
+        fmt::println("Resource is being destroyed!");
         switch(type)
         {
             case BUFFER:

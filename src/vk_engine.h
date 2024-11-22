@@ -9,32 +9,13 @@
 #include <render/mesh_manager.h>
 #include <render/material_manager.h>
 #include <render/scene_renderer.h>
-
-class FunctionQueue {
-public:
-	
-	void push_function(std::function<void()>&& function)
-	{
-		funcs.push_back(std::move(function));
-	}
-
-	void flush() {
-		for(auto& func : funcs) {
-			func();
-		}
-
-		funcs.clear();
-	}
-
-private:
-	std::deque<std::function<void()>> funcs;
-};
+#include <utils/functionalqueue.h>
 
 class VulkanEngine {
 public:
 	static VulkanEngine& instance()		
 	{
-		static VulkanEngine *instance = new VulkanEngine();
+		static auto *instance = new VulkanEngine();
         return *instance;
 	}
 

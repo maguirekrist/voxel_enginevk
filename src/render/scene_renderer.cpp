@@ -13,7 +13,7 @@ void SceneRenderer::init()
 	//_scenes["blueprint"] = std::make_unique<BlueprintBuilderScene>();
 
 	//set default scene
-	_currentScene = _scenes["game"].get();   
+	_currentScene = _scenes["game"].get();
     
 }
 
@@ -34,7 +34,9 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, uint32_t swapchainImageInd
 
     vkCmdEndRenderPass(cmd);
 
-    run_compute(cmd, *VulkanEngine::instance()._materialManager.get_material("compute"));
+	if(_currentScene->post_processing) {
+		run_compute(cmd, *VulkanEngine::instance()._materialManager.get_material("compute"));
+	}
 
 	VkRenderPassBeginInfo rpInfo = vkinit::render_pass_begin_info(
         VulkanEngine::instance()._renderPass,

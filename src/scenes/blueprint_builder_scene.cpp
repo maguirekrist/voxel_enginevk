@@ -6,21 +6,48 @@
 
 BlueprintBuilderScene::BlueprintBuilderScene()
 {
-    fmt::println("BlueprintBuilderScene created!");
-
-    // auto gridBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-    // _gridResource = Resource{Resource::BUFFER, { .buffer = gridBuffer }};
-    //
-    // auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-    // _cameraUboResource = Resource{Resource::BUFFER, {.buffer = cameraUboBuffer}};
+    init();
 }
 
 void BlueprintBuilderScene::init() 
 {
-    // VulkanEngine::instance()._materialManager.build_material_grid(_cameraUboResource, _gridResource);
+    auto gridBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    _gridResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(gridBuffer));
 
-    // build_chunk_platform({0,0});
-    // set_grid_uniform();
+    auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    _cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
+
+    auto translate = PushConstant{
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        .size = sizeof(ObjectPushConstants),
+        .build_constant = [](const RenderObject& obj) -> const void* {
+            ObjectPushConstants push{};
+            push.chunk_translate = obj.xzPos;
+            return &push;
+        }
+    };
+
+    VulkanEngine::instance()._materialManager.build_graphics_pipeline(
+        { _cameraUboResource },
+        { translate },
+        {},
+        "tri_mesh.vert.spv",
+        "tri_mesh.frag.spv",
+        "defaultmesh"
+    );
+
+    VulkanEngine::instance()._materialManager.build_graphics_pipeline(
+        { _cameraUboResource, _gridResource },
+        { translate },
+        {},
+        "grid.vert.spv",
+        "grid.frag.spv",
+        "grid"
+    );
+
+    VulkanEngine::instance()._materialManager.build_present_pipeline();
+
+    fmt::println("BlueprintBuilderScene created!");
 }
 
 void BlueprintBuilderScene::render(RenderQueue& queue) {
@@ -33,7 +60,6 @@ void BlueprintBuilderScene::render(RenderQueue& queue) {
 void BlueprintBuilderScene::update(float deltaTime)
 {
     //TODO: Update View
-
 }
 
 void BlueprintBuilderScene::handle_input(const SDL_Event &event)

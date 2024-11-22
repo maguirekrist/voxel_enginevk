@@ -38,6 +38,10 @@ void MaterialManager::build_graphics_pipeline(
 	const std::string& fragment_shader, 
 	const std::string& name)
 {
+	if (_materials.contains(name)) {
+		return;
+	}
+
 	VkShaderModule vertexShader;
 	vkutil::load_shader_module(vertex_shader, VulkanEngine::instance()._device, &vertexShader);
 
