@@ -22,10 +22,10 @@ void GameScene::init()
 	auto translate = PushConstant{ 	
 				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT, 
 				.size = sizeof(ObjectPushConstants), 
-				.build_constant = [](const RenderObject& obj) -> const void* {
+				.build_constant = [](const RenderObject& obj) -> ObjectPushConstants {
 					ObjectPushConstants push{};
 					push.chunk_translate = obj.xzPos;
-					return &push;
+					return push;
 				} 
 			};
 

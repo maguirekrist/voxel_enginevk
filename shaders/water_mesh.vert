@@ -11,9 +11,6 @@ layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 viewproject;
 } ubo;
 
-// struct ChunkBufferData {
-//     ivec2 position;
-// };
 
 layout ( push_constant ) uniform constants
 {

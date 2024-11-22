@@ -8,8 +8,6 @@
 #include "tracy/Tracy.hpp"
 
 #include <cstdint>
-#include <memory>
-#include <stdexcept>
 #include <vk_initializers.h>
 #include <sdl_utils.h>
 #include <vulkan/vulkan_core.h>
@@ -17,12 +15,11 @@
 #include <cube_engine.h>
 
 #include "VkBootstrap.h"
-#include "vk_mesh.h"
 #include "vk_types.h"
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
-#include "scenes/game_scene.h"
+
 
 VulkanEngine::VulkanEngine()
 {

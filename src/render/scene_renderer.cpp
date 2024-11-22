@@ -152,9 +152,10 @@ void SceneRenderer::draw_object(VkCommandBuffer cmd, const RenderObject& object,
 
     for(const auto& pConstant : object.material->pushConstants)
     {
-    	const void* data = pConstant.build_constant(object);
-        vkCmdPushConstants(cmd, object.material->pipelineLayout, pConstant.stageFlags, 0, pConstant.size, data);
+    	ObjectPushConstants data = pConstant.build_constant(object);
+        vkCmdPushConstants(cmd, object.material->pipelineLayout, pConstant.stageFlags, 0, pConstant.size, &data);
     }
+    
 
 	//only bind the mesh if it's a different one from last bind
 	if(object.mesh->get().get() != lastMesh) {
