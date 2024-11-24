@@ -10,14 +10,18 @@ GameScene::GameScene() {
 
 void GameScene::init()
 {
-	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-	auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	auto fogUboBuffer = vkutil::create_buffer(
+		VulkanEngine::instance()._allocator,
+		sizeof(FogUBO),
+		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		VMA_MEMORY_USAGE_CPU_TO_GPU);
+	auto cameraUboBuffer = vkutil::create_buffer(
+		VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	_cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
 	_fogResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(fogUboBuffer));
 
 	this->post_processing = true;
-
-	//VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogResource);
+	VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogResource);
 
 	auto translate = PushConstant{ 	
 				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT, 
@@ -47,26 +51,8 @@ void GameScene::init()
 		"water_mesh.frag.spv",
 		"watermesh"
 	);
-	//
-	// VulkanEngine::instance()._materialManager.build_material_wireframe();
-	//  VulkanEngine::instance()._materialManager.build_graphics_pipeline(
-	//  	{_cameraUboResource},
-	//  	{ translate },
-	//  	{},
-	//  	"default.vert.spv",
-	//  	"default.frag.spv",
-	//  	"defaultobj");
-
 
 	VulkanEngine::instance()._materialManager.build_present_pipeline();
-	//
-	// //Load all the objects from the obj folder
-	// for (const auto& file : std::filesystem::directory_iterator("models")) {
-	// 	auto mesh = VulkanEngine::instance()._meshManager.queue_from_obj(file.path().string());
-	// 	_gameObjects.push_back(std::make_shared<RenderObject>(RenderObject{std::make_shared<SharedResource<Mesh>>(mesh), VulkanEngine::instance()._materialManager.get_material("defaultobj"), glm::vec2(0, 0), RenderLayer::Opaque }));
-	// 	fmt::println("Loaded object: {}", file.path().string());
-	// }
-
 
 	fmt::println("GameScene created!");
 }
@@ -105,7 +91,7 @@ void GameScene::handle_input(const SDL_Event& event)
 {
 	switch(event.type) {
 		case SDL_MOUSEBUTTONDOWN:
-			_targetBlock = _camera.get_target_block(_game._world, _game._player);
+			_targetBlock = CubeEngine::get_target_block(_game._world, _game._player);
 			if(_targetBlock.has_value())
 			{
 				auto block = _targetBlock.value()._block;
@@ -118,6 +104,8 @@ void GameScene::handle_input(const SDL_Event& event)
 			break;
 		case SDL_MOUSEMOTION:
 			_game._player.handle_mouse_move(static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel));
+			break;
+		default:
 			break;
 	}
 }
@@ -147,7 +135,7 @@ void GameScene::handle_keystate(const Uint8* state)
 
 void GameScene::update_fog_ubo()
 {
-	FogUBO fogUBO;
+	FogUBO fogUBO{};
 	fogUBO.fogColor = static_cast<glm::vec3>(Colors::skyblueHigh);
 	fogUBO.fogEndColor = static_cast<glm::vec3>(Colors::skyblueLow);
 
@@ -164,7 +152,7 @@ void GameScene::update_fog_ubo()
 
 void GameScene::update_uniform_buffer()
 {
-	CameraUBO cameraUBO;
+	CameraUBO cameraUBO{};
 	cameraUBO.projection = _camera._projection;
 	cameraUBO.view = _camera._view;
 	cameraUBO.viewproject = _camera._projection * _camera._view; 

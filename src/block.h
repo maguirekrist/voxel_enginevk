@@ -19,7 +19,7 @@ public:
     // }
 };
 
-enum FaceDirection {
+enum FaceDirection: int {
     FRONT_FACE = 0,
     BACK_FACE = 1,
     RIGHT_FACE = 2,
@@ -28,7 +28,7 @@ enum FaceDirection {
     BOTTOM_FACE = 5
 };
 
-enum QuadCorners {
+enum QuadCorners: int {
     BOTTOM_LEFT = 0,
     BOTTOM_RIGHT = 1,
     TOP_RIGHT = 2,

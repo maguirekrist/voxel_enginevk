@@ -26,6 +26,7 @@ private:
     void update_camera_uniform();
 
     Camera _camera;
+    bool _isDragging = false;
 
     std::shared_ptr<Resource> _gridResource;
     std::shared_ptr<Resource> _cameraUboResource;

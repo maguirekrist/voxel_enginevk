@@ -17,13 +17,15 @@ void BlueprintBuilderScene::init()
     auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
     _cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
 
+    this->post_processing = false;
+
     auto translate = PushConstant{
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
         .size = sizeof(ObjectPushConstants),
-        .build_constant = [](const RenderObject& obj) -> const void* {
+        .build_constant = [](const RenderObject& obj) -> ObjectPushConstants {
             ObjectPushConstants push{};
             push.chunk_translate = obj.xzPos;
-            return &push;
+            return push;
         }
     };
 
@@ -47,6 +49,32 @@ void BlueprintBuilderScene::init()
 
     VulkanEngine::instance()._materialManager.build_present_pipeline();
 
+    VulkanEngine::instance()._materialManager.build_graphics_pipeline(
+        {_cameraUboResource},
+        { translate },
+        {},
+        "default.vert.spv",
+        "default.frag.spv",
+        "defaultobj");
+
+    //Load all the objects from the obj folder
+    for (const auto& file : std::filesystem::directory_iterator("models")) {
+    	auto mesh = VulkanEngine::instance()._meshManager.queue_from_obj(file.path().string());
+    	_renderObjects.push_back(std::make_shared<RenderObject>(RenderObject{std::make_shared<SharedResource<Mesh>>(mesh), VulkanEngine::instance()._materialManager.get_material("defaultobj"), glm::vec2(0, 0), RenderLayer::Opaque }));
+    	fmt::println("Loaded object: {}", file.path().string());
+    }
+
+    set_grid_uniform();
+
+    build_chunk_platform({0, 0});
+    build_chunk_platform({1, 0});
+    build_chunk_platform({2, 0});
+    build_chunk_platform({3, 0});
+    build_chunk_platform({0, 1});
+    build_chunk_platform({0, 2});
+    build_chunk_platform({0, 3});
+    build_chunk_platform({0, 4});
+
     fmt::println("BlueprintBuilderScene created!");
 }
 
@@ -64,6 +92,27 @@ void BlueprintBuilderScene::update(float deltaTime)
 
 void BlueprintBuilderScene::handle_input(const SDL_Event &event)
 {
+    switch(event.type) {
+        case SDL_MOUSEBUTTONDOWN:
+            if (event.button.button == SDL_BUTTON_LEFT) {
+                _isDragging = true;
+            }
+            break;
+        case SDL_MOUSEBUTTONUP:
+            if (event.button.button == SDL_BUTTON_LEFT) {
+                _isDragging = false;
+            }
+            break;
+        case SDL_MOUSEMOTION:
+            if (_isDragging) {
+                if (event.motion.x > 0 && event.motion.y > 0) {
+                    _camera.update_front(event.motion.xrel, event.motion.yrel);
+                }
+            }
+            break;
+        default:
+            break;
+    }
 }
 
 void BlueprintBuilderScene::handle_keystate(const Uint8 *state)
@@ -105,7 +154,7 @@ void BlueprintBuilderScene::set_grid_uniform()
 
 void BlueprintBuilderScene::update_camera_uniform()
 {
-	CameraUBO cameraUBO;
+	CameraUBO cameraUBO{};
 	cameraUBO.projection = _camera._projection;
 	cameraUBO.view = _camera._view;
 	cameraUBO.viewproject = _camera._projection * _camera._view; 

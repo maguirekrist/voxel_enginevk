@@ -10,10 +10,10 @@
 void SceneRenderer::init()
 {
 	_scenes["game"] = std::make_unique<GameScene>();
-	//_scenes["blueprint"] = std::make_unique<BlueprintBuilderScene>();
+	_scenes["blueprint"] = std::make_unique<BlueprintBuilderScene>();
 
 	//set default scene
-	_currentScene = _scenes["game"].get();
+	_currentScene = _scenes["blueprint"].get();
     
 }
 

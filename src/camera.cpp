@@ -1,73 +1,49 @@
 #include "camera.h"
 
-Camera::Camera()
+Camera::Camera() :
+    _view(glm::mat4(1.0f)),
+    _projection(glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 10000.0f)),
+    _position(glm::vec3(0.0f, 10.0f, 0.0f)),
+    _front(glm::vec3(0.0f, 0.0f, 1.0f)),
+    _up(glm::vec3(0.0f, 1.0f, 0.0f))
 {
-    _view = glm::mat4(1.0f);
     _projection[1][1] *= -1;
+    _view = glm::lookAt(_position, _position + _front, _up);
+
+    fmt::println("Camera Constructed!");
 }
 
 void Camera::update_view(const glm::vec3& position, const glm::vec3& front, const glm::vec3& up)
 {
+    _position = position;
+    _front = front;
+    _up = up;
     _view = glm::lookAt(position, position + front, up);
 }
 
-std::optional<RaycastResult> Camera::get_target_block(World& world, Player& player)
-{
-    glm::vec3 rayStart = player._position;
-    glm::vec3 rayDir = glm::normalize(player._front);
+void Camera::update_front(float xChange, float yChange) {
+    auto sensitivity = 0.1f;
+    xChange *= sensitivity;
+    yChange *= -sensitivity;
 
-    glm::vec3 stepSize = glm::sign(rayDir);
-    glm::vec3 tDelta = glm::abs(1.0f / rayDir);
+    _yaw += xChange;
+    _pitch += yChange;
 
-    glm::ivec3 voxelPos = glm::floor(rayStart);
-    // Calculate initial tMax values
-    glm::vec3 tMax = (stepSize * (glm::vec3(voxelPos) - rayStart) + (stepSize * 0.5f) + 0.5f) * tDelta;
+    if (_pitch > 89.0f)
+        _pitch = 89.0f;
+    if (_pitch < -89.0f)
+        _pitch = -89.0f;
 
-    // Initialize the face normal
-    glm::ivec3 faceNormal(0);
-    float distance = 0.0f;
 
-    while (distance < CHUNK_SIZE)
-    {
-        //Get the current chunk we're in
-        //voxel pos is worldPos
-        Chunk* current_chunk = world.get_chunk(voxelPos);
-        if(distance == 0.0f)
-            fmt::println("Voxel Position: x:{}, y:{}, z:{}", voxelPos.x, voxelPos.y, voxelPos.z);
-        if (current_chunk)
-        {
-            fmt::println("Current chunk: x:{}, y: {}", current_chunk->_position.x, current_chunk->_position.y);
-            auto localPos = World::get_local_coordinates(voxelPos);
-            auto block = current_chunk->get_block(localPos);
-            if (block && block->_solid) {
-                
-                auto worldPos = current_chunk->get_world_pos(localPos);
-                auto faceDir = get_face_direction(faceNormal);
-                return RaycastResult{ block, faceDir.has_value() ? faceDir.value() : FaceDirection::FRONT_FACE, current_chunk, worldPos, distance };
-            }
-        }
+    //fmt::println("Pitch: {}", _pitch);
 
-        // Advance to next voxel
-        if (tMax.x < tMax.y && tMax.x < tMax.z) {
-            voxelPos.x += stepSize.x;
-            distance = tMax.x;
-            tMax.x += tDelta.x;
-            faceNormal = glm::ivec3(-stepSize.x, 0, 0);
-        }
-        else if (tMax.y < tMax.z) {
-            voxelPos.y += stepSize.y;
-            distance = tMax.y;
-            tMax.y += tDelta.y;
-            faceNormal = glm::ivec3(0, -stepSize.y, 0);
-        }
-        else {
-            voxelPos.z += stepSize.z;
-            distance = tMax.z;
-            tMax.z += tDelta.z;
-            faceNormal = glm::ivec3(0, 0, -stepSize.z);
-        }
-    }
+    glm::vec3 direction;
+    direction.x = cos(glm::radians(_yaw)) * cos(glm::radians(_pitch));
+    direction.y = sin(glm::radians(_pitch));
+    direction.z = sin(glm::radians(_yaw)) * cos(glm::radians(_pitch));
 
-    // No voxel hit within maxDistance
-    return std::nullopt;
+    // fmt::println("Direction, x: {}, y: {}, z: {}", direction.x, direction.y, direction.z);
+
+    _front = glm::normalize(direction);
+    _view = glm::lookAt(_position, _position + _front, _up);
 }

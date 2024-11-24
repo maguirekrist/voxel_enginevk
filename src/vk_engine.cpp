@@ -105,7 +105,7 @@ void VulkanEngine::cleanup()
 void VulkanEngine::handle_input()
 {	
 	SDL_Event e;
-	const Uint8* state = SDL_GetKeyboardState(NULL);
+	const Uint8* state = SDL_GetKeyboardState(nullptr);
 	//Handle events on queue
 	while (SDL_PollEvent(&e) != 0)
 	{
@@ -116,8 +116,10 @@ void VulkanEngine::handle_input()
 					case SDLK_ESCAPE:
 						bFocused = false;
 						SDL_SetWindowGrab(_window, SDL_FALSE);
-						SDL_SetRelativeMouseMode(SDL_FALSE);
-						SDL_ShowCursor(SDL_TRUE);
+						//SDL_SetRelativeMouseMode(SDL_FALSE);
+						SDL_ShowCursor(SDL_ENABLE);
+						break;
+					default:
 						break;
 				}
 				break;
@@ -126,12 +128,14 @@ void VulkanEngine::handle_input()
 				{
 					bFocused = true;
 					SDL_SetWindowGrab(_window, SDL_TRUE);
-					SDL_SetRelativeMouseMode(SDL_TRUE);
-					SDL_ShowCursor(SDL_FALSE);
+					//SDL_SetRelativeMouseMode(SDL_TRUE);
+					SDL_ShowCursor(SDL_ENABLE);
 				}
 				break;
 			case SDL_QUIT:
 				bQuit = true;
+				break;
+			default:
 				break;
 		}
 

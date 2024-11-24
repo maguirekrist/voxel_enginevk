@@ -21,5 +21,5 @@ void main() {
     float line = step(gridX, lineWidth) + step(gridY, lineWidth);
     vec3 color = mix(grid.backgroundColor, grid.gridColor, line);
 
-    fragColor = vec4(color, 1.0);
+    fragColor = vec4(vec3(1.0, 0.0, 0.0), 1.0);
 }

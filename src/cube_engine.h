@@ -7,17 +7,24 @@
 
 class VulkanEngine;
 
+struct RaycastResult {
+    Block* _block;
+    FaceDirection _blockFace;
+    Chunk* _chunk;
+    glm::ivec3 _worldPos;
+    float _distance;
+};
+
+
 class CubeEngine {
 public:
-    CubeEngine();
-
     ChunkManager _chunkManager;
     World _world{ &_chunkManager };
     Player _player;
 
-    void cleanup();
+    static std::optional<RaycastResult> get_target_block(World& world, Player& player);
 
-    //Main Tick entry
+    void cleanup();
     void update();
 private:
 };
