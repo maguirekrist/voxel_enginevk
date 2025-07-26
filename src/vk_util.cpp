@@ -1,5 +1,6 @@
 #include "vk_util.h"
 #include "vk_initializers.h"
+#include <algorithm>
 
 
 std::string getShaderPath(const std::string& shaderName) {
