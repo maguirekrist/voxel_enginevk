@@ -6,7 +6,7 @@
 
 class MeshManager {
 public:
-    void init(VkDevice device, VmaAllocator allocator, QueueFamily queue);
+    void init(VkDevice device, VmaAllocator allocator, const QueueFamily& queue, std::shared_ptr<std::mutex> mutex);
 
     void cleanup();
 
@@ -22,12 +22,11 @@ public:
 private:
     VkDevice _device;
     VmaAllocator _allocator;
-
     QueueFamily _transferQueue;
-
     UploadContext _uploadContext;
-    void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
+    std::thread _transferThread;
+    std::shared_ptr<std::mutex> m_transferMutex;
 
+    void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
     void handle_transfers();
-	std::thread _transferThread;
 };

@@ -36,7 +36,7 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, Player& play
             fmt::println("Voxel Position: x:{}, y:{}, z:{}", voxelPos.x, voxelPos.y, voxelPos.z);
         if (current_chunk)
         {
-            fmt::println("Current chunk: x:{}, y: {}", current_chunk->_position.x, current_chunk->_position.y);
+            //fmt::println("Current chunk: x:{}, y: {}", current_chunk->_position.x, current_chunk->_position.y);
             auto localPos = World::get_local_coordinates(voxelPos);
             auto block = current_chunk->get_block(localPos);
             if (block && block->_solid) {

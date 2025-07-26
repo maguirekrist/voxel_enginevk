@@ -4,17 +4,18 @@
 #include <vk_util.h>
 #include <tiny_obj_loader.h>
 
-void MeshManager::init(VkDevice device, VmaAllocator allocator, QueueFamily queue)
+void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamily& queue, std::shared_ptr<std::mutex> pMutex)
 {
-    _device = device;
-    _allocator = allocator;
-    _transferQueue = queue;
+	_device = device;
+	_allocator = allocator;
+	_transferQueue = queue;
+	m_transferMutex = std::move(pMutex);
 
-    VkFenceCreateInfo uploadCreateInfo = vkinit::fence_create_info();
+	VkFenceCreateInfo uploadCreateInfo = vkinit::fence_create_info();
 
 	VK_CHECK(vkCreateFence(_device, &uploadCreateInfo, nullptr, &_uploadContext._uploadFence));
 
-    VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(_transferQueue._queueFamily);
+	VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(_transferQueue._queueFamily);
 	//create pool for upload context
 	VK_CHECK(vkCreateCommandPool(_device, &uploadCommandPoolInfo, nullptr, &_uploadContext._commandPool));
 
@@ -23,9 +24,10 @@ void MeshManager::init(VkDevice device, VmaAllocator allocator, QueueFamily queu
 	VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_uploadContext._commandPool, 1);
 	VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_uploadContext._commandBuffer));
 
-    //Start transfer thread
-    _transferThread = std::thread(&MeshManager::handle_transfers, this);
+	//Start transfer thread
+	_transferThread = std::thread(&MeshManager::handle_transfers, this);
 }
+
 
 void MeshManager::cleanup()
 {
@@ -165,6 +167,11 @@ void MeshManager::immediate_submit(std::function<void(VkCommandBuffer cmd)> &&fu
 
 	//submit command buffer to the queue and execute it.
 	// _uploadFence will now block until the graphic commands finish execution
+	std::unique_lock<std::mutex> lock;
+	if (m_transferMutex)
+	{
+		lock = std::unique_lock(*m_transferMutex);
+	}
 	VK_CHECK(vkQueueSubmit(_transferQueue._queue, 1, &submit, _uploadContext._uploadFence));
 
 	vkWaitForFences(_device, 1, &_uploadContext._uploadFence, true, 9999999999);

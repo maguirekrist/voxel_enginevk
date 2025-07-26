@@ -130,6 +130,7 @@ public:
 	//run main loop
 	void run();
 private:
+	std::shared_ptr<std::mutex> m_queueMutex = nullptr;
 
 	VulkanEngine();
 

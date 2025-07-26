@@ -230,6 +230,11 @@ void VulkanEngine::submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchain
 
 	//submit command buffer to the queue and execute it.
 	// _renderFence will now block until the graphic commands finish execution
+	std::unique_lock<std::mutex> lock;
+	if (m_queueMutex)
+	{
+		lock = std::unique_lock(*m_queueMutex);
+	}
 	VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
 
 	// this will put the image we just rendered into the visible window.
@@ -309,18 +314,25 @@ void VulkanEngine::init_vulkan()
 		.value();
 
 
+	std::println("Has dedicated transfer queue? {}", physicalDevice.has_dedicated_transfer_queue());
+
+
 	//create the final vulkan device
 	vkb::DeviceBuilder deviceBuilder{ physicalDevice };
 
-	vkb::Device vkbDevice = deviceBuilder.build().value();
+	vkb::Device vkbDevice = deviceBuilder.build()
+		.value();
 
 	_gpuProperties = vkbDevice.physical_device.properties;
 
-	std::cout << "The GPU has a minimum buffer alignment of " << _gpuProperties.limits.minUniformBufferOffsetAlignment << std::endl;
+	std::println("The GPU has a minimum buffer alignment of {}", _gpuProperties.limits.minUniformBufferOffsetAlignment);
+
+	auto queue_families = vkbDevice.queue_families;
 
 	// Get the VkDevice handle used in the rest of a vulkan application
 	_device = vkbDevice.device;
 	_chosenGPU = physicalDevice.physical_device;
+
 	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 	_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
 
@@ -334,6 +346,7 @@ void VulkanEngine::init_vulkan()
 	} else {
 		_transferQueue = _graphicsQueue;
 		_transferQueueFamily = _graphicsQueueFamily;
+		m_queueMutex = std::make_shared<std::mutex>();
 	}
 
 	VmaAllocatorCreateInfo allocatorInfo = {};
@@ -342,7 +355,7 @@ void VulkanEngine::init_vulkan()
     allocatorInfo.instance = _instance;
     vmaCreateAllocator(&allocatorInfo, &_allocator);
 
-	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily });
+	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily }, m_queueMutex);
 
 	_descriptorAllocator.init(_device);
 	_descriptorLayoutCache.init(_device);
