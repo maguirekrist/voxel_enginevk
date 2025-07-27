@@ -40,12 +40,12 @@ struct Mesh {
 
     Mesh(): _vertexBuffer(), _indexBuffer()
     {
-        std::println("Mesh::Mesh()");
+        //std::println("Mesh::Mesh()");
     }
 
     ~Mesh()
     {
-        std::println("Mesh::~Mesh()");
+        //std::println("Mesh::~Mesh()");
     };
 };
 

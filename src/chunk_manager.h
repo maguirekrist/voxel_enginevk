@@ -13,7 +13,7 @@ class VulkanEngine;
 struct ChunkWork
 {
     std::shared_ptr<Chunk> chunk;
-    enum class Phase { Generate, Mesh };
+    enum class Phase { Generate, Mesh, Waiting };
     Phase phase;
 };
 
@@ -21,14 +21,12 @@ class ChunkManager {
 public:
     //Real chunk data
     std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> _chunks;
-    std::vector<std::shared_ptr<Chunk>> _chunkList;
 
     //Render chunk data
     std::vector<std::unique_ptr<RenderObject>> _renderedChunks;
     std::vector<std::unique_ptr<RenderObject>> _transparentObjects;
 
     std::vector<ChunkCoord> _worldChunks;
-    std::vector<ChunkCoord> _oldWorldChunks;
 
     ChunkManager();
 
@@ -53,7 +51,7 @@ private:
     //void worldUpdate();
 
     //void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
-
+    bool _initialLoad{true};
     int _viewDistance;
     size_t _maxChunks;
     size_t _maxThreads;

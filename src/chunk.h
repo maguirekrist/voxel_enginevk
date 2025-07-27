@@ -60,14 +60,12 @@ public:
     const ChunkCoord _chunkCoord;
 
     explicit Chunk(const ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)), _chunkCoord(coord) {
-        std::println("Chunk::Chunk()");
         _mesh = std::make_unique<Mesh>();
         _waterMesh = std::make_unique<Mesh>();
     };
 
     ~Chunk()
     {
-        std::println("Chunk::~Chunk()");
     }
 
     glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;

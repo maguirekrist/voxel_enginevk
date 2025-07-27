@@ -11,7 +11,6 @@ public:
     void init(VkDevice device, VmaAllocator allocator, const QueueFamily& queue, std::shared_ptr<std::mutex> mutex);
 
     void cleanup() const;
-
     moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> UploadQueue;
 	moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> UnloadQueue;
 
@@ -24,10 +23,11 @@ private:
     UploadContext m_uploadContext{};
     std::thread m_transferThread;
     std::shared_ptr<std::mutex> m_transferMutex;
+    std::shared_ptr<std::mutex> m_drawMutex;
 
     void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function) const;
     void handle_transfers();
 
-    void upload_mesh(const std::shared_ptr<Mesh>& mesh) const;
-    void unload_mesh(const std::shared_ptr<Mesh>& mesh) const;
+    void upload_mesh(std::shared_ptr<Mesh>&& mesh) const;
+    void unload_mesh(std::shared_ptr<Mesh>&& mesh) const;
 };
