@@ -5,20 +5,20 @@
 class RenderQueue {
 public:
 
-    void add(const std::unique_ptr<RenderObject>& renderObject)
+    void add(std::unique_ptr<RenderObject>&& renderObject)
     {
         switch(renderObject->layer)
         {
             case RenderLayer::Opaque:
-                _opaqueQueue.push_back(renderObject);
+                _opaqueQueue.push_back(std::move(renderObject));
                 break;
             case RenderLayer::Transparent:
-                _transparentQueue.push_back(renderObject);
+                _transparentQueue.push_back(std::move(renderObject));
                 break;
         }
     }
 
-    void add(const std::vector<std::unique_ptr<RenderObject>>& renderObjects, RenderLayer type)
+    void add(std::vector<std::unique_ptr<RenderObject>>&& renderObjects, const RenderLayer type)
     {
         auto& targetQueue = (type == RenderLayer::Opaque)
                             ? _opaqueQueue
@@ -43,6 +43,6 @@ public:
     }
 
 private:
-    std::vector<std::unique_ptr<RenderObject>> _opaqueQueue;
-    std::vector<std::unique_ptr<RenderObject>> _transparentQueue;
+    std::vector<std::unique_ptr<RenderObject>> _opaqueQueue{};
+    std::vector<std::unique_ptr<RenderObject>> _transparentQueue{};
 };

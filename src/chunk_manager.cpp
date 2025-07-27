@@ -22,8 +22,6 @@ ChunkManager::ChunkManager()
     {
         _workers.emplace_back(&ChunkManager::meshChunk, this, i);
     }
-    _updateThread = std::thread(&ChunkManager::worldUpdate, this);
-    _updatingWorldState = false;
 }
 
 void ChunkManager::cleanup()
@@ -41,64 +39,46 @@ void ChunkManager::cleanup()
 ChunkManager::~ChunkManager()
 {
     _running = false;
-    _cvWorld.notify_one();
+
     for (std::thread &worker : _workers) {
         worker.join();
     }
-    
-    _updateThread.join();
 }
 
 void ChunkManager::updatePlayerPosition(const int x, const int z)
 {
     const ChunkCoord playerChunk = {x / static_cast<int>(CHUNK_SIZE), z / static_cast<int>(CHUNK_SIZE)};  // Assuming 16x16 chunks
-    if (playerChunk == _lastPlayerChunk && !_initLoad) return;
+    if (playerChunk == _lastPlayerChunk) return;
 
     const auto changeX = playerChunk.x - _lastPlayerChunk.x;
     const auto changeZ = playerChunk.z - _lastPlayerChunk.z;
     _lastPlayerChunk = playerChunk;
     _oldWorldChunks = _worldChunks;
     updateWorldState();
-    queueWorldUpdate(changeX, changeZ);
-    _cvWorld.notify_one();
+    //queueWorldUpdate(changeX, changeZ);
 
-    if(_initLoad) {
-        std::unique_lock<std::mutex> lock(_mutexWorld);
-        _cvWorld.wait(lock, [this]() { return !_initLoad; });
-    }
-
-    
     _renderedChunks.clear();
     _transparentObjects.clear();
     for(const auto& chunkCoord : _worldChunks)
     {
-        auto chunk = get_chunk(chunkCoord).value_or([]
-        {
-            throw std::runtime_error("ChunkManager::updatePlayerPosition: chunk does not exist");
-        });
+        auto chunk = get_chunk(chunkCoord).value();
 
-        auto object = std::make_shared<RenderObject>(RenderObject{
-           realChunk->_mesh,
-            VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
-           glm::ivec2(realChunk->_position.x, realChunk->_position.y),
-           RenderLayer::Opaque
-        });
-        _renderedChunks.push_back(object);
-
-        auto waterObject = std::make_shared<RenderObject>(RenderObject{
-            realChunk->_waterMesh,
-            VulkanEngine::instance()._materialManager.get_material("watermesh"),
-            glm::ivec2(realChunk->_position.x, realChunk->_position.y),
-            RenderLayer::Transparent
-        });
-        _transparentObjects.push_back(waterObject);
-
-        if (auto realChunk = chunk.lock())
-        {
-        } else
-        {
-            throw std::runtime_error("ChunkManager::updatePlayerPosition: chunk does not exist");
-        }
+        // auto object = std::make_shared<RenderObject>(RenderObject{
+        //    realChunk->_mesh,
+        //     VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
+        //    glm::ivec2(realChunk->_position.x, realChunk->_position.y),
+        //    RenderLayer::Opaque
+        // });
+        // _renderedChunks.push_back(object);
+        //
+        // auto waterObject = std::make_shared<RenderObject>(RenderObject{
+        //     realChunk->_waterMesh,
+        //     VulkanEngine::instance()._materialManager.get_material("watermesh"),
+        //     glm::ivec2(realChunk->_position.x, realChunk->_position.y),
+        //     RenderLayer::Transparent
+        // });
+        // _transparentObjects.push_back(waterObject);
+        
     }
 
     fmt::println("Active Renderable chunks: {}", _chunks.size());
@@ -125,112 +105,110 @@ void ChunkManager::updateWorldState()
     }
 }
 
-void ChunkManager::queueWorldUpdate(const int changeX, const int changeZ)
-{
-    WorldUpdateJob newJob;
-    newJob._changeX = changeX;
-    newJob._changeZ = changeZ;
+// void ChunkManager::queueWorldUpdate(const int changeX, const int changeZ)
+// {
+//     WorldUpdateJob newJob{};
+//
+//     for (int dx = -_viewDistance; dx <= _viewDistance; ++dx) {
+//         for (int dz = -_viewDistance; dz <= _viewDistance; ++dz) {
+//             ChunkCoord coord = {_lastPlayerChunk.x + dx, _lastPlayerChunk.z + dz};
+//             if (_worldChunks.contains(coord)
+//                 && !_oldWorldChunks.contains(coord)) {
+//
+//                 //I think we generate a new chunk here.... try to see if chunk is already been generated?
+//                 // if (auto chunkOpt = get_chunk(coord)) {
+//                 //     if (auto chunkShared = chunkOpt->lock()) {
+//                 //         chunkShared->reset(coord);
+//                 //         _chunkGenQueue.enqueue(std::move(chunkShared));
+//                 //     }
+//                 // }
+//
+//                 auto new_chunk = std::make_unique<Chunk>(coord);
+//                 _chunkGenQueue.enqueue(std::move(new_chunk));
+//
+//                 newJob._chunksToMesh.push({ coord.x - changeX, coord.z - changeZ });
+//             }
+//         }
+//     }
+//
+//     // Identify chunks to unload
+//     for (const auto& coord : _oldWorldChunks) {
+//         int dx = std::abs(coord.x - _lastPlayerChunk.x);
+//         int dz = std::abs(coord.z - _lastPlayerChunk.z);
+//         if (dx > _viewDistance || dz > _viewDistance) {
+//             newJob._chunksToUnload.push(coord);
+//         }
+//     }
+//
+//     _worldUpdateQueue.push(newJob);
+//
+//     //TIP! Use pendingChunks and chunksToUnload to help
+//     //return std::make_pair(pendingChunks, chunksToUnload);
+//
+//
+// }
 
-    for (int dx = -_viewDistance; dx <= _viewDistance; ++dx) {
-        for (int dz = -_viewDistance; dz <= _viewDistance; ++dz) {
-            ChunkCoord coord = {_lastPlayerChunk.x + dx, _lastPlayerChunk.z + dz};
-            if (_worldChunks.contains(coord)
-                && !_oldWorldChunks.contains(coord)) {
-
-                //I think we generate a new chunk here.... try to see if chunk is already been generated?
-                // if (auto chunkOpt = get_chunk(coord)) {
-                //     if (auto chunkShared = chunkOpt->lock()) {
-                //         chunkShared->reset(coord);
-                //         _chunkGenQueue.enqueue(std::move(chunkShared));
-                //     }
-                // }
-
-                auto new_chunk = std::make_unique<Chunk>(coord);
-                _chunkGenQueue.enqueue(std::move(new_chunk));
-
-                newJob._chunksToMesh.push({ coord.x - changeX, coord.z - changeZ });
-            }
-        }
-    }
-
-    // Identify chunks to unload
-    for (const auto& coord : _oldWorldChunks) {
-        int dx = std::abs(coord.x - _lastPlayerChunk.x);
-        int dz = std::abs(coord.z - _lastPlayerChunk.z);
-        if (dx > _viewDistance || dz > _viewDistance) {
-            newJob._chunksToUnload.push(coord);
-        }
-    }
-
-    _worldUpdateQueue.push(newJob);
-
-    //TIP! Use pendingChunks and chunksToUnload to help
-    //return std::make_pair(pendingChunks, chunksToUnload);
-
-
-}
-
-void ChunkManager::worldUpdate()
-{
-    tracy::SetThreadName("World Update Thread");
-    while (_running) {
-        std::unique_lock<std::mutex> lock(_mutexWorld);
-        _cvWorld.wait(lock, [this] { return (!_worldUpdateQueue.empty() && !_updatingWorldState) || !_running; });
-
-        if (!_running) break;
-
-        _updatingWorldState = true;
-
-        WorldUpdateJob updateJob = std::move(_worldUpdateQueue.front());
-        _worldUpdateQueue.pop();
-        {
-            ZoneScopedN("World Update Process");
-            //Calculate the chunks to mesh now, which are the 
-            while(!updateJob._chunksToMesh.empty())
-            {
-                ChunkCoord coord = updateJob._chunksToMesh.front();
-                updateJob._chunksToMesh.pop();
-
-                auto chunk = get_chunk(coord);
-                auto neighbors = get_chunk_neighbors(coord);
-                if(chunk.has_value() && neighbors.has_value())
-                {
-                    _chunkMeshQueue.enqueue(ChunkMeshJob{ chunk.value(), neighbors.value() });
-                }
-            }
-        }
-        _workComplete = false;
-
-        _cvWork.notify_all();    
-
-        {
-            std::unique_lock<std::mutex> workLock(_mutexWork);
-            _cvWork.wait(workLock, [this]{ return _workComplete == true;});
-        }
-
-
-        // Look into this
-        while (!updateJob._chunksToUnload.empty())
-        {
-            const auto coord = updateJob._chunksToUnload.front();
-            updateJob._chunksToUnload.pop();
-
-            auto chunk = std::move(_chunks.at(coord));
-            _chunks.erase(coord);
-            VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_mesh));
-            VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_waterMesh));
-        }
-
-        _updatingWorldState = false;
-        _initLoad = false;
-        _cvWorld.notify_one();
-    }
-}
+// void ChunkManager::worldUpdate()
+// {
+//     tracy::SetThreadName("World Update Thread");
+//     while (_running) {
+//         std::unique_lock<std::mutex> lock(_mutexWorld);
+//         _cvWorld.wait(lock, [this] { return (!_worldUpdateQueue.empty() && !_updatingWorldState) || !_running; });
+//
+//         if (!_running) break;
+//
+//         _updatingWorldState = true;
+//
+//         WorldUpdateJob updateJob = std::move(_worldUpdateQueue.front());
+//         _worldUpdateQueue.pop();
+//         {
+//             ZoneScopedN("World Update Process");
+//             //Calculate the chunks to mesh now, which are the
+//             while(!updateJob._chunksToMesh.empty())
+//             {
+//                 ChunkCoord coord = updateJob._chunksToMesh.front();
+//                 updateJob._chunksToMesh.pop();
+//
+//                 auto chunk = get_chunk(coord);
+//                 auto neighbors = get_chunk_neighbors(coord);
+//                 if(chunk.has_value() && neighbors.has_value())
+//                 {
+//                     _chunkMeshQueue.enqueue(ChunkMeshJob{ chunk.value(), neighbors.value() });
+//                 }
+//             }
+//         }
+//         _workComplete = false;
+//
+//         _cvWork.notify_all();
+//
+//         {
+//             std::unique_lock<std::mutex> workLock(_mutexWork);
+//             _cvWork.wait(workLock, [this]{ return _workComplete == true;});
+//         }
+//
+//
+//         // Look into this
+//         while (!updateJob._chunksToUnload.empty())
+//         {
+//             const auto coord = updateJob._chunksToUnload.front();
+//             updateJob._chunksToUnload.pop();
+//
+//             auto chunk = std::move(_chunks.at(coord));
+//             _chunks.erase(coord);
+//             VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_mesh));
+//             VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_waterMesh));
+//         }
+//
+//         _updatingWorldState = false;
+//         _initLoad = false;
+//         _cvWorld.notify_one();
+//     }
+// }
 
 std::optional<std::array<ChunkView, 8>> ChunkManager::get_chunk_neighbors(const ChunkCoord coord)
 {
     ZoneScopedN("Get Chunk Neighbors");
-    std::vector<ChunkView> chunks = std::vector<ChunkView>(8);
+    //std::vector<ChunkView> chunks = std::vector<ChunkView>(8);
     int count = 0;
     for (const auto direction : directionList)
     {
@@ -241,13 +219,14 @@ std::optional<std::array<ChunkView, 8>> ChunkManager::get_chunk_neighbors(const 
         if(const auto chunk = get_chunk(offset_coord))
         {
             count++;
-            chunks.emplace_back(chunk.value());
+            //chunks.emplace_back(chunk.value());
         }
     }
 
     if(count == 8)
     {
-        return chunks;
+        //TOOD: FIX THIS!
+        return std::nullopt;
     } else {
         return std::nullopt;
     }
@@ -334,7 +313,8 @@ void ChunkManager::meshChunk(int threadId)
             if(std::unique_ptr<Chunk> chunk; _chunkGenQueue.wait_dequeue_timed(chunk, std::chrono::milliseconds(5)))
             {
                 if (chunk) {
-                    chunk->generate(); 
+                    chunk->generate();
+                    _chunkMeshQueue.enqueue(std::move(chunk));
                 }
             } else {
                 break;
@@ -345,21 +325,24 @@ void ChunkManager::meshChunk(int threadId)
 
         while(_running)
         {
-            if(ChunkMeshJob chunkMeshJob; _chunkMeshQueue.wait_dequeue_timed(chunkMeshJob, std::chrono::milliseconds(5)))
+            if(std::unique_ptr<Chunk> chunk; _chunkMeshQueue.wait_dequeue_timed(chunk, std::chrono::milliseconds(5)))
             {
-                ChunkMesher mesher { chunkMeshJob.target, chunkMeshJob.neighbors };
-                auto [landMesh, waterMesh] = mesher.generate_mesh();
-                auto newMesh = std::make_unique<Mesh>(landMesh);
-                auto newWaterMesh = std::make_unique<Mesh>(waterMesh);
+                auto chunkView = Chunk::to_view(*chunk);
+                auto neighbors = get_chunk_neighbors(chunk->_chunkCoord);
 
-                if(waterMesh._vertices.size() > 0)
+
+
+                ChunkMesher mesher { chunkView, neighbors.value() };
+                auto [landMesh, waterMesh] = mesher.generate_mesh();
+
+                if(!waterMesh->_vertices.empty())
                 {
                     //VulkanEngine::instance()._meshManager.SwapQueue.enqueue(std::make_pair(newWaterMesh, chunk->_waterMesh));
-                    VulkanEngine::instance()._meshManager.UploadQueue.enqueue(std::move(newWaterMesh));
+                    VulkanEngine::instance()._meshManager.UploadQueue.enqueue(std::move(waterMesh));
                 }
 
                 //VulkanEngine::instance()._meshManager.SwapQueue.enqueue(std::make_pair(newMesh, chunk->_mesh));
-                VulkanEngine::instance()._meshManager.UploadQueue.enqueue(std::move(newMesh));
+                VulkanEngine::instance()._meshManager.UploadQueue.enqueue(std::move(landMesh));
             } else {
                 break;
             }

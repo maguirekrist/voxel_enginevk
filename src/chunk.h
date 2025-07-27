@@ -39,18 +39,16 @@ constexpr Direction directionList[8] = { NORTH, SOUTH, EAST, WEST, NORTH_EAST, N
 constexpr int directionOffsetX[] = { 0, 0, -1, 1, -1, 1, -1, 1 };
 constexpr int directionOffsetZ[] = { 1, -1, 0, 0, 1, 1, -1, -1 };
 
-using ChunkBlocks = Block[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+using ChunkBlocks = Block[CHUNK_SIZE][CHUNK_HEIGHT][CHUNK_SIZE];
 
 struct ChunkView
 {
-    ChunkBlocks& blocks;
+    const ChunkBlocks& blocks;
     const glm::ivec2 position;
+    ChunkView(const ChunkBlocks& blocks, const glm::ivec2 position) : blocks(blocks), position(position) {}
 
-    ChunkView() : blocks({}), position(glm::ivec2(0, 0)) {}
-    ChunkView(ChunkBlocks& blocks, const glm::ivec2 position) : blocks(blocks), position(position) {}
-
-    std::optional<Block&> get_block(const glm::ivec3& localPos) const;
-    glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
+    [[nodiscard]] std::optional<Block> get_block(const glm::ivec3& localPos) const;
+    [[nodiscard]] glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
 };
 
 class Chunk {
@@ -59,9 +57,9 @@ public:
     std::unique_ptr<Mesh> _mesh;
     std::unique_ptr<Mesh> _waterMesh;
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
+    const ChunkCoord _chunkCoord;
 
-
-    explicit Chunk(const ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)) {
+    explicit Chunk(const ChunkCoord coord) : _chunkCoord(coord), _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)) {
         _mesh = std::make_unique<Mesh>();
         _waterMesh = std::make_unique<Mesh>();
     };
@@ -70,9 +68,9 @@ public:
     void reset(ChunkCoord newCoord);
     void generate();
 
-    static ChunkView to_view(Chunk& chunk) noexcept
+    static ChunkView to_view(const Chunk& chunk) noexcept
     {
-        return ChunkView{ .blocks = chunk._blocks, .position = chunk._position };
+        return ChunkView(chunk._blocks, chunk._position);
     }
 
     static constexpr bool is_outside_chunk(const glm::ivec3& localPos)

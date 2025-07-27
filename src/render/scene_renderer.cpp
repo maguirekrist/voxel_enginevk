@@ -125,7 +125,7 @@ void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const Material& p
 void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& object, const Mesh* lastMesh, Material& lastMaterial)
 {
 	if(object.mesh == nullptr) return;
-	if(!object.mesh->_isActive) return;
+	//if(!object.mesh->_isActive) return;
 
 	//only bind the pipeline if it doesn't match with the already bound one
 	if (object.material.key != lastMaterial.key) {

@@ -68,7 +68,7 @@ VertexInputDescription PointVertex::get_vertex_description()
 
 Mesh Mesh::create_cube_mesh()
 {
-    Mesh cubeMesh;
+    Mesh cubeMesh{};
     
     for (auto face : faceDirections)
     {
@@ -94,7 +94,7 @@ Mesh Mesh::create_cube_mesh()
 
 Mesh Mesh::create_quad_mesh()
 {
-	Mesh quadMesh;
+	Mesh quadMesh{};
 
 	// Define the four vertices of the quad in normalized coordinates
     // You can adjust the position values to scale the quad if needed.

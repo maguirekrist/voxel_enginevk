@@ -27,7 +27,7 @@ void BlueprintBuilderScene::render(RenderQueue& queue) {
     // Draw
     update_camera_uniform();
     //Build the chunk views
-    queue.add(_renderObjects, RenderLayer::Opaque);
+    //queue.add(_renderObjects, RenderLayer::Opaque);
 }
 
 void BlueprintBuilderScene::update(float deltaTime)
@@ -54,7 +54,7 @@ void BlueprintBuilderScene::build_chunk_platform(ChunkCoord coord)
     Mesh quadMesh = Mesh::create_quad_mesh();
 
     auto chunkPlatform = std::make_shared<RenderObject>(
-        std::make_shared<SharedResource<Mesh>>(std::move(quadMesh)),
+        std::make_unique<Mesh>(std::move(quadMesh)),
         VulkanEngine::instance()._materialManager.get_material("grid"),
         glm::ivec2(coord.x,coord.z),
         RenderLayer::Opaque

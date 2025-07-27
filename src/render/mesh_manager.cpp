@@ -35,45 +35,46 @@ void MeshManager::cleanup() const
     vkDestroyCommandPool(m_device, m_uploadContext._commandPool, nullptr);
 }
 
-void MeshManager::upload_mesh(std::unique_ptr<Mesh>&& mesh)
+void MeshManager::upload_mesh(Mesh* mesh) const
 {
-	AllocatedBuffer vertexStagingBuffer = vkutil::create_buffer(m_allocator, mesh._vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-	AllocatedBuffer indexStagingBuffer = vkutil::create_buffer(m_allocator, mesh._indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+	AllocatedBuffer vertexStagingBuffer = vkutil::create_buffer(m_allocator, mesh->_vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+	AllocatedBuffer indexStagingBuffer = vkutil::create_buffer(m_allocator, mesh->_indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
 	//copy vertex data
 	void* vertexData;
 	vmaMapMemory(m_allocator, vertexStagingBuffer._allocation, &vertexData);
-	memcpy(vertexData, mesh._vertices.data(), mesh._vertices.size() * sizeof(Vertex));
+	memcpy(vertexData, mesh->_vertices.data(), mesh->_vertices.size() * sizeof(Vertex));
 	vmaUnmapMemory(m_allocator, vertexStagingBuffer._allocation);
 
 	void* indexData;
 	vmaMapMemory(m_allocator, indexStagingBuffer._allocation, &indexData);
-	memcpy(indexData, mesh._indices.data(), mesh._indices.size() * sizeof(uint32_t));
+	memcpy(indexData, mesh->_indices.data(), mesh->_indices.size() * sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, indexStagingBuffer._allocation);
 
-	mesh._vertexBuffer = vkutil::create_buffer(m_allocator, mesh._vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-	mesh._indexBuffer = vkutil::create_buffer(m_allocator, mesh._indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+	mesh->_vertexBuffer = vkutil::create_buffer(m_allocator, mesh->_vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+	mesh->_indexBuffer = vkutil::create_buffer(m_allocator, mesh->_indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
 	immediate_submit([=](VkCommandBuffer cmd) {
 		VkBufferCopy copy;
 		copy.dstOffset = 0;
 		copy.srcOffset = 0;
-		copy.size = mesh._vertices.size() * sizeof(Vertex);
-		vkCmdCopyBuffer(cmd, vertexStagingBuffer._buffer, mesh._vertexBuffer._buffer, 1, &copy);
+		copy.size = mesh->_vertices.size() * sizeof(Vertex);
+		vkCmdCopyBuffer(cmd, vertexStagingBuffer._buffer, mesh->_vertexBuffer._buffer, 1, &copy);
 	});
 
 	immediate_submit([=](VkCommandBuffer cmd) {
 		VkBufferCopy copy;
 		copy.dstOffset = 0;
 		copy.srcOffset = 0;
-		copy.size = mesh._indices.size() * sizeof(uint32_t);
-		vkCmdCopyBuffer(cmd, indexStagingBuffer._buffer,mesh._indexBuffer._buffer, 1, &copy);
+		copy.size = mesh->_indices.size() * sizeof(uint32_t);
+		vkCmdCopyBuffer(cmd, indexStagingBuffer._buffer,mesh->_indexBuffer._buffer, 1, &copy);
 	});
 
 	vmaDestroyBuffer(m_allocator, vertexStagingBuffer._buffer, vertexStagingBuffer._allocation);
 	vmaDestroyBuffer(m_allocator, indexStagingBuffer._buffer, indexStagingBuffer._allocation);
 
-	mesh._isActive = true;
+	//TODO: Re-enable?
+	//mesh._isActive = true;
 }
 
 void MeshManager::unload_mesh(std::unique_ptr<Mesh>&& mesh) const
@@ -194,7 +195,7 @@ void MeshManager::handle_transfers()
 
 			std::unique_ptr<Mesh> uploadMesh;
 			UploadQueue.wait_dequeue(uploadMesh);
-			upload_mesh(std::move(uploadMesh));
+			upload_mesh(uploadMesh.get());
 		}
 	}
 }

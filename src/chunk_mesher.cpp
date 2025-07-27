@@ -4,22 +4,22 @@
 #include "tracy/Tracy.hpp"
 #include <world.h>
 
-std::pair<Mesh, Mesh> ChunkMesher::generate_mesh()
+std::pair<std::unique_ptr<Mesh>, std::unique_ptr<Mesh>> ChunkMesher::generate_mesh()
 {
     ZoneScopedN("Generate Chunk Mesh");
-    Mesh mesh{};
-    Mesh waterMesh{};
+    auto mesh = std::make_unique<Mesh>();
+    auto waterMesh = std::make_unique<Mesh>();
 
     for (int x = 0; x < CHUNK_SIZE; ++x) {
         for (int y = 0; y < CHUNK_HEIGHT; ++y) {
             for (int z = 0; z < CHUNK_SIZE; ++z) {
-                Block& block = _chunk.blocks[x][y][z];
+                Block block = _chunk.blocks[x][y][z];
                 if (block._solid) {
                     for(auto face : faceDirections)
                     {
                         if(is_face_visible(x, y, z, face))
                         {
-                            add_face_to_opaque_mesh(x, y, z, face, mesh);
+                            add_face_to_opaque_mesh(x, y, z, face, mesh.get());
                         }
                     }
                 } else if(block._type == BlockType::WATER)
@@ -28,7 +28,7 @@ std::pair<Mesh, Mesh> ChunkMesher::generate_mesh()
                     {
                         if(is_face_visible_water(x, y, z, face))
                         {
-                            add_face_to_water_mesh(x, y, z, face, waterMesh);
+                            add_face_to_water_mesh(x, y, z, face, waterMesh.get());
                         }
                     }
                 }
@@ -39,7 +39,7 @@ std::pair<Mesh, Mesh> ChunkMesher::generate_mesh()
     return std::make_pair(std::move(mesh), std::move(waterMesh));
 }
 
-std::optional<Block&> ChunkMesher::get_face_neighbor(const int x, const int y, const int z, const FaceDirection face) const
+std::optional<const Block> ChunkMesher::get_face_neighbor(const int x, const int y, const int z, const FaceDirection face) const
 {
     int nx = x + faceOffsetX[face];
     int ny = y + faceOffsetY[face];
@@ -79,10 +79,7 @@ bool ChunkMesher::is_face_visible(int x, int y, int z, FaceDirection face)
 
 bool ChunkMesher::is_face_visible_water(int x, int y, int z, FaceDirection face)
 {
-    auto faceBlock = get_face_neighbor(x, y, z, face).value_or([]
-    {
-        return false;
-    });
+    auto faceBlock = get_face_neighbor(x, y, z, face).value();
 
     return faceBlock._type == BlockType::AIR;
 }
@@ -167,16 +164,16 @@ void ChunkMesher::propagate_sunlight()
             int ny = current.y + faceOffsetY[face];
             int nz = current.z + faceOffsetZ[face];
 
-            Block* neighbor;
+            Block neighbor;
 
             if(!Chunk::is_outside_chunk({ nx, ny, nz }))
             {
-                neighbor = &_chunk.blocks[nx][ny][nz];
+                neighbor = _chunk.blocks[nx][ny][nz];
                 int newLight = _chunk.blocks[current.x][current.y][current.z]._sunlight - 1;
 
-                if (neighbor && !neighbor->_solid && neighbor->_sunlight < newLight)
+                if (!neighbor._solid && neighbor._sunlight < newLight)
                 {
-                    neighbor->_sunlight = newLight;
+                    neighbor._sunlight = newLight;
                     lightQueue.push({ nx, ny, nz });
                 }
             } else {
@@ -252,13 +249,13 @@ void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
 }
 
 //note: a block's position is the back-bottom-right of the cube.
-void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z, const FaceDirection face, Mesh& mesh)
+void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z, const FaceDirection face, Mesh* mesh)
 {
     auto faceNeighbor = get_face_neighbor(x, y, z, face);
     float sunLight = faceNeighbor.has_value() ? static_cast<float>(faceNeighbor.value()._sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : 1.0f;
 
     glm::ivec3 blockPos{x,y,z};
-    Block& block = _chunk.blocks[x][y][z];
+    Block block = _chunk.blocks[x][y][z];
     glm::vec3 color = static_cast<glm::vec3>(blockColor[block._type]);
 
     for (int i = 0; i < 4; ++i) {
@@ -266,36 +263,36 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
         glm::ivec3 position = blockPos + faceVertices[face][i];
         float ao = calculate_vertex_ao(blockPos, face, i);
 
-        mesh._vertices.push_back({ position, faceNormals[face], color * (ao * sunLight) });
+        mesh->_vertices.push_back({ position, faceNormals[face], color * (ao * sunLight) });
     }
 
     // Add indices for the face (two triangles)
-    uint32_t index = mesh._vertices.size() - 4;
-    mesh._indices.push_back(index + 0);
-    mesh._indices.push_back(index + 1);
-    mesh._indices.push_back(index + 2);
-    mesh._indices.push_back(index + 2);
-    mesh._indices.push_back(index + 3);
-    mesh._indices.push_back(index + 0);
+    uint32_t index = mesh->_vertices.size() - 4;
+    mesh->_indices.push_back(index + 0);
+    mesh->_indices.push_back(index + 1);
+    mesh->_indices.push_back(index + 2);
+    mesh->_indices.push_back(index + 2);
+    mesh->_indices.push_back(index + 3);
+    mesh->_indices.push_back(index + 0);
 }
 
-void ChunkMesher::add_face_to_water_mesh(const int x, const int y, const int z, const FaceDirection face, Mesh& mesh) const
+void ChunkMesher::add_face_to_water_mesh(const int x, const int y, const int z, const FaceDirection face, Mesh* mesh) const
 {
     glm::ivec3 blockPos{x,y,z};
-    Block& block = _chunk.blocks[x][y][z];
+    Block block = _chunk.blocks[x][y][z];
     glm::vec3 color = static_cast<glm::vec3>(blockColor[block._type]);
 
     for (int i = 0; i < 4; ++i) {
         glm::ivec3 position = blockPos + faceVertices[face][i];
     
-        mesh._vertices.push_back({ position, faceNormals[face], color });
+        mesh->_vertices.push_back({ position, faceNormals[face], color });
     }
 
-    uint32_t index = mesh._vertices.size() - 4;
-    mesh._indices.push_back(index + 0);
-    mesh._indices.push_back(index + 1);
-    mesh._indices.push_back(index + 2);
-    mesh._indices.push_back(index + 2);
-    mesh._indices.push_back(index + 3);
-    mesh._indices.push_back(index + 0);
+    uint32_t index = mesh->_vertices.size() - 4;
+    mesh->_indices.push_back(index + 0);
+    mesh->_indices.push_back(index + 1);
+    mesh->_indices.push_back(index + 2);
+    mesh->_indices.push_back(index + 2);
+    mesh->_indices.push_back(index + 3);
+    mesh->_indices.push_back(index + 0);
 }

@@ -10,17 +10,15 @@
 class VulkanEngine;
 
 struct WorldUpdateJob {
-    int _changeX;
-    int _changeZ;
     std::queue<ChunkCoord> _chunksToUnload; 
     std::queue<ChunkCoord> _chunksToMesh;
 };
 
-struct ChunkMeshJob
-{
-    ChunkView target;
-    std::array<ChunkView, 8> neighbors;
-};
+// struct ChunkMeshJob
+// {
+//     ChunkView target;
+//     std::array<ChunkView, 8> neighbors;
+// };
 
 class ChunkManager {
 public:
@@ -33,7 +31,6 @@ public:
 
     std::unordered_set<ChunkCoord> _worldChunks;
     std::unordered_set<ChunkCoord> _oldWorldChunks;
-    bool _initLoad{true};
 
     ChunkManager();
 
@@ -53,29 +50,28 @@ public:
 
 private:
     void updateWorldState();
-    void queueWorldUpdate(int changeX, int changeZ);
-    void worldUpdate();
     void meshChunk(int threadId);
+    //void queueWorldUpdate(int changeX, int changeZ);
+    //void worldUpdate();
 
     //void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
 
-    bool _updatingWorldState = false;
     int _viewDistance;
     size_t _maxChunks;
     size_t _maxThreads;
     ChunkCoord _lastPlayerChunk = {0, 0};
 
-    std::queue<WorldUpdateJob> _worldUpdateQueue;
+    //std::queue<WorldUpdateJob> _worldUpdateQueue;
+
     moodycamel::BlockingConcurrentQueue<std::unique_ptr<Chunk>> _chunkGenQueue{_maxChunks};
-    moodycamel::BlockingConcurrentQueue<ChunkMeshJob> _chunkMeshQueue;
+    moodycamel::BlockingConcurrentQueue<std::unique_ptr<Chunk>> _chunkMeshQueue;
 
     std::vector<std::thread> _workers;
-    std::thread _updateThread;
 
-    std::mutex _mutexWorld;
+    //std::mutex _mutexWorld;
     std::mutex _mutexWork;
 
-    std::condition_variable _cvWorld;
+    //std::condition_variable _cvWorld;
     std::condition_variable _cvWork;
     std::atomic<bool> _workComplete{true};
 

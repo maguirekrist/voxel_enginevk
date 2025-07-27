@@ -1,15 +1,13 @@
 
 #include "world.h"
+
+#include "block.h"
 #include "chunk_manager.h"
 
-
-std::optional<Block&> World::get_block(const glm::ivec3& worldPos) const
+std::optional<Block> World::get_block(const glm::ivec3& worldPos) const
 {
-    auto chunk_view = get_chunk(worldPos).value_or([]
-    {
-        return std::nullopt;
-    });
-
+    auto chunk_view = get_chunk(worldPos).value();
+    
     auto localPos = get_local_coordinates(worldPos);
     if (Chunk::is_outside_chunk(localPos))
     {

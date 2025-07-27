@@ -28,6 +28,6 @@ private:
     void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function) const;
     void handle_transfers();
 
-    void upload_mesh(std::unique_ptr<Mesh>&& mesh);
+    void upload_mesh(Mesh* mesh) const;
     void unload_mesh(std::unique_ptr<Mesh>&& mesh) const;
 };

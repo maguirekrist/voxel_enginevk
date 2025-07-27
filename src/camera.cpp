@@ -31,27 +31,25 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, Player& play
     {
         //Get the current chunk we're in
         //voxel pos is worldPos
-        auto current_chunk = world.get_chunk(voxelPos).value_or([]
-        {
-            return std::nullopt;
-        });
+        auto current_chunk = world.get_chunk(voxelPos).value();
 
         if(distance == 0.0f)
             fmt::println("Voxel Position: x:{}, y:{}, z:{}", voxelPos.x, voxelPos.y, voxelPos.z);
 
         auto localPos = World::get_local_coordinates(voxelPos);
-        auto block = current_chunk.get_block(localPos).value_or([]
-        {
-            return std::nullopt;
-        });
+        auto block = current_chunk.get_block(localPos);
 
-        if (block._solid)
+        if (!block.has_value()) return std::nullopt;
+
+        auto real_block = block.value();
+
+        if (real_block._solid)
         {
             auto worldPos = current_chunk.get_world_pos(localPos);
             auto faceDir = get_face_direction(faceNormal);
 
             //TODO: re-add chunk to raycast result.
-            return RaycastResult{ block, faceDir.has_value() ? faceDir.value() : FaceDirection::FRONT_FACE, worldPos, distance };
+            return RaycastResult{ real_block, faceDir.has_value() ? faceDir.value() : FaceDirection::FRONT_FACE, worldPos, distance };
         }
 
         // Advance to next voxel

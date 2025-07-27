@@ -72,7 +72,7 @@ void Chunk::generate()
 
 //This returns the block at the world coordinates of pos.
 //This is why we normalize the position value passed in.
-std::optional<Block&> ChunkView::get_block(const glm::ivec3& localPos) const
+std::optional<Block> ChunkView::get_block(const glm::ivec3& localPos) const
 {
     if (Chunk::is_outside_chunk(localPos))
     {

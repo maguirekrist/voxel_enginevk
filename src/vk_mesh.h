@@ -32,7 +32,8 @@ struct Mesh {
     AllocatedBuffer _vertexBuffer;
     std::vector<uint32_t> _indices;
     AllocatedBuffer _indexBuffer;
-    bool _isActive{false};
+    bool _isActive;
+    //std::atomic_bool _isActive{false};
 
     static Mesh create_cube_mesh();
     static Mesh create_quad_mesh();

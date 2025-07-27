@@ -9,7 +9,7 @@ class World {
 public:
     World(ChunkManager* chunkManager) : _chunkManager(chunkManager) {    }
 
-    std::optional<Block&> get_block(const glm::ivec3& worldPos) const;
+    std::optional<Block> get_block(const glm::ivec3& worldPos) const;
     std::optional<ChunkView> get_chunk(glm::vec3 worldPos) const;
 
     static glm::ivec2 get_chunk_coordinates(const glm::vec3& worldPos);
