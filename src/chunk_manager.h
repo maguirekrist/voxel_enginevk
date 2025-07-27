@@ -16,14 +16,20 @@ struct WorldUpdateJob {
     std::queue<ChunkCoord> _chunksToMesh;
 };
 
+struct ChunkMeshJob
+{
+    ChunkView target;
+    std::array<ChunkView, 8> neighbors;
+};
+
 class ChunkManager {
 public:
     //Real chunk data
     std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>> _chunks;
 
     //Render chunk data
-    std::vector<std::shared_ptr<RenderObject>> _renderedChunks;
-    std::vector<std::shared_ptr<RenderObject>> _transparentObjects;
+    std::vector<std::unique_ptr<RenderObject>> _renderedChunks;
+    std::vector<std::unique_ptr<RenderObject>> _transparentObjects;
 
     std::unordered_set<ChunkCoord> _worldChunks;
     std::unordered_set<ChunkCoord> _oldWorldChunks;
@@ -37,21 +43,21 @@ public:
 
     void updatePlayerPosition(int x, int z);
 
-    Chunk* get_chunk(ChunkCoord coord);
+    int get_chunk_index(ChunkCoord coord) const;
+    std::optional<ChunkView> get_chunk(ChunkCoord coord);
+    std::optional<std::array<ChunkView, 8>> get_chunk_neighbors(ChunkCoord coord);
 
-    void save_chunk(const Chunk& chunk, const std::string& filename);
-    std::unique_ptr<Chunk> load_chunk(const std::string& filename);
+    //TODO: Chunk saving and loading from disk.
+    //void save_chunk(const Chunk& chunk, const std::string& filename);
+    //std::unique_ptr<Chunk> load_chunk(const std::string& filename);
 
 private:
     void updateWorldState();
-    std::pair<std::vector<ChunkCoord>, std::vector<ChunkCoord>> queueWorldUpdate(int changeX, int changeZ);
+    void queueWorldUpdate(int changeX, int changeZ);
     void worldUpdate();
     void meshChunk(int threadId);
 
-    std::optional<std::array<Chunk*, 8>> get_chunk_neighbors(ChunkCoord coord);
-
-    int get_chunk_index(ChunkCoord coord);
-    void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
+    //void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
 
     bool _updatingWorldState = false;
     int _viewDistance;
@@ -60,9 +66,8 @@ private:
     ChunkCoord _lastPlayerChunk = {0, 0};
 
     std::queue<WorldUpdateJob> _worldUpdateQueue;
-    moodycamel::BlockingConcurrentQueue<Chunk*> _chunkGenQueue{_maxChunks};
-    moodycamel::BlockingConcurrentQueue<std::pair<Chunk*, std::array<Chunk*, 8>>> _chunkMeshQueue;
-    // moodycamel::ConcurrentQueue<std::shared_ptr<Chunk>> _chunkSwapQueue;
+    moodycamel::BlockingConcurrentQueue<std::unique_ptr<Chunk>> _chunkGenQueue{_maxChunks};
+    moodycamel::BlockingConcurrentQueue<ChunkMeshJob> _chunkMeshQueue;
 
     std::vector<std::thread> _workers;
     std::thread _updateThread;

@@ -12,7 +12,7 @@ struct PipelineMetadata {
 
 class MaterialManager {
 public:
-	Material* get_material(const std::string& name);
+	Material& get_material(const std::string& name);
 
 	void cleanup();
 	
@@ -28,5 +28,7 @@ public:
 	void build_present_pipeline();
 	
 private:
-    std::unordered_map<std::string, Material> _materials;
+	void add_material(const Material&& material);
+
+    std::unordered_map<std::string, Material> m_materials;
 };

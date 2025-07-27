@@ -13,11 +13,10 @@ void SceneRenderer::init()
 	//_scenes["blueprint"] = std::make_unique<BlueprintBuilderScene>();
 
 	//set default scene
-	_currentScene = _scenes["game"].get();   
-    
+	_currentScene = _scenes["game"].get();
 }
 
-void SceneRenderer::render_scene(VkCommandBuffer cmd, uint32_t swapchainImageIndex)
+void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapchainImageIndex)
 {
     _currentScene->render(_renderQueue);
 
@@ -34,7 +33,7 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, uint32_t swapchainImageInd
 
     vkCmdEndRenderPass(cmd);
 
-    run_compute(cmd, *VulkanEngine::instance()._materialManager.get_material("compute"));
+    run_compute(cmd, VulkanEngine::instance()._materialManager.get_material("compute"));
 
 	VkRenderPassBeginInfo rpInfo = vkinit::render_pass_begin_info(
         VulkanEngine::instance()._renderPass,
@@ -55,12 +54,12 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, uint32_t swapchainImageInd
     _renderQueue.clear();
 }
 
-Scene* SceneRenderer::get_current_scene()
+Scene* SceneRenderer::get_current_scene() const
 {
     return _currentScene;
 }
 
-void SceneRenderer::cleanup()
+void SceneRenderer::cleanup() const
 {
     for(auto& scene : _scenes)
     {
@@ -108,37 +107,37 @@ void SceneRenderer::run_compute(VkCommandBuffer cmd, const Material &computeMate
     );
 }
 
-void SceneRenderer::draw_fullscreen(VkCommandBuffer cmd, Material *presentMaterial)
+void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const Material& presentMaterial)
 {
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, presentMaterial->pipeline);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, presentMaterial.pipeline);
 	vkCmdBindDescriptorSets(
 		cmd,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		presentMaterial->pipelineLayout,
-		0, presentMaterial->descriptorSets.size(),
-		presentMaterial->descriptorSets.data(),
+		presentMaterial.pipelineLayout,
+		0, presentMaterial.descriptorSets.size(),
+		presentMaterial.descriptorSets.data(),
 		0, nullptr
 	);
 
 	vkCmdDraw(cmd, 3, 1, 0, 0);
 }
 
-void SceneRenderer::draw_object(VkCommandBuffer cmd, const RenderObject& object, Mesh* lastMesh, Material* lastMaterial)
+void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& object, const Mesh* lastMesh, Material& lastMaterial)
 {
 	if(object.mesh == nullptr) return;
-	if(!object.mesh->get()->_isActive) return;
+	if(!object.mesh->_isActive) return;
 
 	//only bind the pipeline if it doesn't match with the already bound one
-	if (object.material != lastMaterial) {
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+	if (object.material.key != lastMaterial.key) {
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material.pipeline);
 		lastMaterial = object.material;
 
 		vkCmdBindDescriptorSets(cmd, 
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		object.material->pipelineLayout,
+		object.material.pipelineLayout,
 		0, 
-		object.material->descriptorSets.size(),
-		object.material->descriptorSets.data(),
+		object.material.descriptorSets.size(),
+		object.material.descriptorSets.data(),
 		0,
 		nullptr);
 	}
@@ -148,35 +147,32 @@ void SceneRenderer::draw_object(VkCommandBuffer cmd, const RenderObject& object,
 	// vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ObjectPushConstants), &constants);
 
 
-    for(const auto& pConstant : object.material->pushConstants)
+    for(const auto& pConstant : object.material.pushConstants)
     {
     	ObjectPushConstants data = pConstant.build_constant(object);
-        vkCmdPushConstants(cmd, object.material->pipelineLayout, pConstant.stageFlags, 0, pConstant.size, &data);
+        vkCmdPushConstants(cmd, object.material.pipelineLayout, pConstant.stageFlags, 0, pConstant.size, &data);
     }
     
 
 	//only bind the mesh if it's a different one from last bind
-	if(object.mesh->get().get() != lastMesh) {
-					//bind the mesh vertex buffer with offset 0
-		VkDeviceSize offset = 0;
-		vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->get()->_vertexBuffer._buffer, &offset);
+	if(object.mesh.get() != lastMesh) {
+		//bind the mesh vertex buffer with offset 0
+		constexpr VkDeviceSize offset = 0;
+		vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
 
-		vkCmdBindIndexBuffer(cmd, object.mesh->get()->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 
-		lastMesh = object.mesh->get().get();
+		lastMesh = object.mesh.get();
 	}
 
 	//we can now draw
-	vkCmdDrawIndexed(cmd, object.mesh->get()->_indices.size(), 1, 0, 0, 0);
+	vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
 }
 
-void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<std::shared_ptr<RenderObject>>& objects)
+void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<std::unique_ptr<RenderObject>>& objects)
 {
-	//Game is not finished with initial loading, do not render anything yet.
-	//if(_game._chunkManager._initLoad) return;
-
 	Mesh* lastMesh = nullptr;
-	Material* lastMaterial = nullptr;
+	Material lastMaterial{};
 
 	for(int i = 0; i < objects.size(); i++)
 	{

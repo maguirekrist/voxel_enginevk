@@ -75,19 +75,21 @@ void GameScene::render(RenderQueue& queue) {
 		update_uniform_buffer();
 		update_fog_ubo();
 
-		std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>>> meshSwap;
-		while(VulkanEngine::instance()._meshManager._meshSwapQueue.try_dequeue(meshSwap))
-		{	
-			auto oldMesh = meshSwap.second->update(meshSwap.first);
-			VulkanEngine::instance()._meshManager.unload_mesh(std::move(oldMesh));
-		}
-		queue.add(_game._chunkManager._renderedChunks, RenderLayer::Opaque);
-		queue.add(_gameObjects, RenderLayer::Opaque);
-		queue.add(_game._chunkManager._transparentObjects, RenderLayer::Transparent);
+		//Why a swap queue?
+		// std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>>> meshSwap;
+		// while(VulkanEngine::instance()._meshManager.SwapQueue.try_dequeue(meshSwap))
+		// {
+		// 	auto oldMesh = meshSwap.second->update(meshSwap.first);
+		// 	VulkanEngine::instance()._meshManager.unload_mesh(std::move(oldMesh));
+		// }
+
+		//queue.add(_game._chunkManager._renderedChunks, RenderLayer::Opaque);
+		//queue.add(_gameObjects, RenderLayer::Opaque);
+		//queue.add(_game._chunkManager._transparentObjects, RenderLayer::Transparent);
 	}
 }
 
-void GameScene::update(float deltaTime)
+void GameScene::update(const float deltaTime)
 {
 	_game._player._moveSpeed = DEFAULT_MOVE_SPEED * deltaTime;
 	_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
@@ -107,7 +109,7 @@ void GameScene::handle_input(const SDL_Event& event)
 			if(_targetBlock.has_value())
 			{
 				auto block = _targetBlock.value()._block;
-				auto chunk = _targetBlock.value()._chunk;
+				//auto chunk = _targetBlock.value()._chunk;
 				glm::vec3 worldBlockPos = _targetBlock.value()._worldPos;
 				//build_target_block_view(worldBlockPos);
 				//fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
@@ -116,6 +118,9 @@ void GameScene::handle_input(const SDL_Event& event)
 			break;
 		case SDL_MOUSEMOTION:
 			_game._player.handle_mouse_move(static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel));
+			break;
+		default:
+			//no-op
 			break;
 	}
 }

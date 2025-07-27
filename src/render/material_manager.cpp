@@ -1,4 +1,6 @@
 #include "material_manager.h"
+
+#include <expected>
 #include <vk_util.h>
 #include <vk_initializers.h>
 #include <vk_pipeline_builder.h>
@@ -8,24 +10,23 @@
 #include <scenes/blueprint_builder_scene.h>
 
 
-Material* MaterialManager::get_material(const std::string &name)
+
+Material& MaterialManager::get_material(const std::string &name)
 {
     //search for the object, and return nullptr if not found
-	auto it = _materials.find(name);
-	if (it == _materials.end()) {
-		return nullptr;
+    if (const auto it = m_materials.find(name); it != m_materials.end()) {
+		return it->second;
 	}
-	else {
-		return &(*it).second;
-	}
+
+	throw std::runtime_error("Material not found: " + name);
 }
 
 void MaterialManager::cleanup()
 {
-	for(auto& material : _materials) {
+	for(const auto& val : m_materials | std::views::values) {
 		
-		vkDestroyPipeline(VulkanEngine::instance()._device, material.second.pipeline, nullptr);
-		vkDestroyPipelineLayout(VulkanEngine::instance()._device, material.second.pipelineLayout, nullptr);
+		vkDestroyPipeline(VulkanEngine::instance()._device, val.pipeline, nullptr);
+		vkDestroyPipelineLayout(VulkanEngine::instance()._device, val.pipelineLayout, nullptr);
 	}
 }
 
@@ -159,6 +160,7 @@ void MaterialManager::build_graphics_pipeline(
 	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, render_pass);
 
 	Material graphicsMaterial {
+		.key = name,
 		.pipeline = meshPipeline,
 		.pipelineLayout = pipelineLayout,
 		.descriptorSets = descriptorSets,
@@ -166,7 +168,7 @@ void MaterialManager::build_graphics_pipeline(
 		.pushConstants = pConstants
 	};
 
-	_materials[name] = graphicsMaterial;
+	add_material(std::move(graphicsMaterial));
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, fragmentShader, nullptr);
 	vkDestroyShaderModule(VulkanEngine::instance()._device, vertexShader, nullptr);
@@ -249,7 +251,7 @@ void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUb
 		.pushConstants = {}
 	};
 
-	_materials["compute"] = computeMaterial;
+	m_materials["compute"] = computeMaterial;
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, computeShaderModule, nullptr);
 }
@@ -339,8 +341,8 @@ void MaterialManager::build_present_pipeline()
 		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragShader));
 
 	//finally build the pipeline
-	VkPipeline meshPipeline;
-	meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, VulkanEngine::instance()._renderPass);
+	const VkPipeline meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device,
+	                                                         VulkanEngine::instance()._renderPass);
 
 
 
@@ -348,14 +350,20 @@ void MaterialManager::build_present_pipeline()
 	VkDescriptorSet descriptors[] = { VulkanEngine::instance()._sampledImageSet };
 
 	Material material{
+		.key = "present",
 		.pipeline = meshPipeline,
 		.pipelineLayout = meshPipelineLayout,
 		.descriptorSets = { VulkanEngine::instance()._sampledImageSet },
 		.resources = {}
 	};
 
-	_materials["present"] = material;
+	add_material(std::move(material));
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, fragShader, nullptr);
 	vkDestroyShaderModule(VulkanEngine::instance()._device, vertexShader, nullptr);
+}
+
+void MaterialManager::add_material(const Material&& material)
+{
+	m_materials[material.key] = material;
 }

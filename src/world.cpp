@@ -2,32 +2,29 @@
 #include "world.h"
 #include "chunk_manager.h"
 
-Block* World::get_block(const glm::ivec3& worldPos)
-{
-    Chunk* chunk = get_chunk(worldPos);
 
-    if (chunk == nullptr)
+std::optional<Block&> World::get_block(const glm::ivec3& worldPos) const
+{
+    auto chunk_view = get_chunk(worldPos).value_or([]
     {
-        return nullptr;
-    }
+        return std::nullopt;
+    });
 
     auto localPos = get_local_coordinates(worldPos);
-
     if (Chunk::is_outside_chunk(localPos))
     {
-        return nullptr;
+        return std::nullopt;
     }
 
-    return &chunk->_blocks[localPos.x][localPos.y][localPos.z];
+    return chunk_view.blocks[localPos.x][localPos.y][localPos.z];
 }
 
-Chunk* World::get_chunk(glm::vec3 worldPos)
+::std::optional<ChunkView> World::get_chunk(const glm::vec3 worldPos) const
 {
-    auto chunkCoord = get_chunk_coordinates(worldPos);
-    auto chunkKey = ChunkCoord{chunkCoord.x, chunkCoord.y };
+    const auto chunkCoord = get_chunk_coordinates(worldPos);
+    const auto chunkKey = ChunkCoord{chunkCoord.x, chunkCoord.y };
 
-    auto chunk = _chunkManager->get_chunk(chunkKey);
-    return chunk;
+    return _chunkManager->get_chunk(chunkKey);
 }
 
 // void World::generate_chunk(int xStart, int yStart)

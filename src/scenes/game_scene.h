@@ -6,13 +6,13 @@
 #include "vk_mesh.h"
 #include "render/resource.h"
 
-class GameScene : public Scene {
+class GameScene final : public Scene {
 public:
     GameScene();
     void render(RenderQueue& queue) override;
     
     void init() override;
-    void update(float deltaTime) override;
+    void update(const float deltaTime) override;
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
     void cleanup() override;

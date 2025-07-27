@@ -5,7 +5,7 @@
 class RenderQueue {
 public:
 
-    void add(const std::shared_ptr<RenderObject>& renderObject)
+    void add(const std::unique_ptr<RenderObject>& renderObject)
     {
         switch(renderObject->layer)
         {
@@ -18,16 +18,14 @@ public:
         }
     }
 
-    void add(const std::vector<std::shared_ptr<RenderObject>>& renderObjects, RenderLayer type)
+    void add(const std::vector<std::unique_ptr<RenderObject>>& renderObjects, RenderLayer type)
     {
-        switch(type)
-        {
-            case RenderLayer::Opaque:
-                _opaqueQueue.insert(_opaqueQueue.end(), renderObjects.begin(), renderObjects.end());
-                break;
-            case RenderLayer::Transparent:
-                _transparentQueue.insert(_transparentQueue.end(), renderObjects.begin(), renderObjects.end());
-                break;
+        auto& targetQueue = (type == RenderLayer::Opaque)
+                            ? _opaqueQueue
+                            : _transparentQueue;
+
+        for (auto& obj : renderObjects) {
+            targetQueue.push_back(std::move(obj));
         }
     }
 
@@ -36,15 +34,15 @@ public:
         _transparentQueue.clear();
     }
 
-    const std::vector<std::shared_ptr<RenderObject>>& getOpaqueQueue() const {
+    const std::vector<std::unique_ptr<RenderObject>>& getOpaqueQueue() const {
         return _opaqueQueue;
     }
 
-    const std::vector<std::shared_ptr<RenderObject>>& getTransparentQueue() const {
+    const std::vector<std::unique_ptr<RenderObject>>& getTransparentQueue() const {
         return _transparentQueue;
     }
 
 private:
-    std::vector<std::shared_ptr<RenderObject>> _opaqueQueue;
-    std::vector<std::shared_ptr<RenderObject>> _transparentQueue;
+    std::vector<std::unique_ptr<RenderObject>> _opaqueQueue;
+    std::vector<std::unique_ptr<RenderObject>> _transparentQueue;
 };

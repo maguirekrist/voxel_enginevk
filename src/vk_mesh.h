@@ -104,6 +104,7 @@ enum class RenderLayer {
 };
 
 struct Material {
+    std::string key;
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 
@@ -124,8 +125,8 @@ struct PushConstant {
 };
 
 struct RenderObject {
-	std::shared_ptr<SharedResource<Mesh>> mesh;
-	Material* material;
+	std::unique_ptr<Mesh> mesh;
+	Material& material;
 	glm::ivec2 xzPos;
     RenderLayer layer;
 };

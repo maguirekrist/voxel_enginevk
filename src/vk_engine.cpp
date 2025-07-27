@@ -119,6 +119,9 @@ void VulkanEngine::handle_input()
 						SDL_SetRelativeMouseMode(SDL_FALSE);
 						SDL_ShowCursor(SDL_TRUE);
 						break;
+					default:
+						//no-op
+						break;
 				}
 				break;
 			case SDL_MOUSEBUTTONDOWN:
@@ -132,6 +135,9 @@ void VulkanEngine::handle_input()
 				break;
 			case SDL_QUIT:
 				bQuit = true;
+				break;
+			default:
+				//no-op
 				break;
 		}
 
@@ -171,7 +177,7 @@ uint32_t VulkanEngine::advance_frame()
 VkCommandBuffer VulkanEngine::begin_recording()
 {
 	//naming it cmd for shorter writing
-	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
+	const VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
 
 	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let Vulkan know that
 	VkCommandBufferBeginInfo cmdBeginInfo = {};
@@ -192,7 +198,7 @@ void VulkanEngine::draw()
 	
 	uint32_t swapchainImageIndex = advance_frame();
 
-	VkCommandBuffer cmd = begin_recording();
+	const VkCommandBuffer cmd = begin_recording();
 
 	_sceneRenderer.render_scene(cmd, swapchainImageIndex);
 	VK_CHECK(vkEndCommandBuffer(cmd));
