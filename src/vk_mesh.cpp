@@ -66,21 +66,21 @@ VertexInputDescription PointVertex::get_vertex_description()
 	return description;
 }
 
-Mesh Mesh::create_cube_mesh()
+std::shared_ptr<Mesh> Mesh::create_cube_mesh()
 {
-    Mesh cubeMesh{};
+	auto cubeMesh = std::make_shared<Mesh>();
     
     for (auto face : faceDirections)
     {
         //4 vertices per face
         for (int i = 0; i < 4; i++)
         {
-            cubeMesh._vertices.push_back({ faceVertices[face][i], glm::vec3(0.0f), glm::vec3(1.0f, 1.0f, 1.0f) });
+            cubeMesh->_vertices.push_back({ faceVertices[face][i], glm::vec3(0.0f), glm::vec3(1.0f, 1.0f, 1.0f) });
         }
     }
 
     // Define the indices for the cube (two triangles per face)
-    cubeMesh._indices = {
+    cubeMesh->_indices = {
         0, 1, 2, 2, 3, 0,   // Front face
         4, 5, 6, 6, 7, 4,   // Back face
         8, 9, 10, 10, 11, 8, // Left face
@@ -92,13 +92,13 @@ Mesh Mesh::create_cube_mesh()
     return cubeMesh;
 }
 
-Mesh Mesh::create_quad_mesh()
+std::shared_ptr<Mesh> Mesh::create_quad_mesh()
 {
-	Mesh quadMesh{};
+	auto quadMesh = std::make_shared<Mesh>();
 
 	// Define the four vertices of the quad in normalized coordinates
     // You can adjust the position values to scale the quad if needed.
-    quadMesh._vertices = {
+    quadMesh->_vertices = {
         { glm::vec3(-0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) }, // Bottom-left
         { glm::vec3(0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) },  // Bottom-right
         { glm::vec3(0.5f, 0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) },   // Top-right
@@ -106,7 +106,7 @@ Mesh Mesh::create_quad_mesh()
     };
 
     // Define the indices for the quad (two triangles)
-    quadMesh._indices = {
+    quadMesh->_indices = {
         0, 1, 2, // First triangle
         2, 3, 0  // Second triangle
     };

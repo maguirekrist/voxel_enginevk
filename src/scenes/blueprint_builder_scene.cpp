@@ -51,10 +51,10 @@ void BlueprintBuilderScene::cleanup()
 
 void BlueprintBuilderScene::build_chunk_platform(ChunkCoord coord)
 {
-    Mesh quadMesh = Mesh::create_quad_mesh();
+    auto quadMesh = Mesh::create_quad_mesh();
 
     auto chunkPlatform = std::make_shared<RenderObject>(
-        std::make_unique<Mesh>(std::move(quadMesh)),
+        std::move(quadMesh),
         VulkanEngine::instance()._materialManager.get_material("grid"),
         glm::ivec2(coord.x,coord.z),
         RenderLayer::Opaque

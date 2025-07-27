@@ -32,11 +32,21 @@ struct Mesh {
     AllocatedBuffer _vertexBuffer;
     std::vector<uint32_t> _indices;
     AllocatedBuffer _indexBuffer;
-    bool _isActive;
-    //std::atomic_bool _isActive{false};
 
-    static Mesh create_cube_mesh();
-    static Mesh create_quad_mesh();
+    std::atomic_bool _isActive{false};
+
+    static std::shared_ptr<Mesh> create_cube_mesh();
+    static std::shared_ptr<Mesh> create_quad_mesh();
+
+    Mesh(): _vertexBuffer(), _indexBuffer()
+    {
+        std::println("Mesh::Mesh()");
+    }
+
+    ~Mesh()
+    {
+        std::println("Mesh::~Mesh()");
+    };
 };
 
 template<typename T>
@@ -127,7 +137,7 @@ struct PushConstant {
 };
 
 struct RenderObject {
-	std::unique_ptr<Mesh> mesh;
+	std::shared_ptr<Mesh> mesh;
 	std::shared_ptr<Material> material;
 	glm::ivec2 xzPos;
     RenderLayer layer;

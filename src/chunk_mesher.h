@@ -5,13 +5,13 @@
 
 class ChunkMesher {
 public:
-    ChunkMesher(ChunkView& chunk, const std::array<ChunkView, 8>& neighbors) : _chunk(chunk), _chunkNeighbors(neighbors) {}
+    ChunkMesher(ChunkView& chunk, std::optional<std::vector<ChunkView>>& neighbors) : _chunk(chunk), _chunkNeighbors(neighbors) {}
 
-    std::pair<std::unique_ptr<Mesh>, std::unique_ptr<Mesh>> generate_mesh();
+    std::pair<std::shared_ptr<Mesh>, std::shared_ptr<Mesh>> generate_mesh();
 
 private:
     ChunkView& _chunk;
-    const std::array<ChunkView, 8>& _chunkNeighbors;
+    std::optional<std::vector<ChunkView>>& _chunkNeighbors;
 
     //Mesh _mesh;
     //Mesh _waterMesh;

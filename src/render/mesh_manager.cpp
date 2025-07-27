@@ -35,7 +35,7 @@ void MeshManager::cleanup() const
     vkDestroyCommandPool(m_device, m_uploadContext._commandPool, nullptr);
 }
 
-void MeshManager::upload_mesh(Mesh* mesh) const
+void MeshManager::upload_mesh(const std::shared_ptr<Mesh>& mesh) const
 {
 	AllocatedBuffer vertexStagingBuffer = vkutil::create_buffer(m_allocator, mesh->_vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 	AllocatedBuffer indexStagingBuffer = vkutil::create_buffer(m_allocator, mesh->_indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
@@ -74,11 +74,13 @@ void MeshManager::upload_mesh(Mesh* mesh) const
 	vmaDestroyBuffer(m_allocator, indexStagingBuffer._buffer, indexStagingBuffer._allocation);
 
 	//TODO: Re-enable?
-	//mesh._isActive = true;
+	mesh->_isActive.store(true, std::memory_order_release);
+	fmt::println("MeshManager::upload_mesh()");
 }
 
-void MeshManager::unload_mesh(std::unique_ptr<Mesh>&& mesh) const
+void MeshManager::unload_mesh(const std::shared_ptr<Mesh>& mesh) const
 {
+	mesh->_isActive.store(false, std::memory_order_seq_cst);
 	vmaDestroyBuffer(m_allocator, mesh->_vertexBuffer._buffer, mesh->_vertexBuffer._allocation);
 	vmaDestroyBuffer(m_allocator, mesh->_indexBuffer._buffer, mesh->_indexBuffer._allocation);
 }
@@ -187,15 +189,18 @@ void MeshManager::handle_transfers()
 		{
 			ZoneScopedN("Handle Unload and Upload meshes");
 
-			std::unique_ptr<Mesh> unloadMesh;
+			std::shared_ptr<Mesh> unloadMesh;
 			while(UnloadQueue.try_dequeue(unloadMesh))
 			{
-				unload_mesh(std::move(unloadMesh));
+				unload_mesh(unloadMesh);
 			}
 
-			std::unique_ptr<Mesh> uploadMesh;
-			UploadQueue.wait_dequeue(uploadMesh);
-			upload_mesh(uploadMesh.get());
+			std::shared_ptr<Mesh> uploadMesh;
+			while (UploadQueue.try_dequeue(uploadMesh))
+			{
+				fmt::println("MeshManager::attempt upload()");
+				upload_mesh(uploadMesh);
+			}
 		}
 	}
 }

@@ -12,8 +12,8 @@ public:
 
     void cleanup() const;
 
-    moodycamel::BlockingConcurrentQueue<std::unique_ptr<Mesh>> UploadQueue;
-	moodycamel::BlockingConcurrentQueue<std::unique_ptr<Mesh>> UnloadQueue;
+    moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> UploadQueue;
+	moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> UnloadQueue;
 
     //moodycamel::ConcurrentQueue<std::pair<std::unique_ptr<Mesh>, std::unique_ptr<SharedResource<Mesh>> > > SwapQueue;
     //std::shared_ptr<Mesh> queue_from_obj(const std::string& path);
@@ -28,6 +28,6 @@ private:
     void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function) const;
     void handle_transfers();
 
-    void upload_mesh(Mesh* mesh) const;
-    void unload_mesh(std::unique_ptr<Mesh>&& mesh) const;
+    void upload_mesh(const std::shared_ptr<Mesh>& mesh) const;
+    void unload_mesh(const std::shared_ptr<Mesh>& mesh) const;
 };

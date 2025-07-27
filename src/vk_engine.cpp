@@ -213,7 +213,7 @@ void VulkanEngine::draw()
 	_frameNumber++;
 }
 
-void VulkanEngine::submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex)
+void VulkanEngine::submit_queue_present(const VkCommandBuffer pCmd, const uint32_t swapchainImageIndex)
 {
 	ZoneScopedN("Submit & Present");
 		//prepare the submission to the queue.

@@ -88,9 +88,9 @@ void GameScene::render(RenderQueue& queue) {
 		// 	VulkanEngine::instance()._meshManager.unload_mesh(std::move(oldMesh));
 		// }
 
-		//queue.add(_game._chunkManager._renderedChunks, RenderLayer::Opaque);
+		queue.add(_game._chunkManager._renderedChunks, RenderLayer::Opaque);
 		//queue.add(_gameObjects, RenderLayer::Opaque);
-		//queue.add(_game._chunkManager._transparentObjects, RenderLayer::Transparent);
+		queue.add(_game._chunkManager._transparentObjects, RenderLayer::Transparent);
 	}
 }
 

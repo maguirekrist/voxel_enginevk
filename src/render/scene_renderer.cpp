@@ -128,22 +128,35 @@ void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const std::shared
 void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& object)
 {
 	if(object.mesh == nullptr) return;
-	//if(!object.mesh->_isActive) return;
+	if(!object.mesh->_isActive.load(std::memory_order_acquire)) return;
 
 	//only bind the pipeline if it doesn't match with the already bound one
-	if (object.material->key != m_lastMaterialKey) {
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
-		m_lastMaterialKey = object.material->key;
+	// if (object.material->key != m_lastMaterialKey) {
+	// 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+	// 	m_lastMaterialKey = object.material->key;
+	//
+	// 	vkCmdBindDescriptorSets(cmd,
+	// 	VK_PIPELINE_BIND_POINT_GRAPHICS,
+	// 	object.material->pipelineLayout,
+	// 	0,
+	// 	object.material->descriptorSets.size(),
+	// 	object.material->descriptorSets.data(),
+	// 	0,
+	// 	nullptr);
+	// }
 
-		vkCmdBindDescriptorSets(cmd, 
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		object.material->pipelineLayout,
-		0, 
-		object.material->descriptorSets.size(),
-		object.material->descriptorSets.data(),
-		0,
-		nullptr);
-	}
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+	m_lastMaterialKey = object.material->key;
+
+	vkCmdBindDescriptorSets(cmd,
+	VK_PIPELINE_BIND_POINT_GRAPHICS,
+	object.material->pipelineLayout,
+	0,
+	object.material->descriptorSets.size(),
+	object.material->descriptorSets.data(),
+	0,
+	nullptr);
+
 
 	// ObjectPushConstants constants{};
 	// constants.chunk_translate = object.xzPos;
@@ -172,10 +185,16 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
 	vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
 }
 
-void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<std::unique_ptr<RenderObject>>& objects)
+void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<const RenderObject*>& objects)
 {
 	for(const auto & object : objects)
 	{
+		if (object != nullptr)
+		{
 			draw_object(cmd, *object);
+		} else
+		{
+			throw std::runtime_error("Object is null");
+		}
 	}
 }

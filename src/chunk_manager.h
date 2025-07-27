@@ -1,36 +1,34 @@
 #pragma once
 
 #include <vk_mesh.h>
-#include <barrier>
 #include <chunk.h>
 #include <memory>
 #include <utils/concurrentqueue.h>
 #include <utils/blockingconcurrentqueue.h>
+#include <libcuckoo/cuckoohash_map.hh>
 
 class VulkanEngine;
 
-struct WorldUpdateJob {
-    std::queue<ChunkCoord> _chunksToUnload; 
-    std::queue<ChunkCoord> _chunksToMesh;
-};
 
-// struct ChunkMeshJob
-// {
-//     ChunkView target;
-//     std::array<ChunkView, 8> neighbors;
-// };
+struct ChunkWork
+{
+    std::shared_ptr<Chunk> chunk;
+    enum class Phase { Generate, Mesh };
+    Phase phase;
+};
 
 class ChunkManager {
 public:
     //Real chunk data
-    std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>> _chunks;
+    std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> _chunks;
+    std::vector<std::shared_ptr<Chunk>> _chunkList;
 
     //Render chunk data
     std::vector<std::unique_ptr<RenderObject>> _renderedChunks;
     std::vector<std::unique_ptr<RenderObject>> _transparentObjects;
 
-    std::unordered_set<ChunkCoord> _worldChunks;
-    std::unordered_set<ChunkCoord> _oldWorldChunks;
+    std::vector<ChunkCoord> _worldChunks;
+    std::vector<ChunkCoord> _oldWorldChunks;
 
     ChunkManager();
 
@@ -42,7 +40,7 @@ public:
 
     int get_chunk_index(ChunkCoord coord) const;
     std::optional<ChunkView> get_chunk(ChunkCoord coord);
-    std::optional<std::array<ChunkView, 8>> get_chunk_neighbors(ChunkCoord coord);
+    std::optional<std::vector<ChunkView>> get_chunk_neighbors(ChunkCoord coord);
 
     //TODO: Chunk saving and loading from disk.
     //void save_chunk(const Chunk& chunk, const std::string& filename);
@@ -61,21 +59,12 @@ private:
     size_t _maxThreads;
     ChunkCoord _lastPlayerChunk = {0, 0};
 
-    //std::queue<WorldUpdateJob> _worldUpdateQueue;
-
-    moodycamel::BlockingConcurrentQueue<std::unique_ptr<Chunk>> _chunkGenQueue{_maxChunks};
-    moodycamel::BlockingConcurrentQueue<std::unique_ptr<Chunk>> _chunkMeshQueue;
+    moodycamel::BlockingConcurrentQueue<ChunkWork> _chunkWorkQueue;
 
     std::vector<std::thread> _workers;
 
-    //std::mutex _mutexWorld;
+    std::shared_mutex _mapMutex;
     std::mutex _mutexWork;
-
-    //std::condition_variable _cvWorld;
     std::condition_variable _cvWork;
-    std::atomic<bool> _workComplete{true};
-
-    std::barrier<> _sync_point;
-
     std::atomic<bool> _running;
 };

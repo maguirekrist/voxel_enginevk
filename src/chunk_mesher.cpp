@@ -4,11 +4,11 @@
 #include "tracy/Tracy.hpp"
 #include <world.h>
 
-std::pair<std::unique_ptr<Mesh>, std::unique_ptr<Mesh>> ChunkMesher::generate_mesh()
+std::pair<std::shared_ptr<Mesh>, std::shared_ptr<Mesh>> ChunkMesher::generate_mesh()
 {
     ZoneScopedN("Generate Chunk Mesh");
-    auto mesh = std::make_unique<Mesh>();
-    auto waterMesh = std::make_unique<Mesh>();
+    auto mesh = std::make_shared<Mesh>();
+    auto waterMesh = std::make_shared<Mesh>();
 
     for (int x = 0; x < CHUNK_SIZE; ++x) {
         for (int y = 0; y < CHUNK_HEIGHT; ++y) {
@@ -36,7 +36,7 @@ std::pair<std::unique_ptr<Mesh>, std::unique_ptr<Mesh>> ChunkMesher::generate_me
         }
     }
 
-    return std::make_pair(std::move(mesh), std::move(waterMesh));
+    return std::pair(std::move(mesh), std::move(waterMesh));
 }
 
 std::optional<const Block> ChunkMesher::get_face_neighbor(const int x, const int y, const int z, const FaceDirection face) const
@@ -49,9 +49,9 @@ std::optional<const Block> ChunkMesher::get_face_neighbor(const int x, const int
     {
         //Perform more expensive search.
         auto direction = get_chunk_direction({ nx, ny, nz });
-        if(direction.has_value())
+        if(direction.has_value() && _chunkNeighbors.has_value())
         {
-            auto chunk = _chunkNeighbors[direction.value()];
+            auto chunk = _chunkNeighbors.value()[direction.value()];
             auto local_pos = World::get_local_coordinates({ nx, ny, nz });
             return chunk.blocks[local_pos.x][local_pos.y][local_pos.z];
         }
@@ -79,9 +79,15 @@ bool ChunkMesher::is_face_visible(int x, int y, int z, FaceDirection face)
 
 bool ChunkMesher::is_face_visible_water(int x, int y, int z, FaceDirection face)
 {
-    auto faceBlock = get_face_neighbor(x, y, z, face).value();
+    auto faceBlock = get_face_neighbor(x, y, z, face);
 
-    return faceBlock._type == BlockType::AIR;
+    if (faceBlock.has_value())
+    {
+        return faceBlock.value()._type == BlockType::AIR;
+    } else
+    {
+        return false;
+    }
 }
 
 //Face cube position of the 
@@ -232,8 +238,8 @@ std::optional<Direction> ChunkMesher::get_chunk_direction(const glm::ivec3& loca
 bool ChunkMesher::is_position_solid(const glm::ivec3& localPos)
 {
     auto direction = get_chunk_direction(localPos);
-    if(direction.has_value()) {
-        auto target_chunk = _chunkNeighbors[direction.value()];
+    if(direction.has_value() && _chunkNeighbors.has_value()) {
+        auto target_chunk = _chunkNeighbors.value()[direction.value()];
         auto new_pos = World::get_local_coordinates(localPos);
         auto block = target_chunk.blocks[new_pos.x][new_pos.y][new_pos.z];
 

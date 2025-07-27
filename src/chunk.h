@@ -54,15 +54,21 @@ struct ChunkView
 class Chunk {
 public:
     ChunkBlocks _blocks = {};
-    std::unique_ptr<Mesh> _mesh;
-    std::unique_ptr<Mesh> _waterMesh;
+    std::shared_ptr<Mesh> _mesh;
+    std::shared_ptr<Mesh> _waterMesh;
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
     const ChunkCoord _chunkCoord;
 
-    explicit Chunk(const ChunkCoord coord) : _chunkCoord(coord), _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)) {
+    explicit Chunk(const ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)), _chunkCoord(coord) {
+        std::println("Chunk::Chunk()");
         _mesh = std::make_unique<Mesh>();
         _waterMesh = std::make_unique<Mesh>();
     };
+
+    ~Chunk()
+    {
+        std::println("Chunk::~Chunk()");
+    }
 
     glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
     void reset(ChunkCoord newCoord);
