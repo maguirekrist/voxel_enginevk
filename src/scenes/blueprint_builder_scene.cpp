@@ -79,7 +79,7 @@ void BlueprintBuilderScene::set_grid_uniform()
 
 void BlueprintBuilderScene::update_camera_uniform()
 {
-	CameraUBO cameraUBO;
+	CameraUBO cameraUBO{};
 	cameraUBO.projection = _camera._projection;
 	cameraUBO.view = _camera._view;
 	cameraUBO.viewproject = _camera._projection * _camera._view; 

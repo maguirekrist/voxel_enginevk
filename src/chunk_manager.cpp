@@ -20,7 +20,7 @@ ChunkManager::ChunkManager()
 
     for(size_t i = 0; i < _maxThreads; i++)
     {
-        _workers.emplace_back(&ChunkManager::meshChunk, this, i);
+        _workers.emplace_back(&ChunkManager::mesh_chunk, this, i);
     }
 }
 
@@ -40,12 +40,16 @@ ChunkManager::~ChunkManager()
 {
     _running = false;
 
+    _cvWork.notify_all();
+
     for (std::thread &worker : _workers) {
         worker.join();
     }
+
+    std::println("ChunkManager::~ChunkManager");
 }
 
-void ChunkManager::updatePlayerPosition(const int x, const int z)
+void ChunkManager::update_player_position(const int x, const int z)
 {
     const ChunkCoord playerChunk = {x / static_cast<int>(CHUNK_SIZE), z / static_cast<int>(CHUNK_SIZE)};  // Assuming 16x16 chunks
     if (playerChunk == _lastPlayerChunk) return;
@@ -54,14 +58,16 @@ void ChunkManager::updatePlayerPosition(const int x, const int z)
     const auto changeZ = playerChunk.z - _lastPlayerChunk.z;
     _lastPlayerChunk = playerChunk;
     _oldWorldChunks = _worldChunks;
-    updateWorldState();
+    update_world_state();
     //queueWorldUpdate(changeX, changeZ);
 
     _renderedChunks.clear();
     _transparentObjects.clear();
     for(const auto& chunkCoord : _worldChunks)
     {
-        auto chunk = get_chunk(chunkCoord).value();
+        auto chunk = get_chunk(chunkCoord);
+
+        if (!chunk) continue;
 
         // auto object = std::make_shared<RenderObject>(RenderObject{
         //    realChunk->_mesh,
@@ -85,7 +91,7 @@ void ChunkManager::updatePlayerPosition(const int x, const int z)
     // fmt::println("Chunks to unload: {}", old_chunks.size());
 }
 
-void ChunkManager::updateWorldState()
+void ChunkManager::update_world_state()
 {
     for (int dx = -_viewDistance; dx <= _viewDistance; ++dx) {
         for (int dz = -_viewDistance; dz <= _viewDistance; ++dz) {
@@ -295,15 +301,17 @@ std::optional<ChunkView> ChunkManager::get_chunk(const ChunkCoord coord)
 //     return chunk;
 // }
 
-void ChunkManager::meshChunk(int threadId)
+void ChunkManager::mesh_chunk(int threadId)
 {
     tracy::SetThreadName(fmt::format("Chunk Update Thread: {}", threadId).c_str());
-    while(true)
+    while(_running)
     { 
         //prevent this area from being done unless there is actual work...
         {
             std::unique_lock<std::mutex> workLock(_mutexWork);
-            _cvWork.wait(workLock, [this](){ return _workComplete == false; });
+            _cvWork.wait(workLock, [this](){ return _workComplete == false || !_running; });
+
+            if (!_running) break;
         }
 
         while(_running)

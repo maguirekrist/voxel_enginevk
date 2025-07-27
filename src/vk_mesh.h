@@ -117,6 +117,7 @@ struct Material {
 
 	//Not sure if having a call back function make sense.
 	//std::function<void()> buffer_update;
+    ~Material();
 };
 
 struct PushConstant {
@@ -127,7 +128,7 @@ struct PushConstant {
 
 struct RenderObject {
 	std::unique_ptr<Mesh> mesh;
-	Material& material;
+	std::shared_ptr<Material> material;
 	glm::ivec2 xzPos;
     RenderLayer layer;
 };

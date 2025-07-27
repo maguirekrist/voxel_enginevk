@@ -38,7 +38,7 @@ public:
 
     ~ChunkManager();
 
-    void updatePlayerPosition(int x, int z);
+    void update_player_position(int x, int z);
 
     int get_chunk_index(ChunkCoord coord) const;
     std::optional<ChunkView> get_chunk(ChunkCoord coord);
@@ -49,8 +49,8 @@ public:
     //std::unique_ptr<Chunk> load_chunk(const std::string& filename);
 
 private:
-    void updateWorldState();
-    void meshChunk(int threadId);
+    void update_world_state();
+    void mesh_chunk(int threadId);
     //void queueWorldUpdate(int changeX, int changeZ);
     //void worldUpdate();
 

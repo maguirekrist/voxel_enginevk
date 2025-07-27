@@ -113,3 +113,8 @@ Mesh Mesh::create_quad_mesh()
 
     return quadMesh;
 }
+
+Material::~Material()
+{
+	std::println("Material::~Material()");
+}

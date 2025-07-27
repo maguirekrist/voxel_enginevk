@@ -79,7 +79,8 @@ void VulkanEngine::init()
 }
 
 void VulkanEngine::cleanup()
-{	
+{
+	std::println("VulkanEngine::cleanup");
 	if (_isInitialized) {
 
 		VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
@@ -92,6 +93,8 @@ void VulkanEngine::cleanup()
 		_descriptorLayoutCache.cleanup();
 		_descriptorAllocator.cleanup();
 
+
+		//TODO: this throws... need to do a better job at resource management.
 		vmaDestroyAllocator(_allocator);
 
 		vkDestroyDevice(_device, nullptr);
@@ -403,7 +406,7 @@ void VulkanEngine::init_offscreen_images()
 
 	_colorFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
-	auto fullscreenImage = vkutil::create_image(_allocator, windowImageExtent, _colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+	const AllocatedImage fullscreenImage = vkutil::create_image(_allocator, windowImageExtent, _colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
 	//build an image-view for the depth image to use for rendering
 	VkImageViewCreateInfo cview_info = vkinit::imageview_create_info(_colorFormat, fullscreenImage._image, VK_IMAGE_ASPECT_COLOR_BIT);

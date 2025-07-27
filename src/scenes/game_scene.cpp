@@ -8,6 +8,11 @@ GameScene::GameScene() {
 	init();
 }
 
+GameScene::~GameScene()
+{
+	std::println("GameScene::~GameScene");
+}
+
 void GameScene::init()
 {
 	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);

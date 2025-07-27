@@ -59,27 +59,30 @@ Scene* SceneRenderer::get_current_scene() const
     return _currentScene;
 }
 
-void SceneRenderer::cleanup() const
+void SceneRenderer::cleanup()
 {
-    for(auto& scene : _scenes)
+    for(auto it = _scenes.begin(); it != _scenes.end(); )
     {
-        scene.second->cleanup();
+    	auto& scene = *it->second;
+        scene.cleanup();
+
+    	it = _scenes.erase(it);
     }
 }
 
-void SceneRenderer::run_compute(VkCommandBuffer cmd, const Material &computeMaterial)
+void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Material>& computeMaterial)
 {
     // Bind the compute pipeline
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, computeMaterial.pipeline);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, computeMaterial->pipeline);
 
     // Bind the descriptor set (which contains the image resources)
     vkCmdBindDescriptorSets(
         cmd,
         VK_PIPELINE_BIND_POINT_COMPUTE,
-        computeMaterial.pipelineLayout,
-        0, computeMaterial.descriptorSets.size(),
+        computeMaterial->pipelineLayout,
+        0, computeMaterial->descriptorSets.size(),
 
-        computeMaterial.descriptorSets.data(),
+        computeMaterial->descriptorSets.data(),
         0, nullptr
     );
 
@@ -107,37 +110,37 @@ void SceneRenderer::run_compute(VkCommandBuffer cmd, const Material &computeMate
     );
 }
 
-void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const Material& presentMaterial)
+void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const std::shared_ptr<Material>& presentMaterial)
 {
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, presentMaterial.pipeline);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, presentMaterial->pipeline);
 	vkCmdBindDescriptorSets(
 		cmd,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		presentMaterial.pipelineLayout,
-		0, presentMaterial.descriptorSets.size(),
-		presentMaterial.descriptorSets.data(),
+		presentMaterial->pipelineLayout,
+		0, presentMaterial->descriptorSets.size(),
+		presentMaterial->descriptorSets.data(),
 		0, nullptr
 	);
 
 	vkCmdDraw(cmd, 3, 1, 0, 0);
 }
 
-void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& object, const Mesh* lastMesh, Material& lastMaterial)
+void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& object)
 {
 	if(object.mesh == nullptr) return;
 	//if(!object.mesh->_isActive) return;
 
 	//only bind the pipeline if it doesn't match with the already bound one
-	if (object.material.key != lastMaterial.key) {
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material.pipeline);
-		lastMaterial = object.material;
+	if (object.material->key != m_lastMaterialKey) {
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+		m_lastMaterialKey = object.material->key;
 
 		vkCmdBindDescriptorSets(cmd, 
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		object.material.pipelineLayout,
+		object.material->pipelineLayout,
 		0, 
-		object.material.descriptorSets.size(),
-		object.material.descriptorSets.data(),
+		object.material->descriptorSets.size(),
+		object.material->descriptorSets.data(),
 		0,
 		nullptr);
 	}
@@ -147,22 +150,22 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
 	// vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ObjectPushConstants), &constants);
 
 
-    for(const auto& pConstant : object.material.pushConstants)
+    for(const auto& pConstant : object.material->pushConstants)
     {
     	ObjectPushConstants data = pConstant.build_constant(object);
-        vkCmdPushConstants(cmd, object.material.pipelineLayout, pConstant.stageFlags, 0, pConstant.size, &data);
+        vkCmdPushConstants(cmd, object.material->pipelineLayout, pConstant.stageFlags, 0, pConstant.size, &data);
     }
     
 
 	//only bind the mesh if it's a different one from last bind
-	if(object.mesh.get() != lastMesh) {
+	if(object.mesh.get() != m_lastMesh) {
 		//bind the mesh vertex buffer with offset 0
 		constexpr VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
 
 		vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 
-		lastMesh = object.mesh.get();
+		m_lastMesh = object.mesh.get();
 	}
 
 	//we can now draw
@@ -171,14 +174,8 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
 
 void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<std::unique_ptr<RenderObject>>& objects)
 {
-	Mesh* lastMesh = nullptr;
-	Material lastMaterial{};
-
-	for(int i = 0; i < objects.size(); i++)
+	for(const auto & object : objects)
 	{
-		auto& object = objects[i];
-
-		draw_object(cmd, *object, lastMesh, lastMaterial);
+			draw_object(cmd, *object);
 	}
-
 }
