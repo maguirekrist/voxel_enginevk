@@ -73,13 +73,16 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
+	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily }, m_queueMutex);
+
 	_sceneRenderer.init();
 
 	_isInitialized = true;
 }
 
 void VulkanEngine::cleanup()
-{	
+{
+	std::println("VulkanEngine::cleanup");
 	if (_isInitialized) {
 
 		VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
@@ -92,6 +95,8 @@ void VulkanEngine::cleanup()
 		_descriptorLayoutCache.cleanup();
 		_descriptorAllocator.cleanup();
 
+
+		//TODO: this throws... need to do a better job at resource management.
 		vmaDestroyAllocator(_allocator);
 
 		vkDestroyDevice(_device, nullptr);
@@ -119,6 +124,9 @@ void VulkanEngine::handle_input()
 						SDL_SetRelativeMouseMode(SDL_FALSE);
 						SDL_ShowCursor(SDL_TRUE);
 						break;
+					default:
+						//no-op
+						break;
 				}
 				break;
 			case SDL_MOUSEBUTTONDOWN:
@@ -132,6 +140,9 @@ void VulkanEngine::handle_input()
 				break;
 			case SDL_QUIT:
 				bQuit = true;
+				break;
+			default:
+				//no-op
 				break;
 		}
 
@@ -171,7 +182,7 @@ uint32_t VulkanEngine::advance_frame()
 VkCommandBuffer VulkanEngine::begin_recording()
 {
 	//naming it cmd for shorter writing
-	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
+	const VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
 
 	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let Vulkan know that
 	VkCommandBufferBeginInfo cmdBeginInfo = {};
@@ -191,8 +202,9 @@ void VulkanEngine::draw()
 	ZoneScopedN("RenderFrame");
 	
 	uint32_t swapchainImageIndex = advance_frame();
+	_meshManager.unload_garbage();
 
-	VkCommandBuffer cmd = begin_recording();
+	const VkCommandBuffer cmd = begin_recording();
 
 	_sceneRenderer.render_scene(cmd, swapchainImageIndex);
 	VK_CHECK(vkEndCommandBuffer(cmd));
@@ -204,7 +216,7 @@ void VulkanEngine::draw()
 	_frameNumber++;
 }
 
-void VulkanEngine::submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex)
+void VulkanEngine::submit_queue_present(const VkCommandBuffer pCmd, const uint32_t swapchainImageIndex)
 {
 	ZoneScopedN("Submit & Present");
 		//prepare the submission to the queue.
@@ -355,8 +367,6 @@ void VulkanEngine::init_vulkan()
     allocatorInfo.instance = _instance;
     vmaCreateAllocator(&allocatorInfo, &_allocator);
 
-	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily }, m_queueMutex);
-
 	_descriptorAllocator.init(_device);
 	_descriptorLayoutCache.init(_device);
 }
@@ -397,7 +407,7 @@ void VulkanEngine::init_offscreen_images()
 
 	_colorFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
-	auto fullscreenImage = vkutil::create_image(_allocator, windowImageExtent, _colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+	const AllocatedImage fullscreenImage = vkutil::create_image(_allocator, windowImageExtent, _colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
 	//build an image-view for the depth image to use for rendering
 	VkImageViewCreateInfo cview_info = vkinit::imageview_create_info(_colorFormat, fullscreenImage._image, VK_IMAGE_ASPECT_COLOR_BIT);

@@ -42,6 +42,7 @@ struct Resource {
 
     ~Resource()
     {
+        std::println("Resource::~Resource()");
         switch(type)
         {
             case BUFFER:

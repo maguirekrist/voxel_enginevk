@@ -31,20 +31,25 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, Player& play
     {
         //Get the current chunk we're in
         //voxel pos is worldPos
-        Chunk* current_chunk = world.get_chunk(voxelPos);
+        auto current_chunk = world.get_chunk(voxelPos);
+
+        if (!current_chunk) return std::nullopt;
+
         if(distance == 0.0f)
             fmt::println("Voxel Position: x:{}, y:{}, z:{}", voxelPos.x, voxelPos.y, voxelPos.z);
-        if (current_chunk)
+
+        auto localPos = World::get_local_coordinates(voxelPos);
+        auto block = current_chunk->get_block(localPos);
+
+        if (!block) return std::nullopt;
+
+        if (block->_solid)
         {
-            //fmt::println("Current chunk: x:{}, y: {}", current_chunk->_position.x, current_chunk->_position.y);
-            auto localPos = World::get_local_coordinates(voxelPos);
-            auto block = current_chunk->get_block(localPos);
-            if (block && block->_solid) {
-                
-                auto worldPos = current_chunk->get_world_pos(localPos);
-                auto faceDir = get_face_direction(faceNormal);
-                return RaycastResult{ block, faceDir.has_value() ? faceDir.value() : FaceDirection::FRONT_FACE, current_chunk, worldPos, distance };
-            }
+            auto worldPos = current_chunk->get_world_pos(localPos);
+            auto faceDir = get_face_direction(faceNormal);
+
+            //TODO: re-add chunk to raycast result.
+            return RaycastResult{ block.value(), faceDir.value_or(FaceDirection::FRONT_FACE), worldPos, distance };
         }
 
         // Advance to next voxel

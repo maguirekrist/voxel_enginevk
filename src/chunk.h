@@ -16,7 +16,8 @@ struct ChunkCoord {
 namespace std {
     template<>
     struct hash<ChunkCoord> {
-        size_t operator()(const ChunkCoord& coord) const {
+        size_t operator()(const ChunkCoord& coord) const noexcept
+        {
             return hash<int>()(coord.x) ^ (hash<int>()(coord.z) << 1);
         }
     };
@@ -38,32 +39,51 @@ constexpr Direction directionList[8] = { NORTH, SOUTH, EAST, WEST, NORTH_EAST, N
 constexpr int directionOffsetX[] = { 0, 0, -1, 1, -1, 1, -1, 1 };
 constexpr int directionOffsetZ[] = { 1, -1, 0, 0, 1, 1, -1, -1 };
 
+using ChunkBlocks = Block[CHUNK_SIZE][CHUNK_HEIGHT][CHUNK_SIZE];
 
+struct ChunkView
+{
+    const ChunkBlocks& blocks;
+    const glm::ivec2 position;
+    ChunkView(const ChunkBlocks& blocks, const glm::ivec2 position) : blocks(blocks), position(position) {}
+
+    [[nodiscard]] std::optional<Block> get_block(const glm::ivec3& localPos) const;
+    [[nodiscard]] glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
+};
+
+enum class ChunkState
+{
+    Uninitialized,
+    Generated
+};
 
 class Chunk {
 public:
-    Block _blocks[CHUNK_SIZE][CHUNK_HEIGHT][CHUNK_SIZE];
-    std::shared_ptr<SharedResource<Mesh>> _mesh;
-    std::shared_ptr<SharedResource<Mesh>> _waterMesh;
+    ChunkBlocks _blocks = {};
+    std::shared_ptr<Mesh> _mesh;
+    std::shared_ptr<Mesh> _waterMesh;
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
-    //bool _isValid{ false };
-    bool _hasWater{false};
-    Block* get_block(const glm::ivec3& localPos);
-    glm::ivec3 get_world_pos(const glm::ivec3& localPos);
+    const ChunkCoord _chunkCoord;
 
-    Chunk() {
-        _mesh = std::make_shared<SharedResource<Mesh>>(std::make_shared<Mesh>());
-        _waterMesh = std::make_shared<SharedResource<Mesh>>(std::make_shared<Mesh>());
+    std::atomic<ChunkState> _state = ChunkState::Uninitialized;
+
+    explicit Chunk(const ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)), _chunkCoord(coord) {
+        _mesh = std::make_unique<Mesh>();
+        _waterMesh = std::make_unique<Mesh>();
     };
 
-    Chunk(ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)) {
-        _mesh = std::make_shared<SharedResource<Mesh>>(std::make_shared<Mesh>());
-        _waterMesh = std::make_shared<SharedResource<Mesh>>(std::make_shared<Mesh>());
-    };
+    ~Chunk()
+    {
+    }
 
+    glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
     void reset(ChunkCoord newCoord);
-
     void generate();
+
+    static ChunkView to_view(const Chunk& chunk) noexcept
+    {
+        return ChunkView(chunk._blocks, chunk._position);
+    }
 
     static constexpr bool is_outside_chunk(const glm::ivec3& localPos)
     {
@@ -73,7 +93,4 @@ public:
 
         return false;
     }
-private:
-
-
 };

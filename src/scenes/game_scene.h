@@ -6,9 +6,10 @@
 #include "vk_mesh.h"
 #include "render/resource.h"
 
-class GameScene : public Scene {
+class GameScene final : public Scene {
 public:
     GameScene();
+    ~GameScene() override;
     void render(RenderQueue& queue) override;
     
     void init() override;

@@ -1,33 +1,57 @@
 #pragma once
 
 #include <vk_mesh.h>
-#include <barrier>
 #include <chunk.h>
 #include <memory>
 #include <utils/concurrentqueue.h>
 #include <utils/blockingconcurrentqueue.h>
+#include <libcuckoo/cuckoohash_map.hh>
 
 class VulkanEngine;
 
-struct WorldUpdateJob {
-    int _changeX;
-    int _changeZ;
-    std::queue<ChunkCoord> _chunksToUnload; 
-    std::queue<ChunkCoord> _chunksToMesh;
+
+struct ChunkWork
+{
+    std::shared_ptr<Chunk> chunk;
+    enum class Phase : int
+    {
+        Generate = 0,
+        Mesh = 2,
+        WaitingForNeighbors = 1
+    };
+    Phase phase;
+};
+
+class ChunkWorkQueue
+{
+    moodycamel::BlockingConcurrentQueue<ChunkWork> _highPriority;
+    moodycamel::BlockingConcurrentQueue<ChunkWork> _lowPriority;
+
+public:
+    void enqueue(const ChunkWork& work);
+    bool try_dequeue(ChunkWork& work);
+    void wait_dequeue(ChunkWork& work);
+    bool wait_dequeue_timed(ChunkWork& work, const int timeout_ms);
+    size_t size_approx() const;
+};
+
+enum class NeighborStatus
+{
+    Missing,
+    Incomplete,
+    Ready
 };
 
 class ChunkManager {
 public:
     //Real chunk data
-    std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>> _chunks;
+    std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> _chunks;
 
     //Render chunk data
-    std::vector<std::shared_ptr<RenderObject>> _renderedChunks;
-    std::vector<std::shared_ptr<RenderObject>> _transparentObjects;
+    std::vector<std::unique_ptr<RenderObject>> _renderedChunks;
+    std::vector<std::unique_ptr<RenderObject>> _transparentObjects;
 
-    std::unordered_set<ChunkCoord> _worldChunks;
-    std::unordered_set<ChunkCoord> _oldWorldChunks;
-    bool _initLoad{true};
+    std::vector<ChunkCoord> _worldChunks;
 
     ChunkManager();
 
@@ -35,46 +59,37 @@ public:
 
     ~ChunkManager();
 
-    void updatePlayerPosition(int x, int z);
+    void update_player_position(int x, int z);
 
-    Chunk* get_chunk(ChunkCoord coord);
+    int get_chunk_index(ChunkCoord coord) const;
+    std::optional<std::shared_ptr<Chunk>> get_chunk(ChunkCoord coord);
+    std::optional<std::array<std::shared_ptr<Chunk>, 8>> get_chunk_neighbors(ChunkCoord coord);
 
-    void save_chunk(const Chunk& chunk, const std::string& filename);
-    std::unique_ptr<Chunk> load_chunk(const std::string& filename);
+    //TODO: Chunk saving and loading from disk.
+    //void save_chunk(const Chunk& chunk, const std::string& filename);
+    //std::unique_ptr<Chunk> load_chunk(const std::string& filename);
 
 private:
-    void updateWorldState();
-    std::pair<std::vector<ChunkCoord>, std::vector<ChunkCoord>> queueWorldUpdate(int changeX, int changeZ);
-    void worldUpdate();
-    void meshChunk(int threadId);
+    void update_world_state();
+    void work_chunk(int threadId);
+    NeighborStatus chunk_has_neighbors(ChunkCoord coord);
+    //void queueWorldUpdate(int changeX, int changeZ);
+    //void worldUpdate();
 
-    std::optional<std::array<Chunk*, 8>> get_chunk_neighbors(ChunkCoord coord);
-
-    int get_chunk_index(ChunkCoord coord);
-    void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
-
-    bool _updatingWorldState = false;
+    //void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
+    bool _initialLoad{true};
     int _viewDistance;
     size_t _maxChunks;
     size_t _maxThreads;
     ChunkCoord _lastPlayerChunk = {0, 0};
 
-    std::queue<WorldUpdateJob> _worldUpdateQueue;
-    moodycamel::BlockingConcurrentQueue<Chunk*> _chunkGenQueue{_maxChunks};
-    moodycamel::BlockingConcurrentQueue<std::pair<Chunk*, std::array<Chunk*, 8>>> _chunkMeshQueue;
-    // moodycamel::ConcurrentQueue<std::shared_ptr<Chunk>> _chunkSwapQueue;
+
+    ChunkWorkQueue _chunkWorkQueue;
 
     std::vector<std::thread> _workers;
-    std::thread _updateThread;
 
-    std::mutex _mutexWorld;
+    std::shared_mutex _mapMutex;
     std::mutex _mutexWork;
-
-    std::condition_variable _cvWorld;
     std::condition_variable _cvWork;
-    std::atomic<bool> _workComplete{true};
-
-    std::barrier<> _sync_point;
-
     std::atomic<bool> _running;
 };

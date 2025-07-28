@@ -43,7 +43,7 @@ public:
 
 	bool bFocused = false;
 	bool bQuit = false;
-	bool bUseValidationLayers = true;
+	bool bUseValidationLayers = USE_VALIDATION_LAYERS;
 	
 	VkInstance _instance;
 	VkDebugUtilsMessengerEXT _debug_messenger;

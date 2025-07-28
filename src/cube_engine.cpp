@@ -24,5 +24,5 @@ void CubeEngine::update()
 
     //fmt::println("Player position: x{}, y {}, z{}", _player._position.x, _player._position.y, _player._position.z);
 
-    _chunkManager.updatePlayerPosition(worldCoord.x, worldCoord.y);
+    _chunkManager.update_player_position(worldCoord.x, worldCoord.y);
 }

@@ -10,7 +10,7 @@ struct GridUniform {
     glm::vec3 backgroundColor;
 };
 
-class BlueprintBuilderScene : public Scene {
+class BlueprintBuilderScene final : public Scene {
 public:
     BlueprintBuilderScene();
     void init() override;

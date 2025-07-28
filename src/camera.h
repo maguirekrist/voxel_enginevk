@@ -6,9 +6,9 @@
 
 
 struct RaycastResult {
-    Block* _block;
+    Block _block;
     FaceDirection _blockFace;
-    Chunk* _chunk;
+    //ChunkView _chunk;
     glm::ivec3 _worldPos;
     float _distance;
 };
