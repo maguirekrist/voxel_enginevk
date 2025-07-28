@@ -74,7 +74,7 @@ void GameScene::init()
 	fmt::println("GameScene created!");
 }
 
-void GameScene::render(RenderQueue& queue) {
+void GameScene::queue_objects(RenderQueue& queue) {
 	{
 		ZoneScopedN("Draw Chunks & Objects");
 		update_uniform_buffer();

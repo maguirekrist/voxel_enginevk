@@ -18,7 +18,7 @@ void SceneRenderer::init()
 
 void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapchainImageIndex)
 {
-    _currentScene->render(_renderQueue);
+    _currentScene->queue_objects(_renderQueue);
 
     VkRenderPassBeginInfo rpOffscreenInfo = vkinit::render_pass_begin_info(
         VulkanEngine::instance()._offscreenPass, 

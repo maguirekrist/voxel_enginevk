@@ -26,12 +26,13 @@ class ChunkWorkQueue
 {
     moodycamel::BlockingConcurrentQueue<ChunkWork> _highPriority;
     moodycamel::BlockingConcurrentQueue<ChunkWork> _lowPriority;
+    moodycamel::BlockingConcurrentQueue<ChunkWork> _medPriority;
 
 public:
     void enqueue(const ChunkWork& work);
     bool try_dequeue(ChunkWork& work);
     void wait_dequeue(ChunkWork& work);
-    bool wait_dequeue_timed(ChunkWork& work, const int timeout_ms);
+    bool wait_dequeue_timed(ChunkWork& work, int timeout_ms);
     size_t size_approx() const;
 };
 
@@ -39,7 +40,16 @@ enum class NeighborStatus
 {
     Missing,
     Incomplete,
-    Ready
+    Ready,
+    Border
+};
+
+struct MapRange
+{
+    std::atomic_int low_x;
+    std::atomic_int high_x;
+    std::atomic_int low_z;
+    std::atomic_int high_z;
 };
 
 class ChunkManager {
@@ -72,6 +82,7 @@ public:
 private:
     void update_world_state();
     void work_chunk(int threadId);
+    bool chunk_at_border(ChunkCoord coord) const;
     NeighborStatus chunk_has_neighbors(ChunkCoord coord);
     //void queueWorldUpdate(int changeX, int changeZ);
     //void worldUpdate();
@@ -82,14 +93,12 @@ private:
     size_t _maxChunks;
     size_t _maxThreads;
     ChunkCoord _lastPlayerChunk = {0, 0};
-
+    MapRange _mapRange{};
 
     ChunkWorkQueue _chunkWorkQueue;
 
     std::vector<std::thread> _workers;
 
     std::shared_mutex _mapMutex;
-    std::mutex _mutexWork;
-    std::condition_variable _cvWork;
     std::atomic<bool> _running;
 };

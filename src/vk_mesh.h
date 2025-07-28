@@ -33,7 +33,7 @@ struct Mesh {
     std::vector<uint32_t> _indices;
     AllocatedBuffer _indexBuffer;
 
-    std::atomic_bool _isActive{false};
+    std::atomic_bool _isActive = false;
 
     static std::shared_ptr<Mesh> create_cube_mesh();
     static std::shared_ptr<Mesh> create_quad_mesh();

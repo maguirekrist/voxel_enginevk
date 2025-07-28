@@ -203,7 +203,7 @@ void VulkanEngine::draw()
 	
 	uint32_t swapchainImageIndex = advance_frame();
 	_meshManager.unload_garbage();
-
+	_meshManager.handle_transfers();
 	const VkCommandBuffer cmd = begin_recording();
 
 	_sceneRenderer.render_scene(cmd, swapchainImageIndex);
