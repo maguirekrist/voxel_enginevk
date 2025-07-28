@@ -73,6 +73,8 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
+	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily }, m_queueMutex);
+
 	_sceneRenderer.init();
 
 	_isInitialized = true;
@@ -200,6 +202,7 @@ void VulkanEngine::draw()
 	ZoneScopedN("RenderFrame");
 	
 	uint32_t swapchainImageIndex = advance_frame();
+	_meshManager.unload_garbage();
 
 	const VkCommandBuffer cmd = begin_recording();
 
@@ -363,8 +366,6 @@ void VulkanEngine::init_vulkan()
     allocatorInfo.device = _device;
     allocatorInfo.instance = _instance;
     vmaCreateAllocator(&allocatorInfo, &_allocator);
-
-	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily }, m_queueMutex);
 
 	_descriptorAllocator.init(_device);
 	_descriptorLayoutCache.init(_device);

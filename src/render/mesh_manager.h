@@ -14,6 +14,8 @@ public:
     moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> UploadQueue;
 	moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> UnloadQueue;
 
+    void unload_garbage();
+
     //moodycamel::ConcurrentQueue<std::pair<std::unique_ptr<Mesh>, std::unique_ptr<SharedResource<Mesh>> > > SwapQueue;
     //std::shared_ptr<Mesh> queue_from_obj(const std::string& path);
 private:

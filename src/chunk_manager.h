@@ -13,8 +13,33 @@ class VulkanEngine;
 struct ChunkWork
 {
     std::shared_ptr<Chunk> chunk;
-    enum class Phase { Generate, Mesh, Waiting };
+    enum class Phase : int
+    {
+        Generate = 0,
+        Mesh = 2,
+        WaitingForNeighbors = 1
+    };
     Phase phase;
+};
+
+class ChunkWorkQueue
+{
+    moodycamel::BlockingConcurrentQueue<ChunkWork> _highPriority;
+    moodycamel::BlockingConcurrentQueue<ChunkWork> _lowPriority;
+
+public:
+    void enqueue(const ChunkWork& work);
+    bool try_dequeue(ChunkWork& work);
+    void wait_dequeue(ChunkWork& work);
+    bool wait_dequeue_timed(ChunkWork& work, const int timeout_ms);
+    size_t size_approx() const;
+};
+
+enum class NeighborStatus
+{
+    Missing,
+    Incomplete,
+    Ready
 };
 
 class ChunkManager {
@@ -37,8 +62,8 @@ public:
     void update_player_position(int x, int z);
 
     int get_chunk_index(ChunkCoord coord) const;
-    std::optional<ChunkView> get_chunk(ChunkCoord coord);
-    std::optional<std::vector<ChunkView>> get_chunk_neighbors(ChunkCoord coord);
+    std::optional<std::shared_ptr<Chunk>> get_chunk(ChunkCoord coord);
+    std::optional<std::array<std::shared_ptr<Chunk>, 8>> get_chunk_neighbors(ChunkCoord coord);
 
     //TODO: Chunk saving and loading from disk.
     //void save_chunk(const Chunk& chunk, const std::string& filename);
@@ -46,7 +71,8 @@ public:
 
 private:
     void update_world_state();
-    void mesh_chunk(int threadId);
+    void work_chunk(int threadId);
+    NeighborStatus chunk_has_neighbors(ChunkCoord coord);
     //void queueWorldUpdate(int changeX, int changeZ);
     //void worldUpdate();
 
@@ -57,7 +83,8 @@ private:
     size_t _maxThreads;
     ChunkCoord _lastPlayerChunk = {0, 0};
 
-    moodycamel::BlockingConcurrentQueue<ChunkWork> _chunkWorkQueue;
+
+    ChunkWorkQueue _chunkWorkQueue;
 
     std::vector<std::thread> _workers;
 

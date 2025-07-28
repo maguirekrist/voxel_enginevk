@@ -51,6 +51,12 @@ struct ChunkView
     [[nodiscard]] glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
 };
 
+enum class ChunkState
+{
+    Uninitialized,
+    Generated
+};
+
 class Chunk {
 public:
     ChunkBlocks _blocks = {};
@@ -58,6 +64,8 @@ public:
     std::shared_ptr<Mesh> _waterMesh;
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
     const ChunkCoord _chunkCoord;
+
+    std::atomic<ChunkState> _state = ChunkState::Uninitialized;
 
     explicit Chunk(const ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)), _chunkCoord(coord) {
         _mesh = std::make_unique<Mesh>();

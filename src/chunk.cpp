@@ -67,6 +67,8 @@ void Chunk::generate()
                 }
             }
         }
+
+        _state = ChunkState::Generated;
 }
 
 

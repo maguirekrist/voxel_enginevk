@@ -7,6 +7,38 @@
 #include <memory>
 #include "vk_engine.h"
 
+void ChunkWorkQueue::enqueue(const ChunkWork& work)
+{
+    if (work.phase == ChunkWork::Phase::Generate)
+    {
+        _highPriority.enqueue(work);
+    } else
+    {
+        _lowPriority.enqueue(work);
+    }
+}
+
+bool ChunkWorkQueue::try_dequeue(ChunkWork& work)
+{
+    return _highPriority.try_dequeue(work) || _lowPriority.try_dequeue(work);
+}
+
+void ChunkWorkQueue::wait_dequeue(ChunkWork& work)
+{
+    if (_highPriority.try_dequeue(work)) return;
+    _lowPriority.wait_dequeue(work);
+}
+
+bool ChunkWorkQueue::wait_dequeue_timed(ChunkWork& work, const int timeout_ms)
+{
+    return _highPriority.try_dequeue(work) || _lowPriority.wait_dequeue_timed(work, std::chrono::milliseconds(timeout_ms));
+}
+
+size_t ChunkWorkQueue::size_approx() const
+{
+    return _highPriority.size_approx() + _lowPriority.size_approx();
+}
+
 ChunkManager::ChunkManager()
         :
         _viewDistance(DEFAULT_VIEW_DISTANCE),
@@ -19,9 +51,12 @@ ChunkManager::ChunkManager()
     _renderedChunks.reserve(_maxChunks);
     _worldChunks.reserve(_maxChunks);
 
+    auto max_thread = std::thread::hardware_concurrency();
+    _maxThreads = max_thread != 0 ? max_thread : _maxThreads;
+
     for(size_t i = 0; i < _maxThreads; i++)
     {
-        _workers.emplace_back(&ChunkManager::mesh_chunk, this, i);
+        _workers.emplace_back(&ChunkManager::work_chunk, this, i);
     }
 }
 
@@ -285,11 +320,42 @@ void ChunkManager::update_world_state()
 //     }
 // }
 
-std::optional<std::vector<ChunkView>> ChunkManager::get_chunk_neighbors(const ChunkCoord coord)
+
+NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord)
+{
+    int count = 0;
+    std::shared_lock lock(_mapMutex);
+
+    if (!_chunks.contains(coord))
+    {
+        return NeighborStatus::Missing;
+    }
+
+    for (const auto direction : directionList)
+    {
+        const auto offsetX = directionOffsetX[direction];
+        const auto offsetZ = directionOffsetZ[direction];
+        const auto offset_coord = ChunkCoord{ coord.x + offsetX, coord.z + offsetZ };
+
+        if (_chunks.contains(offset_coord))
+        {
+            auto chunk = _chunks.at(offset_coord);
+            count += (chunk->_state == ChunkState::Generated ? 1 : 0);
+        }
+    }
+
+    if(count == 8)
+    {
+        return NeighborStatus::Ready;
+    } else {
+        return NeighborStatus::Incomplete;
+    }
+}
+
+std::optional<std::array<std::shared_ptr<Chunk>, 8>> ChunkManager::get_chunk_neighbors(const ChunkCoord coord)
 {
     ZoneScopedN("Get Chunk Neighbors");
-    std::vector<ChunkView> chunks;
-    chunks.reserve(8);
+    std::array<std::shared_ptr<Chunk>, 8> chunks;
     int count = 0;
     for (const auto direction : directionList)
     {
@@ -300,9 +366,9 @@ std::optional<std::vector<ChunkView>> ChunkManager::get_chunk_neighbors(const Ch
         if(const auto chunk = get_chunk(offset_coord))
         {
             if (!chunk.has_value()) return std::nullopt;
-
+            if (chunk.value()->_state != ChunkState::Generated) return std::nullopt;
+            chunks[direction] = std::move(chunk.value());
             count++;
-            chunks.push_back(chunk.value());
         }
     }
 
@@ -335,13 +401,13 @@ int ChunkManager::get_chunk_index(const ChunkCoord coord) const
 //     _chunks[coord] = std::move(chunk);
 // }
 
-std::optional<ChunkView> ChunkManager::get_chunk(const ChunkCoord coord)
+std::optional<std::shared_ptr<Chunk>> ChunkManager::get_chunk(const ChunkCoord coord)
 {
     std::shared_lock lock(_mapMutex);
     if (_chunks.contains(coord))
     {
 
-        return Chunk::to_view(*_chunks.at(coord));
+        return _chunks.at(coord);
     }
     return std::nullopt;
 }
@@ -379,7 +445,7 @@ std::optional<ChunkView> ChunkManager::get_chunk(const ChunkCoord coord)
 
 
 
-void ChunkManager::mesh_chunk(int threadId)
+void ChunkManager::work_chunk(int threadId)
 {
     tracy::SetThreadName(fmt::format("Chunk Update Thread: {}", threadId).c_str());
     while(_running)
@@ -390,39 +456,36 @@ void ChunkManager::mesh_chunk(int threadId)
             {
                 case ChunkWork::Phase::Generate:
                     work_item.chunk->generate();
-                    work_item.phase = ChunkWork::Phase::Mesh;
+                    work_item.phase = ChunkWork::Phase::WaitingForNeighbors;
                     _chunkWorkQueue.enqueue(work_item);
                     break;
-                case ChunkWork::Phase::Waiting:
-                    while (_running)
+                case ChunkWork::Phase::WaitingForNeighbors:
+                    switch(chunk_has_neighbors(work_item.chunk->_chunkCoord))
                     {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                        std::shared_lock lock(_mapMutex);
-                        if (_chunks.contains(work_item.chunk->_chunkCoord))
-                        {
-                            auto neighbors = get_chunk_neighbors(work_item.chunk->_chunkCoord);
-                            if (neighbors.has_value())
-                            {
-                                work_item.phase = ChunkWork::Phase::Mesh;
-                                _chunkWorkQueue.enqueue(work_item);
-                                break;
-                            }
-                        }
+                        case NeighborStatus::Ready:
+                            work_item.phase = ChunkWork::Phase::Mesh;
+                            _chunkWorkQueue.enqueue(work_item);
+                            break;
+                        case NeighborStatus::Incomplete:
+                            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                            _chunkWorkQueue.enqueue(work_item);
+                            break;
+                        case NeighborStatus::Missing:
+                            break;
                     }
                     break;
                 case ChunkWork::Phase::Mesh:
-                    auto chunkView = Chunk::to_view(*work_item.chunk);
                     auto neighbors = get_chunk_neighbors(work_item.chunk->_chunkCoord);
 
-                    // if (!neighbors.has_value())
+                    // if (neighbors.has_value())
                     // {
-                    //     fmt::println("This chunk has neighbors.!");
-                    //     work_item.phase = ChunkWork::Phase::Waiting;
-                    //     _chunkWorkQueue.enqueue(work_item);
-                    //     continue;
+                    //     fmt::println("This chunk has neighbors!");
+                    //     // work_item.phase = ChunkWork::Phase::Waiting;
+                    //     // _chunkWorkQueue.enqueue(work_item);
+                    //     // continue;
                     // }
 
-                    ChunkMesher mesher { chunkView, neighbors };
+                    ChunkMesher mesher { work_item.chunk, neighbors };
                     auto [landMesh, waterMesh] = mesher.generate_mesh();
 
                     work_item.chunk->_mesh = landMesh;

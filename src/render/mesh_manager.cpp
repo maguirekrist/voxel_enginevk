@@ -4,6 +4,8 @@
 #include <vk_util.h>
 #include <tiny_obj_loader.h>
 
+#include "vk_engine.h"
+
 void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamily& queue, std::shared_ptr<std::mutex> pMutex)
 {
 	m_device = device;
@@ -33,6 +35,15 @@ void MeshManager::cleanup() const
 {
     vkDestroyFence(m_device, m_uploadContext._uploadFence, nullptr);
     vkDestroyCommandPool(m_device, m_uploadContext._commandPool, nullptr);
+}
+
+void MeshManager::unload_garbage()
+{
+	std::shared_ptr<Mesh> unloadMesh;
+	while(UnloadQueue.try_dequeue(unloadMesh))
+	{
+		unload_mesh(std::move(unloadMesh));
+	}
 }
 
 void MeshManager::upload_mesh(std::shared_ptr<Mesh>&& mesh) const
@@ -83,7 +94,8 @@ void MeshManager::unload_mesh(std::shared_ptr<Mesh>&& mesh) const
 	std::unique_lock unique(*m_transferMutex);
 	if (mesh.use_count() != 1)
 	{
-		throw std::runtime_error("Mesh is currently active somewhere else!");
+		//This is odd... at this point this mesh should be empty....
+		//throw std::runtime_error("Mesh is currently active somewhere else!");
 	}
 
 	mesh->_isActive.store(false, std::memory_order_seq_cst);
@@ -195,18 +207,13 @@ void MeshManager::handle_transfers()
 		{
 			ZoneScopedN("Handle Unload and Upload meshes");
 
-			std::shared_ptr<Mesh> unloadMesh;
-			while(UnloadQueue.try_dequeue(unloadMesh))
-			{
-				unload_mesh(std::move(unloadMesh));
-			}
-
 			std::shared_ptr<Mesh> uploadMesh;
 			while (UploadQueue.try_dequeue(uploadMesh))
 			{
 				//fmt::println("MeshManager::attempt upload()");
 				upload_mesh(std::move(uploadMesh));
 			}
+
 		}
 	}
 }

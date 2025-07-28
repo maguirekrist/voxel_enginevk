@@ -7,7 +7,7 @@
 std::optional<Block> World::get_block(const glm::ivec3& worldPos) const
 {
     auto chunk_view = get_chunk(worldPos).value();
-    
+
     auto localPos = get_local_coordinates(worldPos);
     if (Chunk::is_outside_chunk(localPos))
     {
@@ -21,8 +21,14 @@ std::optional<Block> World::get_block(const glm::ivec3& worldPos) const
 {
     const auto chunkCoord = get_chunk_coordinates(worldPos);
     const auto chunkKey = ChunkCoord{chunkCoord.x, chunkCoord.y };
-
-    return _chunkManager->get_chunk(chunkKey);
+    auto chunk = _chunkManager->get_chunk(chunkKey);
+    if (chunk)
+    {
+        return Chunk::to_view(*chunk.value());
+    } else
+    {
+        return std::nullopt;
+    }
 }
 
 // void World::generate_chunk(int xStart, int yStart)
