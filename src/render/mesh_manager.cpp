@@ -31,8 +31,9 @@ void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamil
 }
 
 
-void MeshManager::cleanup() const
+void MeshManager::cleanup()
 {
+	unload_garbage();
     vkDestroyFence(m_device, m_uploadContext._uploadFence, nullptr);
     vkDestroyCommandPool(m_device, m_uploadContext._commandPool, nullptr);
 }
