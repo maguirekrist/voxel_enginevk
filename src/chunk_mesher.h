@@ -7,7 +7,7 @@ class ChunkMesher {
 public:
     ChunkMesher(std::shared_ptr<Chunk> chunk, std::optional<std::array<std::shared_ptr<Chunk>, 8>>& neighbors) : _chunk(chunk), _chunkNeighbors(neighbors) {}
 
-    std::pair<std::shared_ptr<Mesh>, std::shared_ptr<Mesh>> generate_mesh();
+    void generate_mesh();
 
 private:
     std::shared_ptr<Chunk> _chunk;

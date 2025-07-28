@@ -23,7 +23,7 @@ void BlueprintBuilderScene::init()
     // set_grid_uniform();
 }
 
-void BlueprintBuilderScene::render(RenderQueue& queue) {
+void BlueprintBuilderScene::queue_objects(RenderQueue& queue) {
     // Draw
     update_camera_uniform();
     //Build the chunk views

@@ -11,7 +11,7 @@ void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamil
 	m_device = device;
 	m_allocator = allocator;
 	m_transferQueue = queue;
-	m_transferMutex = std::move(pMutex);
+	m_queueMutex = std::move(pMutex);
 
 	VkFenceCreateInfo uploadCreateInfo = vkinit::fence_create_info();
 
@@ -27,7 +27,7 @@ void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamil
 	VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_uploadContext._commandBuffer));
 
 	//Start transfer thread
-	m_transferThread = std::thread(&MeshManager::handle_transfers, this);
+	//m_transferThread = std::thread(&MeshManager::handle_transfers, this);
 }
 
 
@@ -84,14 +84,13 @@ void MeshManager::upload_mesh(std::shared_ptr<Mesh>&& mesh) const
 	vmaDestroyBuffer(m_allocator, vertexStagingBuffer._buffer, vertexStagingBuffer._allocation);
 	vmaDestroyBuffer(m_allocator, indexStagingBuffer._buffer, indexStagingBuffer._allocation);
 
-	//TODO: Re-enable?
 	mesh->_isActive.store(true, std::memory_order_release);
-	//fmt::println("MeshManager::upload_mesh()");
+	//std::println("MeshManager::upload_mesh()");
 }
 
 void MeshManager::unload_mesh(std::shared_ptr<Mesh>&& mesh) const
 {
-	std::unique_lock unique(*m_transferMutex);
+	std::unique_lock unique(*m_queueMutex);
 	if (mesh.use_count() != 1)
 	{
 		//This is odd... at this point this mesh should be empty....
@@ -186,9 +185,9 @@ void MeshManager::immediate_submit(std::function<void(VkCommandBuffer cmd)> &&fu
 	//submit command buffer to the queue and execute it.
 	// _uploadFence will now block until the graphic commands finish execution
 	std::unique_lock<std::mutex> lock;
-	if (m_transferMutex)
+	if (m_queueMutex)
 	{
-		lock = std::unique_lock(*m_transferMutex);
+		lock = std::unique_lock(*m_queueMutex);
 	}
 	VK_CHECK(vkQueueSubmit(m_transferQueue._queue, 1, &submit, m_uploadContext._uploadFence));
 
@@ -201,19 +200,12 @@ void MeshManager::immediate_submit(std::function<void(VkCommandBuffer cmd)> &&fu
 
 void MeshManager::handle_transfers()
 {
-	while(true)
-	{	
-		//Handle uploads and unloads
-		{
-			ZoneScopedN("Handle Unload and Upload meshes");
+	ZoneScopedN("Handle Unload and Upload meshes");
 
-			std::shared_ptr<Mesh> uploadMesh;
-			while (UploadQueue.try_dequeue(uploadMesh))
-			{
-				//fmt::println("MeshManager::attempt upload()");
-				upload_mesh(std::move(uploadMesh));
-			}
-
-		}
+	std::shared_ptr<Mesh> uploadMesh;
+	while (UploadQueue.try_dequeue(uploadMesh))
+	{
+		//fmt::println("MeshManager::attempt upload()");
+		upload_mesh(std::move(uploadMesh));
 	}
 }

@@ -4,11 +4,9 @@
 #include "tracy/Tracy.hpp"
 #include <world.h>
 
-std::pair<std::shared_ptr<Mesh>, std::shared_ptr<Mesh>> ChunkMesher::generate_mesh()
+void ChunkMesher::generate_mesh()
 {
     ZoneScopedN("Generate Chunk Mesh");
-    auto mesh = std::make_shared<Mesh>();
-    auto waterMesh = std::make_shared<Mesh>();
 
     for (int x = 0; x < CHUNK_SIZE; ++x) {
         for (int y = 0; y < CHUNK_HEIGHT; ++y) {
@@ -19,7 +17,7 @@ std::pair<std::shared_ptr<Mesh>, std::shared_ptr<Mesh>> ChunkMesher::generate_me
                     {
                         if(is_face_visible(x, y, z, face))
                         {
-                            add_face_to_opaque_mesh(x, y, z, face, mesh.get());
+                            add_face_to_opaque_mesh(x, y, z, face, _chunk->_mesh.get());
                         }
                     }
                 } else if(block._type == BlockType::WATER)
@@ -28,15 +26,13 @@ std::pair<std::shared_ptr<Mesh>, std::shared_ptr<Mesh>> ChunkMesher::generate_me
                     {
                         if(is_face_visible_water(x, y, z, face))
                         {
-                            add_face_to_water_mesh(x, y, z, face, waterMesh.get());
+                            add_face_to_water_mesh(x, y, z, face, _chunk->_waterMesh.get());
                         }
                     }
                 }
             }
         }
     }
-
-    return std::pair(std::move(mesh), std::move(waterMesh));
 }
 
 std::optional<const Block> ChunkMesher::get_face_neighbor(const int x, const int y, const int z, const FaceDirection face) const

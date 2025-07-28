@@ -3,13 +3,25 @@
 #include <vk_mesh.h>
 #include <block.h>
 #include <constants.h>
-
+#include <format>
 
 struct ChunkCoord {
     int x, z;
     
     bool operator==(const ChunkCoord& other) const {
         return x == other.x && z == other.z;
+    }
+};
+
+template <>
+struct std::formatter<ChunkCoord> {
+    constexpr auto parse(std::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ChunkCoord& coord, FormatContext& ctx) const {
+        return std::format_to(ctx.out(), "Chunk[x={}, z={}]", coord.x, coord.z);
     }
 };
 
@@ -51,10 +63,12 @@ struct ChunkView
     [[nodiscard]] glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
 };
 
-enum class ChunkState
+enum class ChunkState : uint8_t
 {
-    Uninitialized,
-    Generated
+    Uninitialized = 0,
+    Generated = 1,
+    Border = 2,
+    Rendered = 3
 };
 
 class Chunk {
