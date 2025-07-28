@@ -92,12 +92,6 @@ void MeshManager::upload_mesh(std::shared_ptr<Mesh>&& mesh) const
 void MeshManager::unload_mesh(std::shared_ptr<Mesh>&& mesh) const
 {
 	std::unique_lock unique(*m_queueMutex);
-	if (mesh.use_count() != 1)
-	{
-		//This is odd... at this point this mesh should be empty....
-		//throw std::runtime_error("Mesh is currently active somewhere else!");
-	}
-
 	mesh->_isActive.store(false, std::memory_order_seq_cst);
 	vmaDestroyBuffer(m_allocator, mesh->_vertexBuffer._buffer, mesh->_vertexBuffer._allocation);
 	vmaDestroyBuffer(m_allocator, mesh->_indexBuffer._buffer, mesh->_indexBuffer._allocation);
@@ -206,7 +200,6 @@ void MeshManager::handle_transfers()
 	std::shared_ptr<Mesh> uploadMesh;
 	while (UploadQueue.try_dequeue(uploadMesh))
 	{
-		//fmt::println("MeshManager::attempt upload()");
 		upload_mesh(std::move(uploadMesh));
 	}
 }

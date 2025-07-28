@@ -32,7 +32,7 @@ void VulkanEngine::calculate_fps()
 	if(elapsedTime.count() >= 1.0f)
 	{
 		_fps = _frameNumber / elapsedTime.count();
-		fmt::println("FPS: {}", _fps);
+		std::println("FPS: {}", _fps);
 
 		_frameNumber = 0;
 		_lastFpsTime = Clock::now();

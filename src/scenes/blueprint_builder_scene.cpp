@@ -6,7 +6,7 @@
 
 BlueprintBuilderScene::BlueprintBuilderScene()
 {
-    fmt::println("BlueprintBuilderScene created!");
+    std::println("BlueprintBuilderScene created!");
 
     // auto gridBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
     // _gridResource = Resource{Resource::BUFFER, { .buffer = gridBuffer }};
