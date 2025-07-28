@@ -71,7 +71,7 @@ void GameScene::init()
 	// }
 
 
-	fmt::println("GameScene created!");
+	std::println("GameScene created!");
 }
 
 void GameScene::queue_objects(RenderQueue& queue) {

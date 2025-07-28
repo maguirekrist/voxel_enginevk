@@ -36,7 +36,7 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, Player& play
         if (!current_chunk) return std::nullopt;
 
         if(distance == 0.0f)
-            fmt::println("Voxel Position: x:{}, y:{}, z:{}", voxelPos.x, voxelPos.y, voxelPos.z);
+            std::println("Voxel Position: x:{}, y:{}, z:{}", voxelPos.x, voxelPos.y, voxelPos.z);
 
         auto localPos = World::get_local_coordinates(voxelPos);
         auto block = current_chunk->get_block(localPos);

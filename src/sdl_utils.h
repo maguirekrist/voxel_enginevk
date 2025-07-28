@@ -1,7 +1,6 @@
 
 #pragma once
 #include <SDL_events.h>
-#include <fmt/core.h>
 
 class SdlUtils {
 public:
