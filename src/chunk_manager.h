@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vk_mesh.h>
-#include <chunk.h>
+#include <game/chunk.h>
 #include <memory>
 #include <utils/concurrentqueue.h>
 #include <utils/blockingconcurrentqueue.h>

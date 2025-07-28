@@ -1,6 +1,6 @@
 
 #include "chunk_manager.h"
-#include "chunk.h"
+#include "game/chunk.h"
 #include "chunk_mesher.h"
 #include "tracy/Tracy.hpp"
 #include "vk_mesh.h"

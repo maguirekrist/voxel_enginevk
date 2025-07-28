@@ -1,8 +1,8 @@
 
 #pragma once
-#include <chunk.h>
-#include <player.h>
-#include <world.h>
+#include <game/chunk.h>
+#include <game/player.h>
+#include <game/world.h>
 
 
 struct RaycastResult {

@@ -1,8 +1,8 @@
 
 #include <chunk_mesher.h>
-#include "block.h"
+#include "game/block.h"
 #include "tracy/Tracy.hpp"
-#include <world.h>
+#include <game/world.h>
 
 void ChunkMesher::generate_mesh()
 {

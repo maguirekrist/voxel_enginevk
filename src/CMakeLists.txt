@@ -14,21 +14,21 @@ add_executable(vulkan_guide
     vk_mesh.cpp
     camera.h
     camera.cpp
-    world.h
-    world.cpp
+        game/world.h
+        game/world.cpp
     random.h
-    chunk.h
-    chunk.cpp
-    block.h
-    block.cpp
+        game/chunk.h
+        game/chunk.cpp
+        game/block.h
+        game/block.cpp
     chunk_mesher.h
     chunk_mesher.cpp
     chunk_manager.h
     chunk_manager.cpp
     cube_engine.h
     cube_engine.cpp
-    player.h
-    player.cpp
+        game/player.h
+        game/player.cpp
     terrain_gen.h
     terrain_gen.cpp
     constants.h
@@ -60,7 +60,7 @@ add_executable(vulkan_guide
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
 
 target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(vulkan_guide vkbootstrap libcuckoo vma glm tinyobjloader imgui stb_image fmt)
+target_link_libraries(vulkan_guide vkbootstrap libcuckoo vma glm tinyobjloader imgui stb_image)
 
 target_link_libraries(vulkan_guide Vulkan::Vulkan sdl2 FastNoise TracyClient)
 

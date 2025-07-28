@@ -1,9 +1,9 @@
 #pragma once
 
-#include <world.h>
+#include <game/world.h>
 #include <chunk_mesher.h>
 #include <chunk_manager.h>
-#include <player.h>
+#include <game/player.h>
 
 class VulkanEngine;
 

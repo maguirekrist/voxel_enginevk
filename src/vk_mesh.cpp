@@ -1,5 +1,5 @@
 #include <vk_mesh.h>
-#include <block.h>
+#include <game/block.h>
 
 VertexInputDescription Vertex::get_vertex_description()
 {

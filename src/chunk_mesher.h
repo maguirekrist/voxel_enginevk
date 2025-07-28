@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vk_types.h>
-#include <chunk.h>
+#include <game/chunk.h>
 
 class ChunkMesher {
 public:
