@@ -34,10 +34,9 @@ namespace vkutil {
         void init(VkDevice newDevice);
 
         void cleanup();
-
+        VkDescriptorPool grab_pool();
         VkDevice device;
     private:
-        VkDescriptorPool grab_pool();
 
         VkDescriptorPool currentPool{ VK_NULL_HANDLE };
         PoolSizes descriptorSizes;

@@ -152,5 +152,8 @@ private:
 
 	void init_sync_structures();
 
+	void init_imgui();
+	void imgui_upload_fonts();
+
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
 };

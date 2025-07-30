@@ -7,6 +7,9 @@
 #include <scenes/game_scene.h>
 #include <scenes/blueprint_builder_scene.h>
 
+#include "imgui.h"
+#include "backends/imgui_impl_vulkan.h"
+
 void SceneRenderer::init()
 {
 	_scenes["game"] = std::make_unique<GameScene>();
@@ -20,6 +23,8 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
 {
     _currentScene->queue_objects(_renderQueue);
 
+	_currentScene->draw_imgui();
+
     VkRenderPassBeginInfo rpOffscreenInfo = vkinit::render_pass_begin_info(
         VulkanEngine::instance()._offscreenPass, 
         VulkanEngine::instance()._windowExtent, 
@@ -28,7 +33,6 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
         2);
 
     vkCmdBeginRenderPass(cmd, &rpOffscreenInfo, VK_SUBPASS_CONTENTS_INLINE);
-
     draw_objects(cmd, _renderQueue.getOpaqueQueue());
 
     vkCmdEndRenderPass(cmd);
@@ -48,6 +52,8 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
 
     //Draw transparent
     draw_objects(cmd, _renderQueue.getTransparentQueue());
+
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
     vkCmdEndRenderPass(cmd);
 

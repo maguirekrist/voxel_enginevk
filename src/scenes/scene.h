@@ -11,6 +11,7 @@ public:
     virtual void handle_input(const SDL_Event& event) = 0;
     virtual void handle_keystate(const Uint8* state) = 0;
     virtual void cleanup() = 0;
+    virtual void draw_imgui() = 0;
 
     virtual ~Scene() = default;
 };
