@@ -18,6 +18,9 @@
 #include "vk_types.h"
 
 #define VMA_IMPLEMENTATION
+#include "imgui.h"
+#include "backends/imgui_impl_sdl2.h"
+#include "backends/imgui_impl_vulkan.h"
 #include "vk_mem_alloc.h"
 
 
@@ -73,6 +76,8 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
+	init_imgui();
+
 	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily }, m_queueMutex);
 
 	_sceneRenderer.init();
@@ -95,8 +100,12 @@ void VulkanEngine::cleanup()
 		_descriptorLayoutCache.cleanup();
 		_descriptorAllocator.cleanup();
 
+		//ImGui cleanup
+		ImGui_ImplVulkan_Shutdown();
+		ImGui_ImplSDL2_Shutdown();
+		ImGui::DestroyContext();
 
-		//TODO: this throws... need to do a better job at resource management.
+
 		vmaDestroyAllocator(_allocator);
 
 		vkDestroyDevice(_device, nullptr);
@@ -114,6 +123,8 @@ void VulkanEngine::handle_input()
 	//Handle events on queue
 	while (SDL_PollEvent(&e) != 0)
 	{
+		ImGui_ImplSDL2_ProcessEvent(&e);
+
 		switch(e.type) {
 			case SDL_KEYDOWN:
 				switch(e.key.keysym.sym)
@@ -207,6 +218,7 @@ void VulkanEngine::draw()
 	const VkCommandBuffer cmd = begin_recording();
 
 	_sceneRenderer.render_scene(cmd, swapchainImageIndex);
+
 	VK_CHECK(vkEndCommandBuffer(cmd));
 	
 
@@ -269,6 +281,8 @@ void VulkanEngine::submit_queue_present(const VkCommandBuffer pCmd, const uint32
 
 void VulkanEngine::run()
 {
+
+	//imgui_upload_fonts();
 
 	//main loop
 	while (!bQuit)
@@ -726,6 +740,57 @@ void VulkanEngine::init_sync_structures()
 			vkDestroySemaphore(_device, _frames[i]._renderSemaphore, nullptr);
 		});
 	}
+}
+
+void VulkanEngine::init_imgui()
+{
+	//SETUP IMgui
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	ImGui_ImplSDL2_InitForVulkan(_window);
+
+	//Optionally enable docking, etc.
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+	std::println("SwapChain image count: {}", _swapchainImages.size());
+
+	ImGui::StyleColorsDark();
+	ImGui_ImplVulkan_InitInfo init_info = {};
+	init_info.Instance = _instance;
+	init_info.PhysicalDevice = _chosenGPU;
+	init_info.Device = _device;
+	init_info.PhysicalDevice = _chosenGPU;
+	init_info.QueueFamily = _graphicsQueueFamily;
+	init_info.Queue = _graphicsQueue;
+	init_info.DescriptorPool = _descriptorAllocator.grab_pool();
+	init_info.PipelineCache = VK_NULL_HANDLE;
+	init_info.RenderPass = _renderPass;
+	init_info.ApiVersion = VK_API_VERSION_1_1;
+	init_info.MinImageCount = _swapchainImages.size();
+	init_info.ImageCount = _swapchainImages.size();
+	init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+	init_info.Allocator = nullptr;
+
+	ImGui_ImplVulkan_Init(&init_info);
+}
+
+void VulkanEngine::imgui_upload_fonts()
+{
+	// VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
+	// VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	//
+	// VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+	//
+	// ImGui_ImplVulkan_CreateFontsTexture(cmd);
+	//
+	// VK_CHECK(vkEndCommandBuffer(cmd));
+	//
+	// VkSubmitInfo submit = vkinit::submit_info(&cmd);
+	// VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, VK_NULL_HANDLE));
+	// VK_CHECK(vkQueueWaitIdle(_graphicsQueue));
+	//
+	// ImGui_ImplVulkan_DestroyFontUploadObjects();
 }
 
 FrameData &VulkanEngine::get_current_frame()

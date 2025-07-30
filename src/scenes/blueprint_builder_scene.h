@@ -19,12 +19,14 @@ public:
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
     void cleanup() override;
-
+    void draw_imgui() override;
 private:
     void build_chunk_platform(ChunkCoord coord);
     void set_grid_uniform();
     void update_camera_uniform();
 
+
+private:
     Camera _camera;
 
     std::shared_ptr<Resource> _gridResource;

@@ -16,6 +16,7 @@ public:
     void update(float deltaTime) override;
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
+    void draw_imgui() override;
     void cleanup() override;
 private:
     void update_fog_ubo();

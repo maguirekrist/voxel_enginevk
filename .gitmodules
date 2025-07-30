@@ -7,3 +7,6 @@
 [submodule "third_party/libcuckoo"]
 	path = third_party/libcuckoo
 	url = git@github.com:efficient/libcuckoo.git
+[submodule "third_party/imgui"]
+	path = third_party/imgui
+	url = https://github.com/ocornut/imgui
