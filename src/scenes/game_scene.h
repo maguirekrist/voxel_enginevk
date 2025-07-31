@@ -19,11 +19,13 @@ public:
     void draw_imgui() override;
     void cleanup() override;
 private:
-    void update_fog_ubo();
-    void update_uniform_buffer();
-    
+    void update_fog_ubo() const;
+    void update_uniform_buffer() const;
+
 	std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Resource> _cameraUboResource;
+
+    std::optional<WorldUpdate> _pendingWorldUpdate = std::nullopt;
 
     CubeEngine _game;
     Camera _camera;

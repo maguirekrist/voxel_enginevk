@@ -21,7 +21,7 @@ std::optional<Block> World::get_block(const glm::ivec3& worldPos) const
 {
     const auto chunkCoord = get_chunk_coordinates(worldPos);
     const auto chunkKey = ChunkCoord{chunkCoord.x, chunkCoord.y };
-    auto chunk = _chunkManager->get_chunk(chunkKey);
+    auto chunk = _chunkManager.get_chunk(chunkKey);
     if (chunk)
     {
         return Chunk::to_view(*chunk.value());

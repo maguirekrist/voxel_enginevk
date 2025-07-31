@@ -46,194 +46,239 @@ size_t ChunkWorkQueue::size_approx() const
 }
 
 ChunkManager::ChunkManager()
-        :
-        _viewDistance(DEFAULT_VIEW_DISTANCE),
-          _maxChunks((2 * DEFAULT_VIEW_DISTANCE + 1) * (2 * DEFAULT_VIEW_DISTANCE + 1)),
-          _maxThreads(4),
-          _running(true)
 {
-
     _chunks.reserve(_maxChunks);
-    _renderedChunks.reserve(_maxChunks);
-    _worldChunks.reserve(_maxChunks);
 
     auto max_thread = std::thread::hardware_concurrency();
     _maxThreads = max_thread != 0 ? max_thread : _maxThreads;
 
-    for(size_t i = 0; i < _maxThreads; i++)
+    _updateThread = std::thread(&ChunkManager::work_update, this, 0);
+
+    for(size_t i = 1; i < _maxThreads; i++)
     {
         _workers.emplace_back(&ChunkManager::work_chunk, this, i);
     }
-}
 
-static std::tuple<int, int, int, int> get_chunk_range(auto&& coords)
-{
-    int minX = std::numeric_limits<int>::max();
-    int maxX = std::numeric_limits<int>::min();
-    int minZ = std::numeric_limits<int>::max();
-    int maxZ = std::numeric_limits<int>::min();
-
-    for (const ChunkCoord& coord : coords) {
-        minX = std::min(minX, coord.x);
-        maxX = std::max(maxX, coord.x);
-        minZ = std::min(minZ, coord.z);
-        maxZ = std::max(maxZ, coord.z);
-    }
-
-    return std::tuple{minX, maxX, minZ, maxZ};
 }
 
 void ChunkManager::cleanup()
 {
     std::println("ChunkManager::cleanup");
-    _renderedChunks.clear();
-    _transparentObjects.clear();
     for(const auto& [key, chunk] : _chunks)
     {
         VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_mesh));
         VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_waterMesh));
     }
 
-    _chunks.clear();
-}
-
-ChunkManager::~ChunkManager()
-{
     _running = false;
 
     for (std::thread &worker : _workers) {
         worker.join();
     }
 
+    _updateThread.join();
+    _chunks.clear();
+}
+
+ChunkManager::~ChunkManager()
+{
     std::println("ChunkManager::~ChunkManager");
 }
 
-void ChunkManager::update_player_position(const int x, const int z)
+std::optional<WorldUpdate> ChunkManager::update_player_position(const int x, const int z)
 {
     const ChunkCoord playerChunk = {x / static_cast<int>(CHUNK_SIZE), z / static_cast<int>(CHUNK_SIZE)};  // Assuming 16x16 chunks
-    if (playerChunk == _lastPlayerChunk && !_initialLoad) return;
+    if (playerChunk == _lastPlayerChunk && !_initialLoad) return std::nullopt;
 
     const auto changeX = playerChunk.x - _lastPlayerChunk.x;
     const auto changeZ = playerChunk.z - _lastPlayerChunk.z;
     std::println("Player changed chunks, delta: x {},  z {}", changeX, changeZ);
     std::println("Player position: x {},  z {}", playerChunk.x, playerChunk.z);
     _lastPlayerChunk = playerChunk;
-    std::vector<ChunkCoord> oldChunks = std::vector<ChunkCoord>(_maxChunks);
-
-    oldChunks.swap(_worldChunks);
-    update_world_state();
-
-    auto [wlx, whx, wlz, whz] = get_chunk_range(_worldChunks);
-    _mapRange.low_x.store(wlx);
-    _mapRange.low_z.store(wlz);
-    _mapRange.high_x.store(whx);
-    _mapRange.high_z.store(whz);
+    const MapRange mapRange(playerChunk, _viewDistance);
 
     if (_initialLoad)
     {
-        oldChunks = _worldChunks;
         _initialLoad = false;
+        return initialize_map(mapRange);
     }
-
-    _renderedChunks.clear();
-    _transparentObjects.clear();
-
     //calculate old chunks and remove.
-    for (const auto& chunkCoord : oldChunks)
-    {
-        if (chunkCoord.x < wlx ||
-            chunkCoord.x > whx ||
-            chunkCoord.z < wlz ||
-            chunkCoord.z > whz)
-        {
-            std::shared_lock lock(_mapMutex);
-            if (_chunks.contains(chunkCoord))
-            {
-                lock.unlock();
-                std::unique_lock unique(_mapMutex);
-                auto chunk = _chunks.at(chunkCoord);
-                VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_mesh));
-                VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_waterMesh));
-                _chunks.erase(chunkCoord);
-            } else
-            {
-                throw std::runtime_error("Chunk does not exist");
-            }
-        }
-    }
+    auto worldUpdate = update_map(mapRange, { changeX, changeZ });
+    std::println("Active chunks: {}", _chunks.size());
+    std::println("Work Queue: {}", _chunkWorkQueue.size_approx());
+    return worldUpdate;
+}
 
+std::optional<WorldUpdate> ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
+{
+    if (delta.x == 0 && delta.z == 0) return std::nullopt;
+
+    WorldUpdate update{};
     std::vector<ChunkWork> WorkQueue;
     WorkQueue.reserve(_maxChunks);
 
-    for(const auto& chunkCoord : _worldChunks)
+    auto remove_chunk = [&, this](const ChunkCoord chunkCoord)
+    {
+        std::shared_lock lock(_mapMutex);
+        if (_chunks.contains(chunkCoord))
+        {
+            lock.unlock();
+            std::unique_lock unique(_mapMutex);
+            auto chunk = _chunks.at(chunkCoord);
+            VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_mesh));
+            VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_waterMesh));
+            _chunks.erase(chunkCoord);
+            update.removedChunks.push_back(std::move(chunk));
+        } else
+        {
+            std::println("Chunk does not exist: {}", chunkCoord);
+            //throw std::runtime_error("Chunk does not exist");
+        }
+    };
+
+    // new chunks will always be at the border.
+    auto add_chunk = [&, this](const ChunkCoord chunkCoord)
     {
         if (!_chunks.contains(chunkCoord))
         {
             auto unchunked = std::make_shared<Chunk>(chunkCoord);
             std::unique_lock lock(_mapMutex);
             _chunks.insert({ chunkCoord, unchunked });
-            //defer queue -> _chunkWorkQueue.enqueue(ChunkWork { .chunk = unchunked, .phase = ChunkWork::Phase::Generate });
-            WorkQueue.emplace_back(unchunked, ChunkWork::Phase::Generate);
-        }
-
-        auto chunkToRender = _chunks.at(chunkCoord);
-        if (chunk_at_border(chunkCoord)) {  continue; } //do not render chunks that are at the border. Just Generate.
-
-        if (chunkToRender->_state.load() == ChunkState::Border)
+            WorkQueue.emplace_back(unchunked, ChunkWork::Phase::Generate, mapRange);
+        } else
         {
-            chunkToRender->_state.store(ChunkState::Generated);
-            WorkQueue.emplace_back(chunkToRender, ChunkWork::Phase::WaitingForNeighbors);
-            // _chunkWorkQueue.enqueue(ChunkWork { .chunk = chunkToRender, .phase = ChunkWork::Phase::WaitingForNeighbors });
+            std::println("Chunk already exists: {}", chunkCoord);
+        }
+    };
+
+    auto update_chunk = [&, this](const ChunkCoord chunkCoord)
+    {
+        if (!_chunks.contains(chunkCoord))
+        {
+            add_chunk(chunkCoord);
+            return;
         }
 
-        auto object = std::make_unique<RenderObject>(RenderObject{
-               chunkToRender->_mesh,
-               VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
-               glm::ivec2(chunkToRender->_position.x, chunkToRender->_position.y),
-               RenderLayer::Opaque
-           });
-        _renderedChunks.push_back(std::move(object));
+        auto chunkToUpdate = _chunks.at(chunkCoord);
+        if (chunkToUpdate->_state.load() == ChunkState::Border)
+        {
+            chunkToUpdate->_state.store(ChunkState::Generated);
+            WorkQueue.emplace_back(chunkToUpdate, ChunkWork::Phase::WaitingForNeighbors, mapRange);
+            update.newChunks.push_back(chunkToUpdate);
+        } else
+        {
+            std::println("Chunk is not border: {}", chunkCoord);
+        }
+    };
 
-        auto waterObject = std::make_unique<RenderObject>(RenderObject{
-            chunkToRender->_waterMesh,
-            VulkanEngine::instance()._materialManager.get_material("watermesh"),
-            glm::ivec2(chunkToRender->_position.x, chunkToRender->_position.y),
-            RenderLayer::Transparent
-        });
-        _transparentObjects.push_back(std::move(waterObject));
+    if (delta.x == 1)
+    {
+        for (auto mapZ = mapRange.low_z; mapZ <= mapRange.high_z; ++mapZ)
+        {
+            const auto removeCoord = ChunkCoord{mapRange.low_x - 1, mapZ};
+            remove_chunk(removeCoord);
+
+            const auto newChunk = ChunkCoord{mapRange.high_x, mapZ};
+            add_chunk(newChunk);
+
+            const auto oldBorderCoord = ChunkCoord{mapRange.high_x - 1, mapZ};
+            update_chunk(oldBorderCoord);
+        }
+    }
+
+    if (delta.x == -1)
+    {
+        for (auto mapZ = mapRange.low_z; mapZ <= mapRange.high_z; ++mapZ)
+        {
+            const auto removeCoord = ChunkCoord{mapRange.high_x + 1, mapZ};
+            remove_chunk(removeCoord);
+
+            const auto newChunk = ChunkCoord{mapRange.low_x, mapZ};
+            add_chunk(newChunk);
+
+            const auto oldBorderCoord = ChunkCoord{mapRange.low_x + 1, mapZ};
+            update_chunk(oldBorderCoord);
+        }
+    }
+
+    if (delta.z == 1)
+    {
+        for (auto mapX = mapRange.low_x; mapX <= mapRange.high_x; ++mapX)
+        {
+            const auto removeCoord = ChunkCoord{mapX, mapRange.low_z - 1};
+            remove_chunk(removeCoord);
+
+            const auto newChunk = ChunkCoord{mapX, mapRange.high_z};
+            add_chunk(newChunk);
+
+            const auto oldBorderCoord = ChunkCoord{mapX, mapRange.high_z - 1};
+            update_chunk(oldBorderCoord);
+        }
+    }
+
+    if (delta.z == -1)
+    {
+        for (auto mapX = mapRange.low_x; mapX <= mapRange.high_x; ++mapX)
+        {
+            const auto removeCoord = ChunkCoord{mapX, mapRange.high_z + 1};
+            remove_chunk(removeCoord);
+
+            const auto newChunk = ChunkCoord{mapX, mapRange.low_z};
+            add_chunk(newChunk);
+
+            const auto oldBorderCoord = ChunkCoord{mapX, mapRange.low_z + 1};
+            update_chunk(oldBorderCoord);
+        }
     }
 
     for (const auto& chunkWork : WorkQueue)
     {
         _chunkWorkQueue.enqueue(std::move(chunkWork));
     }
-    WorkQueue.clear();
 
-    std::println("Active chunks: {}", _chunks.size());
-    std::println("Renderable chunks: {}", _renderedChunks.size());
-    std::println("(world chunks): {}", _worldChunks.size());
-    std::println("Work Queue: {}", _chunkWorkQueue.size_approx());
+    return  update;
 }
 
-void ChunkManager::update_world_state()
+WorldUpdate ChunkManager::initialize_map(const MapRange mapRange)
 {
-    _worldChunks.clear();
-    _worldChunks.reserve(_maxChunks);//is reserve needed after clear?
-    for (int dx = -_viewDistance; dx <= _viewDistance; ++dx) {
-        for (int dz = -_viewDistance; dz <= _viewDistance; ++dz) {
-            ChunkCoord coord = {_lastPlayerChunk.x + dx, _lastPlayerChunk.z + dz};
-            _worldChunks.push_back(coord);
+    std::vector<ChunkWork> WorkQueue;
+    WorkQueue.reserve(_maxChunks);
+    WorldUpdate update{};
+
+    for (auto mapX = mapRange.low_x; mapX <= mapRange.high_x; ++mapX)
+    {
+        for (auto mapZ = mapRange.low_z; mapZ <= mapRange.high_z; ++mapZ)
+        {
+            auto chunkCoord = ChunkCoord{mapX, mapZ};
+            if (!_chunks.contains(chunkCoord))
+            {
+                auto unchunked = std::make_shared<Chunk>(chunkCoord);
+                std::unique_lock lock(_mapMutex);
+                _chunks.insert({ chunkCoord, unchunked });
+                WorkQueue.emplace_back(unchunked, ChunkWork::Phase::Generate, mapRange);
+            }
+
+            auto chunkToRender = _chunks.at(chunkCoord);
+            if (mapRange.is_border(chunkCoord)) {  continue; } //do not render chunks that are at the border. Just Generate.
+
+            if (chunkToRender->_state.load() == ChunkState::Border)
+            {
+                chunkToRender->_state.store(ChunkState::Generated);
+                WorkQueue.emplace_back(chunkToRender, ChunkWork::Phase::WaitingForNeighbors, mapRange);
+            }
+
+            update.newChunks.push_back(chunkToRender);
         }
     }
+
+    for (const auto& chunkWork : WorkQueue)
+    {
+        _chunkWorkQueue.enqueue(std::move(chunkWork));
+    }
+
+    return update;
 }
 
-bool ChunkManager::chunk_at_border(const ChunkCoord coord) const
-{
-    return (coord.x == _mapRange.low_x.load() ||
-            coord.x == _mapRange.high_x.load() ||
-            coord.z == _mapRange.low_z.load() ||
-            coord.z == _mapRange.high_z.load());
-}
 
 NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord)
 {
@@ -274,7 +319,7 @@ NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord)
             }
         } else
         {
-            std::println("{} not in map", offset_coord);
+            //std::println("{} not in map", offset_coord);
         }
     }
 
@@ -322,11 +367,11 @@ int ChunkManager::get_chunk_index(const ChunkCoord coord) const
     const int y = coord.z - _lastPlayerChunk.z;
 
     // Normalize the relative coordinates to the range [0, 64] by adding viewDistance
-    const int normalizedX = std::clamp(x + _viewDistance, 0, (2 * DEFAULT_VIEW_DISTANCE + 1) - 1);
-    const int normalizedZ = std::clamp(y + _viewDistance, 0, (2 * DEFAULT_VIEW_DISTANCE + 1) - 1);
+    const int normalizedX = std::clamp(x + _viewDistance, 0, (2 * GameConfig::DEFAULT_VIEW_DISTANCE + 1) - 1);
+    const int normalizedZ = std::clamp(y + _viewDistance, 0, (1 + 2 * GameConfig::DEFAULT_VIEW_DISTANCE) - 1);
 
     // Calculate the 1D index in the vector
-    const int index = normalizedZ * (2 * DEFAULT_VIEW_DISTANCE + 1) + normalizedX;
+    const int index = normalizedZ * (2 * GameConfig::DEFAULT_VIEW_DISTANCE + 1) + normalizedX;
 
     return index;
 }
@@ -336,7 +381,6 @@ std::optional<std::shared_ptr<Chunk>> ChunkManager::get_chunk(const ChunkCoord c
     std::shared_lock lock(_mapMutex);
     if (_chunks.contains(coord))
     {
-
         return _chunks.at(coord);
     }
     return std::nullopt;
@@ -386,7 +430,7 @@ void ChunkManager::work_chunk(int threadId)
             {
                 case ChunkWork::Phase::Generate:
                     work_item.chunk->generate();
-                    if (chunk_at_border(work_item.chunk->_chunkCoord))
+                    if (work_item.mapRange.is_border(work_item.chunk->_chunkCoord))
                     {
                         work_item.chunk->_state.store(ChunkState::Border);
                         break;
@@ -402,7 +446,7 @@ void ChunkManager::work_chunk(int threadId)
                             _chunkWorkQueue.enqueue(work_item);
                             break;
                         case NeighborStatus::Incomplete:
-                            //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                            std::this_thread::sleep_for(std::chrono::milliseconds(10));
                             _chunkWorkQueue.enqueue(work_item);
                             break;
                         case NeighborStatus::Missing:
@@ -416,6 +460,13 @@ void ChunkManager::work_chunk(int threadId)
                     mesher.generate_mesh();
                     work_item.chunk->_state.store(ChunkState::Rendered);
 
+
+                    work_item.chunk->_opaqueRenderObject->mesh = work_item.chunk->_mesh;
+                    work_item.chunk->_opaqueRenderObject->material = VulkanEngine::instance()._materialManager.get_material("defaultmesh");
+                    work_item.chunk->_transparentRenderObject->mesh = work_item.chunk->_waterMesh;
+                    work_item.chunk->_transparentRenderObject->material = VulkanEngine::instance()._materialManager.get_material("watermesh");
+
+
                     if(!work_item.chunk->_waterMesh->_vertices.empty())
                     {
                         VulkanEngine::instance()._meshManager.UploadQueue.enqueue(work_item.chunk->_waterMesh);
@@ -426,6 +477,19 @@ void ChunkManager::work_chunk(int threadId)
         } else if (!_running)
         {
             break;
+        }
+    }
+}
+
+void ChunkManager::work_update(int threadId)
+{
+    tracy::SetThreadName(std::format("Chunk Update Thread: {}", threadId).c_str());
+    while(_running)
+    {
+        MapRange mapRange;
+        if (_mapUpdateQueue.try_dequeue(mapRange))
+        {
+
         }
     }
 }
