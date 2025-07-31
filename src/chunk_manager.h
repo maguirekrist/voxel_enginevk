@@ -9,17 +9,49 @@
 
 class VulkanEngine;
 
+struct MapRange
+{
+    int low_x{0};
+    int high_x{0};
+    int low_z{0};
+    int high_z{0};
+
+    MapRange() = default;
+
+    MapRange(const ChunkCoord center, const int viewDistance) :
+    low_x(center.x - viewDistance), high_x(center.x + viewDistance), low_z(center.z - viewDistance), high_z(center.z + viewDistance)
+    {
+    }
+
+    constexpr bool contains(const ChunkCoord& coord) const
+    {
+        return (coord.x >= low_x &&
+            coord.x <= high_x &&
+            coord.z >= low_z &&
+            coord.z <= high_z);
+    }
+
+    constexpr bool is_border(const ChunkCoord& coord) const
+    {
+        return (coord.x == low_x ||
+            coord.x == high_x ||
+            coord.z == low_z ||
+            coord.z == high_z);
+    }
+};
 
 struct ChunkWork
 {
-    std::shared_ptr<Chunk> chunk;
     enum class Phase : int
     {
         Generate = 0,
         Mesh = 2,
         WaitingForNeighbors = 1
     };
+
+    std::shared_ptr<Chunk> chunk;
     Phase phase;
+    MapRange mapRange;
 };
 
 class ChunkWorkQueue
@@ -44,33 +76,21 @@ enum class NeighborStatus
     Border
 };
 
-struct MapRange
+struct WorldUpdate
 {
-    std::atomic_int low_x;
-    std::atomic_int high_x;
-    std::atomic_int low_z;
-    std::atomic_int high_z;
+    std::vector<std::shared_ptr<Chunk>> newChunks{};
+    std::vector<std::shared_ptr<Chunk>> removedChunks{};
 };
 
 class ChunkManager {
 public:
-    //Real chunk data
     std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> _chunks;
 
-    //Render chunk data
-    std::vector<std::unique_ptr<RenderObject>> _renderedChunks;
-    std::vector<std::unique_ptr<RenderObject>> _transparentObjects;
-
-    std::vector<ChunkCoord> _worldChunks;
-
     ChunkManager();
-
-    void cleanup();
-
     ~ChunkManager();
 
-    void update_player_position(int x, int z);
-
+    void cleanup();
+    std::optional<WorldUpdate> update_player_position(int x, int z);
     int get_chunk_index(ChunkCoord coord) const;
     std::optional<std::shared_ptr<Chunk>> get_chunk(ChunkCoord coord);
     std::optional<std::array<std::shared_ptr<Chunk>, 8>> get_chunk_neighbors(ChunkCoord coord);
@@ -80,25 +100,27 @@ public:
     //std::unique_ptr<Chunk> load_chunk(const std::string& filename);
 
 private:
-    void update_world_state();
     void work_chunk(int threadId);
-    bool chunk_at_border(ChunkCoord coord) const;
+    void work_update(int threadId);
+    std::optional<WorldUpdate> update_map(const MapRange mapRange, const ChunkCoord delta);
+    WorldUpdate initialize_map(const MapRange mapRange);
     NeighborStatus chunk_has_neighbors(ChunkCoord coord);
     //void queueWorldUpdate(int changeX, int changeZ);
     //void worldUpdate();
 
     //void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
     bool _initialLoad{true};
-    int _viewDistance;
-    size_t _maxChunks;
-    size_t _maxThreads;
+    int _viewDistance{GameConfig::DEFAULT_VIEW_DISTANCE};
+    size_t _maxChunks{GameConfig::MAXIMUM_CHUNKS};
+    size_t _maxThreads{4};
     ChunkCoord _lastPlayerChunk = {0, 0};
-    MapRange _mapRange{};
 
     ChunkWorkQueue _chunkWorkQueue;
+    moodycamel::BlockingConcurrentQueue<MapRange> _mapUpdateQueue;
 
     std::vector<std::thread> _workers;
+    std::thread _updateThread;
 
     std::shared_mutex _mapMutex;
-    std::atomic<bool> _running;
+    std::atomic<bool> _running{true};
 };

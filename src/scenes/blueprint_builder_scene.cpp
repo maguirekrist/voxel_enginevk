@@ -25,15 +25,14 @@ void BlueprintBuilderScene::init()
 
 void BlueprintBuilderScene::queue_objects(RenderQueue& queue) {
     // Draw
-    update_camera_uniform();
     //Build the chunk views
     //queue.add(_renderObjects, RenderLayer::Opaque);
+    //update_camera_uniform();
 }
 
 void BlueprintBuilderScene::update(float deltaTime)
 {
-    //TODO: Update View
-
+    update_camera_uniform();
 }
 
 void BlueprintBuilderScene::handle_input(const SDL_Event &event)

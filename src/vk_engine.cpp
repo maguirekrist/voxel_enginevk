@@ -287,6 +287,7 @@ void VulkanEngine::run()
 	//main loop
 	while (!bQuit)
 	{
+		ZoneScopedN("Main Loop");
 		TimePoint now = std::chrono::steady_clock::now();
 		std::chrono::duration<float> test = now - _lastFrameTime;
 		_deltaTime = test.count();

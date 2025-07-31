@@ -29,6 +29,31 @@ public:
         }
     }
 
+    void remove(const RenderObject* renderObject)
+    {
+        auto& targetQueue = (renderObject->layer == RenderLayer::Opaque)
+                            ? _opaqueQueue
+                            : _transparentQueue;
+
+        auto it = std::ranges::find(targetQueue, renderObject);
+        if (it != targetQueue.end()) {
+            targetQueue.erase(it);
+        }
+    }
+
+    void remove(const std::vector<std::unique_ptr<RenderObject>>& objs, const RenderLayer type)
+    {
+        auto& targetQueue = (type == RenderLayer::Opaque)
+                            ? _opaqueQueue
+                            : _transparentQueue;
+        for (auto& obj : objs) {
+            auto it = std::ranges::find(targetQueue, obj.get());
+            if (it != targetQueue.end()) {
+                targetQueue.erase(it);
+            }
+        }
+    }
+
     void clear() {
         _opaqueQueue.clear();
         _transparentQueue.clear();

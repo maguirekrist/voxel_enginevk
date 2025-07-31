@@ -8,7 +8,7 @@ public:
     glm::vec3 _position;
     glm::vec3 _front;
     glm::vec3 _up;
-    float _moveSpeed = DEFAULT_MOVE_SPEED;
+    float _moveSpeed{GameConfig::DEFAULT_MOVE_SPEED};
     
     Player();
 

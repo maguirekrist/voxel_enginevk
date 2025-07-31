@@ -21,6 +21,7 @@ void SceneRenderer::init()
 
 void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapchainImageIndex)
 {
+	ZoneScopedN("Render Scene");
     _currentScene->queue_objects(_renderQueue);
 
 	_currentScene->draw_imgui();
@@ -56,8 +57,6 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
     vkCmdEndRenderPass(cmd);
-
-    _renderQueue.clear();
 }
 
 Scene* SceneRenderer::get_current_scene() const
@@ -67,6 +66,7 @@ Scene* SceneRenderer::get_current_scene() const
 
 void SceneRenderer::cleanup()
 {
+	_renderQueue.clear();
     for(auto it = _scenes.begin(); it != _scenes.end(); )
     {
     	auto& scene = *it->second;
@@ -134,7 +134,11 @@ void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const std::shared
 void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& object)
 {
 	if(object.mesh == nullptr) return;
-	if(!object.mesh->_isActive.load(std::memory_order_acquire)) return;
+	if(!object.mesh->_isActive.load(std::memory_order_acquire))
+	{
+		//std::println("Object is inactive");
+		return;
+	};
 
 	//only bind the pipeline if it doesn't match with the already bound one
 	// if (object.material->key != m_lastMaterialKey) {

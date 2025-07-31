@@ -78,34 +78,37 @@ void GameScene::init()
 }
 
 void GameScene::queue_objects(RenderQueue& queue) {
+	ZoneScopedN("Draw Chunks & Objects");
+	update_uniform_buffer();
+	update_fog_ubo();
+	if (_pendingWorldUpdate.has_value())
 	{
-		ZoneScopedN("Draw Chunks & Objects");
-		update_uniform_buffer();
-		update_fog_ubo();
+		for (auto& chunk : _pendingWorldUpdate.value().newChunks)
+		{
+			queue.add(chunk->_opaqueRenderObject.get());
+			queue.add(chunk->_transparentRenderObject.get());
+		}
 
-		//Why a swap queue?
-		// std::pair<std::shared_ptr<Mesh>, std::shared_ptr<SharedResource<Mesh>>> meshSwap;
-		// while(VulkanEngine::instance()._meshManager.SwapQueue.try_dequeue(meshSwap))
-		// {
-		// 	auto oldMesh = meshSwap.second->update(meshSwap.first);
-		// 	VulkanEngine::instance()._meshManager.unload_mesh(std::move(oldMesh));
-		// }
+		for (auto& chunk : _pendingWorldUpdate.value().removedChunks)
+		{
+			queue.remove(chunk->_opaqueRenderObject.get());
+			queue.remove(chunk->_transparentRenderObject.get());
+		}
 
-		queue.add(_game._chunkManager._renderedChunks, RenderLayer::Opaque);
-		//queue.add(_gameObjects, RenderLayer::Opaque);
-		queue.add(_game._chunkManager._transparentObjects, RenderLayer::Transparent);
+		_pendingWorldUpdate = std::nullopt;
 	}
 }
 
 void GameScene::update(const float deltaTime)
 {
-	_game._player._moveSpeed = DEFAULT_MOVE_SPEED * deltaTime;
+	_game._player._moveSpeed = GameConfig::DEFAULT_MOVE_SPEED * deltaTime;
 	_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
-    _game.update();
+    _pendingWorldUpdate = _game.update();
 }
 
 void GameScene::cleanup()
 {
+
     _game.cleanup();
 }
 
@@ -189,14 +192,14 @@ void GameScene::draw_imgui()
 	ImGui::Render();
 }
 
-void GameScene::update_fog_ubo()
+void GameScene::update_fog_ubo() const
 {
 	FogUBO fogUBO;
 	fogUBO.fogColor = static_cast<glm::vec3>(Colors::skyblueHigh);
 	fogUBO.fogEndColor = static_cast<glm::vec3>(Colors::skyblueLow);
 
 	fogUBO.fogCenter = _game._player._position;
-	fogUBO.fogRadius = (CHUNK_SIZE * DEFAULT_VIEW_DISTANCE) - 60.0f;
+	fogUBO.fogRadius = (CHUNK_SIZE * GameConfig::DEFAULT_VIEW_DISTANCE) - 60.0f;
 	fogUBO.screenSize = glm::ivec2(VulkanEngine::instance()._windowExtent.width, VulkanEngine::instance()._windowExtent.height);
 	fogUBO.invViewProject = glm::inverse(_camera._projection * _camera._view);
 
@@ -206,7 +209,7 @@ void GameScene::update_fog_ubo()
 	vmaUnmapMemory(VulkanEngine::instance()._allocator, _fogResource->value.buffer._allocation);
 }
 
-void GameScene::update_uniform_buffer()
+void GameScene::update_uniform_buffer() const
 {
 	CameraUBO cameraUBO;
 	cameraUBO.projection = _camera._projection;
@@ -218,3 +221,4 @@ void GameScene::update_uniform_buffer()
 	memcpy(data, &cameraUBO, sizeof(CameraUBO));
 	vmaUnmapMemory(VulkanEngine::instance()._allocator, _cameraUboResource->value.buffer._allocation);
 }
+
