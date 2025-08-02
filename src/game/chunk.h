@@ -4,6 +4,9 @@
 #include <constants.h>
 #include <format>
 #include "block.h"
+#include "render/render_queue.h"
+
+struct Handle;
 
 struct ChunkCoord {
     int x, z;
@@ -76,8 +79,9 @@ public:
     ChunkBlocks _blocks = {};
     std::shared_ptr<Mesh> _mesh;
     std::shared_ptr<Mesh> _waterMesh;
-    std::unique_ptr<RenderObject> _opaqueRenderObject;
-    std::unique_ptr<RenderObject> _transparentRenderObject;
+
+    Handle _opaqueHandle;
+    Handle _transparentHandle;
 
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
     const ChunkCoord _chunkCoord;
@@ -87,18 +91,6 @@ public:
     explicit Chunk(const ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)), _chunkCoord(coord) {
         _mesh = std::make_unique<Mesh>();
         _waterMesh = std::make_unique<Mesh>();
-        _opaqueRenderObject = std::make_unique<RenderObject>(RenderObject{
-            .mesh = _mesh,
-            .material = nullptr,
-            .xzPos = glm::ivec2(_position.x, _position.y),
-            .layer = RenderLayer::Opaque
-        });
-        _transparentRenderObject = std::make_unique<RenderObject>(RenderObject{
-            .mesh = _waterMesh,
-            .material = nullptr,
-            .xzPos = glm::ivec2(_position.x, _position.y),
-            .layer = RenderLayer::Transparent
-        });
     };
 
     ~Chunk()
@@ -108,6 +100,8 @@ public:
     glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
     void reset(ChunkCoord newCoord);
     void generate();
+
+    std::pair<RenderObject, RenderObject> build_render_objects() const;
 
     static ChunkView to_view(const Chunk& chunk) noexcept
     {

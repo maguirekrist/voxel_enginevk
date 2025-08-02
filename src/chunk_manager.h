@@ -23,7 +23,7 @@ struct MapRange
     {
     }
 
-    constexpr bool contains(const ChunkCoord& coord) const
+    [[nodiscard]] constexpr bool contains(const ChunkCoord& coord) const
     {
         return (coord.x >= low_x &&
             coord.x <= high_x &&
@@ -31,7 +31,7 @@ struct MapRange
             coord.z <= high_z);
     }
 
-    constexpr bool is_border(const ChunkCoord& coord) const
+    [[nodiscard]] constexpr bool is_border(const ChunkCoord& coord) const
     {
         return (coord.x == low_x ||
             coord.x == high_x ||

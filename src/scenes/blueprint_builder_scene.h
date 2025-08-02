@@ -14,7 +14,7 @@ class BlueprintBuilderScene final : public Scene {
 public:
     BlueprintBuilderScene();
     void init() override;
-    void queue_objects(RenderQueue& queue) override;
+    void queue_objects(RenderSet& opaque_set, RenderSet& transparent_set) override;
     void update(float deltaTime) override;
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;

@@ -77,7 +77,7 @@ void GameScene::init()
 	std::println("GameScene created!");
 }
 
-void GameScene::queue_objects(RenderQueue& queue) {
+void GameScene::queue_objects(RenderSet& opaque_set, RenderSet& transparent_set) {
 	ZoneScopedN("Draw Chunks & Objects");
 	update_uniform_buffer();
 	update_fog_ubo();
@@ -85,14 +85,17 @@ void GameScene::queue_objects(RenderQueue& queue) {
 	{
 		for (auto& chunk : _pendingWorldUpdate.value().newChunks)
 		{
-			queue.add(chunk->_opaqueRenderObject.get());
-			queue.add(chunk->_transparentRenderObject.get());
+			auto renderObjects = chunk->build_render_objects();
+			auto opqueHandle = opaque_set.create(std::move(renderObjects.first));
+			auto transparentHandle = transparent_set.create(std::move(renderObjects.second));
+			chunk->_opaqueHandle = opqueHandle;
+			chunk->_transparentHandle = transparentHandle;
 		}
 
 		for (auto& chunk : _pendingWorldUpdate.value().removedChunks)
 		{
-			queue.remove(chunk->_opaqueRenderObject.get());
-			queue.remove(chunk->_transparentRenderObject.get());
+			opaque_set.destroy(chunk->_opaqueHandle);
+			transparent_set.destroy(chunk->_transparentHandle);
 		}
 
 		_pendingWorldUpdate = std::nullopt;

@@ -10,6 +10,8 @@ namespace vkutil {
     AllocatedBuffer create_buffer(VmaAllocator allocator, size_t size, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage);
     AllocatedImage create_image(VmaAllocator allocator, VkExtent3D extent, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage memUsage);
 
+    void reflect_shader(const std::string& filePath);
+
     class DescriptorAllocator {
     public:
         struct PoolSizes {

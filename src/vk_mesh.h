@@ -4,6 +4,7 @@
 struct PushConstant;
 struct RenderObject;
 struct Resource;
+struct Handle;
 
 struct VertexInputDescription {
 
@@ -109,11 +110,6 @@ struct UniformBuffer {
     AllocatedBuffer _uniformBuffer;
 };
 
-enum class RenderLayer {
-    Opaque,
-    Transparent
-};
-
 struct Material {
     std::string key;
 	VkPipeline pipeline;
@@ -134,11 +130,4 @@ struct PushConstant {
 	VkShaderStageFlags stageFlags;
 	uint32_t size;
 	std::function<ObjectPushConstants(const RenderObject&)> build_constant;
-};
-
-struct RenderObject {
-	std::shared_ptr<Mesh> mesh;
-	std::shared_ptr<Material> material;
-	glm::ivec2 xzPos;
-    RenderLayer layer;
 };

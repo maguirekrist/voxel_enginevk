@@ -23,7 +23,15 @@ void BlueprintBuilderScene::init()
     // set_grid_uniform();
 }
 
-void BlueprintBuilderScene::queue_objects(RenderQueue& queue) {
+void BlueprintBuilderScene::queue_objects(RenderSet& opaque_set, RenderSet& transparent_set) {
+    ZoneScopedN("Draw Chunks & Objects");
+    // update_camera_uniform();
+    // update_fog_ubo();
+    // if (_pendingWorldUpdate.has_value())
+    // {
+    //     for (auto& chunk : _pendingWorldUpdate.value().newChunks)
+    //     {
+    //         auto renderObjects = chunk->build_render_objects();
     // Draw
     //Build the chunk views
     //queue.add(_renderObjects, RenderLayer::Opaque);
