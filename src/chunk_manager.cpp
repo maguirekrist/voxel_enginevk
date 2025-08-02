@@ -104,7 +104,6 @@ std::optional<WorldUpdate> ChunkManager::update_player_position(const int x, con
     }
     //calculate old chunks and remove.
     auto worldUpdate = update_map(mapRange, { changeX, changeZ });
-    std::println("Active chunks: {}", _chunks.size());
     std::println("Work Queue: {}", _chunkWorkQueue.size_approx());
     return worldUpdate;
 }
@@ -132,7 +131,6 @@ std::optional<WorldUpdate> ChunkManager::update_map(const MapRange mapRange, con
         } else
         {
             std::println("Chunk does not exist: {}", chunkCoord);
-            //throw std::runtime_error("Chunk does not exist");
         }
     };
 
@@ -153,10 +151,15 @@ std::optional<WorldUpdate> ChunkManager::update_map(const MapRange mapRange, con
 
     auto update_chunk = [&, this](const ChunkCoord chunkCoord)
     {
+        if (mapRange.is_border(chunkCoord))
+        {
+            return;
+        }
+
         if (!_chunks.contains(chunkCoord))
         {
-            add_chunk(chunkCoord);
-            return;
+            std::println("Chunk does not exist: {}", chunkCoord);
+            throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
         }
 
         auto chunkToUpdate = _chunks.at(chunkCoord);
@@ -167,7 +170,7 @@ std::optional<WorldUpdate> ChunkManager::update_map(const MapRange mapRange, con
             update.newChunks.push_back(chunkToUpdate);
         } else
         {
-            std::println("Chunk is not border: {}", chunkCoord);
+            throw std::runtime_error(std::format("Chunk is not border {}", chunkCoord));
         }
     };
 
@@ -250,24 +253,14 @@ WorldUpdate ChunkManager::initialize_map(const MapRange mapRange)
         for (auto mapZ = mapRange.low_z; mapZ <= mapRange.high_z; ++mapZ)
         {
             auto chunkCoord = ChunkCoord{mapX, mapZ};
-            if (!_chunks.contains(chunkCoord))
-            {
-                auto unchunked = std::make_shared<Chunk>(chunkCoord);
-                std::unique_lock lock(_mapMutex);
-                _chunks.insert({ chunkCoord, unchunked });
-                WorkQueue.emplace_back(unchunked, ChunkWork::Phase::Generate, mapRange);
-            }
+            auto new_chunk = std::make_shared<Chunk>(chunkCoord);
+            std::unique_lock lock(_mapMutex);
+            _chunks.insert({ chunkCoord, new_chunk });
+            WorkQueue.emplace_back(new_chunk, ChunkWork::Phase::Generate, mapRange);
 
-            auto chunkToRender = _chunks.at(chunkCoord);
             if (mapRange.is_border(chunkCoord)) {  continue; } //do not render chunks that are at the border. Just Generate.
 
-            if (chunkToRender->_state.load() == ChunkState::Border)
-            {
-                chunkToRender->_state.store(ChunkState::Generated);
-                WorkQueue.emplace_back(chunkToRender, ChunkWork::Phase::WaitingForNeighbors, mapRange);
-            }
-
-            update.newChunks.push_back(chunkToRender);
+            update.newChunks.push_back(new_chunk);
         }
     }
 
@@ -287,7 +280,7 @@ NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord)
 
     if (!_chunks.contains(coord))
     {
-        std::println("Chunk does not exist: x {}, z {}", coord.x, coord.z);
+        // throw std::runtime_error(std::format("Chunk does not exist: {}", coord));
         return NeighborStatus::Missing;
     }
 
@@ -319,7 +312,9 @@ NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord)
             }
         } else
         {
-            //std::println("{} not in map", offset_coord);
+            std::println("{} neighbor {}, not in map", coord, offset_coord);
+            // throw std::runtime_error(std::format("Chunk does not exist: {}", offset_coord));
+            return NeighborStatus::Incomplete;
         }
     }
 
@@ -337,18 +332,22 @@ std::optional<std::array<std::shared_ptr<Chunk>, 8>> ChunkManager::get_chunk_nei
     ZoneScopedN("Get Chunk Neighbors");
     std::array<std::shared_ptr<Chunk>, 8> chunks;
     int count = 0;
+    std::shared_lock lock(_mapMutex);
     for (const auto direction : directionList)
     {
         const auto offsetX = directionOffsetX[direction];
         const auto offsetZ = directionOffsetZ[direction];
         const auto offset_coord = ChunkCoord{ coord.x + offsetX, coord.z + offsetZ };
 
-        if(const auto chunk = get_chunk(offset_coord))
+        if(auto it = _chunks.find(offset_coord); it != _chunks.end())
         {
-            if (!chunk.has_value()) return std::nullopt;
-            if (chunk.value()->_state.load() == ChunkState::Uninitialized) return std::nullopt;
-            chunks[direction] = chunk.value();
+            auto chunk = it->second;
+            if (chunk->_state.load() == ChunkState::Uninitialized) return std::nullopt;
+            chunks[direction] = chunk;
             count++;
+        } else
+        {
+            return std::nullopt;
         }
     }
 
@@ -432,6 +431,7 @@ void ChunkManager::work_chunk(int threadId)
                     work_item.chunk->generate();
                     if (work_item.mapRange.is_border(work_item.chunk->_chunkCoord))
                     {
+                        std::println("Marking chunk {} as border", work_item.chunk->_chunkCoord);
                         work_item.chunk->_state.store(ChunkState::Border);
                         break;
                     }
@@ -461,10 +461,10 @@ void ChunkManager::work_chunk(int threadId)
                     work_item.chunk->_state.store(ChunkState::Rendered);
 
 
-                    work_item.chunk->_opaqueRenderObject->mesh = work_item.chunk->_mesh;
-                    work_item.chunk->_opaqueRenderObject->material = VulkanEngine::instance()._materialManager.get_material("defaultmesh");
-                    work_item.chunk->_transparentRenderObject->mesh = work_item.chunk->_waterMesh;
-                    work_item.chunk->_transparentRenderObject->material = VulkanEngine::instance()._materialManager.get_material("watermesh");
+                    // work_item.chunk->_opaqueRenderObject->mesh = work_item.chunk->_mesh;
+                    // work_item.chunk->_opaqueRenderObject->material = VulkanEngine::instance()._materialManager.get_material("defaultmesh");
+                    // work_item.chunk->_transparentRenderObject->mesh = work_item.chunk->_waterMesh;
+                    // work_item.chunk->_transparentRenderObject->material = VulkanEngine::instance()._materialManager.get_material("watermesh");
 
 
                     if(!work_item.chunk->_waterMesh->_vertices.empty())

@@ -10,7 +10,7 @@ class GameScene final : public Scene {
 public:
     GameScene();
     ~GameScene() override;
-    void queue_objects(RenderQueue& queue) override;
+    void queue_objects(RenderSet& opaque_set, RenderSet& transparent_set) override;
     
     void init() override;
     void update(float deltaTime) override;

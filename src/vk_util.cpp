@@ -2,8 +2,10 @@
 #include "vk_initializers.h"
 #include <algorithm>
 
+#include "spirv_reflect.h"
 
-std::string getShaderPath(const std::string& shaderName) {
+
+std::string get_shader_path(const std::string& shaderName) {
 	// Get the executable path
 	std::filesystem::path exePath = std::filesystem::current_path();
 
@@ -11,10 +13,61 @@ std::string getShaderPath(const std::string& shaderName) {
 	return (exePath / "shaders" / shaderName).string();
 }
 
+static void spirv_reflect(const void* spirv_code, std::size_t spirv_nbytes)
+{
+
+	SpvReflectShaderModule shader_module;
+	SpvReflectResult result = spvReflectCreateShaderModule(spirv_nbytes, spirv_code, &shader_module);
+	assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
+	uint32_t descriptor_cont = 0;
+	result = spvReflectEnumerateDescriptorBindings(&shader_module, &descriptor_cont, nullptr);
+	assert(result == SPV_REFLECT_RESULT_SUCCESS);
+	std::println("Number of descriptor bindings: {}", descriptor_cont);
+	std::vector<SpvReflectDescriptorBinding*> bindings(descriptor_cont);
+	spvReflectEnumerateDescriptorBindings(&shader_module, &descriptor_cont, bindings.data());
+	for (auto* b : bindings)
+	{
+		std::println("Descriptor binding: {}", b->name);
+	}
+
+	uint32_t input_count = 0;
+	result = spvReflectEnumerateInputVariables(&shader_module, &input_count, nullptr);
+	assert(result == SPV_REFLECT_RESULT_SUCCESS);
+	std::vector<SpvReflectInterfaceVariable*> vars(input_count);
+	result = spvReflectEnumerateInputVariables(&shader_module, &input_count, vars.data());
+	assert(result == SPV_REFLECT_RESULT_SUCCESS);
+	for (auto* v : vars)
+	{
+		std::println("Input var {}", v->name);
+	}
+
+	uint32_t push_constant_count = 0;
+	result = spvReflectEnumeratePushConstantBlocks(&shader_module, &push_constant_count, nullptr);
+	assert(result == SPV_REFLECT_RESULT_SUCCESS);
+	std::vector<SpvReflectBlockVariable*> push_constants(push_constant_count);
+	result = spvReflectEnumeratePushConstantBlocks(&shader_module, &push_constant_count, push_constants.data());
+	assert(result == SPV_REFLECT_RESULT_SUCCESS);
+	for (auto* p : push_constants)
+		std::println("Push constant block {}", p->name);
+
+
+	spvReflectDestroyShaderModule(&shader_module);
+}
+
+void vkutil::reflect_shader(const std::string& filePath)
+{
+	const auto& path = get_shader_path(filePath);
+	//open the file. With cursor at the end
+	std::ifstream file(path, std::ios::ate | std::ios::binary);
+
+}
+
+
 bool vkutil::load_shader_module(const std::string& filePath, VkDevice device, VkShaderModule* outShaderModule)
 {
 
-	const auto& path = getShaderPath(filePath);
+	const auto& path = get_shader_path(filePath);
 
 	//open the file. With cursor at the end
 	std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -40,6 +93,10 @@ bool vkutil::load_shader_module(const std::string& filePath, VkDevice device, Vk
 
 	//now that the file is loaded into the buffer, we can close it
 	file.close();
+
+	//TEST
+	std::println("Reflecting shader {}", path);
+	spirv_reflect(buffer.data(), fileSize);
 
 	//create a new shader module, using the buffer we loaded
 	VkShaderModuleCreateInfo createInfo = {};

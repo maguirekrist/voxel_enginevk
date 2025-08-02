@@ -77,5 +77,11 @@ target_sources(imgui PRIVATE
     )
 
 target_link_libraries(imgui PUBLIC Vulkan::Vulkan sdl2)
-
 target_include_directories(stb_image INTERFACE stb_image)
+
+add_library(spirv_reflect STATIC)
+target_include_directories(spirv_reflect PUBLIC SPIRV-Reflect)
+target_sources(spirv_reflect PRIVATE
+    SPIRV-Reflect/spirv_reflect.h
+    SPIRV-Reflect/spirv_reflect.cpp
+)

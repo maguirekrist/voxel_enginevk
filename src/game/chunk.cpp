@@ -2,6 +2,8 @@
 #include <terrain_gen.h>
 #include <tracy/Tracy.hpp>
 
+#include "vk_engine.h"
+
 void Chunk::reset(ChunkCoord newCoord)
 {
     _position = glm::ivec2(newCoord.x * CHUNK_SIZE, newCoord.z * CHUNK_SIZE);
@@ -69,6 +71,23 @@ void Chunk::generate()
         }
 
         _state = ChunkState::Generated;
+}
+
+std::pair<RenderObject, RenderObject> Chunk::build_render_objects() const
+{
+    return std::make_pair(
+    RenderObject{
+            .mesh = _mesh,
+            .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
+            .xzPos = glm::ivec2(_position.x, _position.y),
+            .layer = RenderLayer::Opaque
+        },
+    RenderObject{
+        .mesh = _waterMesh,
+        .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
+        .xzPos = glm::ivec2(_position.x, _position.y),
+        .layer = RenderLayer::Transparent
+    });
 }
 
 
