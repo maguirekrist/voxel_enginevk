@@ -8,16 +8,6 @@
 #include "backends/imgui_impl_vulkan.h"
 
 GameScene::GameScene() {
-	init();
-}
-
-GameScene::~GameScene()
-{
-	std::println("GameScene::~GameScene");
-}
-
-void GameScene::init()
-{
 	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	_cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
@@ -25,14 +15,14 @@ void GameScene::init()
 
 	VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogResource);
 
-	auto translate = PushConstant{ 	
-				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT, 
-				.size = sizeof(ObjectPushConstants), 
+	auto translate = PushConstant{
+				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+				.size = sizeof(ObjectPushConstants),
 				.build_constant = [](const RenderObject& obj) -> ObjectPushConstants {
 					ObjectPushConstants push{};
 					push.chunk_translate = obj.xzPos;
 					return push;
-				} 
+				}
 			};
 
 	//VulkanEngine::instance()._materialManager.build_material_default(_cameraUboResource, translate);
@@ -77,41 +67,26 @@ void GameScene::init()
 	std::println("GameScene created!");
 }
 
-void GameScene::queue_objects(RenderSet& opaque_set, RenderSet& transparent_set) {
+GameScene::~GameScene()
+{
+	std::println("GameScene::~GameScene");
+}
+
+void GameScene::queue_objects() {
 	ZoneScopedN("Draw Chunks & Objects");
 	update_uniform_buffer();
 	update_fog_ubo();
-	if (_pendingWorldUpdate.has_value())
-	{
-		for (auto& chunk : _pendingWorldUpdate.value().newChunks)
-		{
-			auto renderObjects = chunk->build_render_objects();
-			auto opqueHandle = opaque_set.create(std::move(renderObjects.first));
-			auto transparentHandle = transparent_set.create(std::move(renderObjects.second));
-			chunk->_opaqueHandle = opqueHandle;
-			chunk->_transparentHandle = transparentHandle;
-		}
-
-		for (auto& chunk : _pendingWorldUpdate.value().removedChunks)
-		{
-			opaque_set.destroy(chunk->_opaqueHandle);
-			transparent_set.destroy(chunk->_transparentHandle);
-		}
-
-		_pendingWorldUpdate = std::nullopt;
-	}
 }
 
 void GameScene::update(const float deltaTime)
 {
 	_game._player._moveSpeed = GameConfig::DEFAULT_MOVE_SPEED * deltaTime;
 	_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
-    _pendingWorldUpdate = _game.update();
+	_game.update();
 }
 
 void GameScene::cleanup()
 {
-
     _game.cleanup();
 }
 

@@ -74,6 +74,8 @@ public:
 	std::vector<VkFramebuffer> _framebuffers;
 
 	SceneRenderer _sceneRenderer;
+	RenderSet _opaqueSet;
+	RenderSet _transparentSet;
 
 	float _deltaTime;
 	TimePoint _lastFrameTime;

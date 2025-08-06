@@ -13,17 +13,14 @@ BlueprintBuilderScene::BlueprintBuilderScene()
     //
     // auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
     // _cameraUboResource = Resource{Resource::BUFFER, {.buffer = cameraUboBuffer}};
-}
 
-void BlueprintBuilderScene::init() 
-{
     // VulkanEngine::instance()._materialManager.build_material_grid(_cameraUboResource, _gridResource);
 
     // build_chunk_platform({0,0});
     // set_grid_uniform();
 }
 
-void BlueprintBuilderScene::queue_objects(RenderSet& opaque_set, RenderSet& transparent_set) {
+void BlueprintBuilderScene::queue_objects() {
     ZoneScopedN("Draw Chunks & Objects");
     // update_camera_uniform();
     // update_fog_ubo();
@@ -53,7 +50,7 @@ void BlueprintBuilderScene::handle_keystate(const Uint8 *state)
 
 void BlueprintBuilderScene::cleanup()
 {
-    _renderObjects.clear();
+    //_renderObjects.clear();
 }
 
 void BlueprintBuilderScene::draw_imgui()
@@ -71,7 +68,7 @@ void BlueprintBuilderScene::build_chunk_platform(ChunkCoord coord)
         RenderLayer::Opaque
     );
 
-    _renderObjects.push_back(std::move(chunkPlatform));
+    //_renderObjects.push_back(std::move(chunkPlatform));
 }
 
 void BlueprintBuilderScene::set_grid_uniform()

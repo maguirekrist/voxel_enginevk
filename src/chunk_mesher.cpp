@@ -17,7 +17,7 @@ void ChunkMesher::generate_mesh()
                     {
                         if(is_face_visible(x, y, z, face))
                         {
-                            add_face_to_opaque_mesh(x, y, z, face, _chunk->_mesh.get());
+                            add_face_to_opaque_mesh(x, y, z, face, _chunk->_mesh);
                         }
                     }
                 } else if(block._type == BlockType::WATER)
@@ -26,7 +26,7 @@ void ChunkMesher::generate_mesh()
                     {
                         if(is_face_visible_water(x, y, z, face))
                         {
-                            add_face_to_water_mesh(x, y, z, face, _chunk->_waterMesh.get());
+                            add_face_to_water_mesh(x, y, z, face, _chunk->_waterMesh);
                         }
                     }
                 }
@@ -251,7 +251,7 @@ void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
 }
 
 //note: a block's position is the back-bottom-right of the cube.
-void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z, const FaceDirection face, Mesh* mesh)
+void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z, const FaceDirection face, const std::shared_ptr<Mesh>& mesh)
 {
     auto faceNeighbor = get_face_neighbor(x, y, z, face);
     float sunLight = faceNeighbor.has_value() ? static_cast<float>(faceNeighbor.value()._sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : 1.0f;
@@ -265,7 +265,10 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
         glm::ivec3 position = blockPos + faceVertices[face][i];
         float ao = calculate_vertex_ao(blockPos, face, i);
 
-        mesh->_vertices.push_back({ position, faceNormals[face], color * (ao * sunLight) });
+        auto normal = faceNormals[face];
+        auto final_color = color * (ao * sunLight);
+
+        mesh->_vertices.push_back({ position, normal, final_color });
     }
 
     // Add indices for the face (two triangles)
@@ -278,7 +281,7 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
     mesh->_indices.push_back(index + 0);
 }
 
-void ChunkMesher::add_face_to_water_mesh(const int x, const int y, const int z, const FaceDirection face, Mesh* mesh) const
+void ChunkMesher::add_face_to_water_mesh(const int x, const int y, const int z, const FaceDirection face, const std::shared_ptr<Mesh>& mesh) const
 {
     glm::ivec3 blockPos{x,y,z};
     Block block = _chunk->_blocks[x][y][z];

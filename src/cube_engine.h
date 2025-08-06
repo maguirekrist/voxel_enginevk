@@ -17,6 +17,6 @@ public:
     void cleanup();
 
     //Main Tick entry
-    std::optional<WorldUpdate> update();
+    void update();
 private:
 };

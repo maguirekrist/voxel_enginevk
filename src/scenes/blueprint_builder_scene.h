@@ -13,8 +13,7 @@ struct GridUniform {
 class BlueprintBuilderScene final : public Scene {
 public:
     BlueprintBuilderScene();
-    void init() override;
-    void queue_objects(RenderSet& opaque_set, RenderSet& transparent_set) override;
+    void queue_objects() override;
     void update(float deltaTime) override;
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
@@ -31,7 +30,5 @@ private:
 
     std::shared_ptr<Resource> _gridResource;
     std::shared_ptr<Resource> _cameraUboResource;
-
-    std::vector<std::shared_ptr<RenderObject>> _renderObjects;
 };
 

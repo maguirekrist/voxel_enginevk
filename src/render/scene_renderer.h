@@ -21,8 +21,6 @@ private:
     
 	std::unordered_map<std::string, std::unique_ptr<Scene>> _scenes;
     Scene* _currentScene = nullptr;
-    RenderSet _opaqueSet;
-    RenderSet _transparentSet;
 
     std::string m_lastMaterialKey;
     Mesh* m_lastMesh = nullptr;

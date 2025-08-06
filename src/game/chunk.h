@@ -88,20 +88,12 @@ public:
 
     std::atomic<ChunkState> _state = ChunkState::Uninitialized;
 
-    explicit Chunk(const ChunkCoord coord) : _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)), _chunkCoord(coord) {
-        _mesh = std::make_unique<Mesh>();
-        _waterMesh = std::make_unique<Mesh>();
-    };
+    explicit Chunk(ChunkCoord coord);
 
-    ~Chunk()
-    {
-    }
+    ~Chunk();
 
     glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
-    void reset(ChunkCoord newCoord);
     void generate();
-
-    std::pair<RenderObject, RenderObject> build_render_objects() const;
 
     static ChunkView to_view(const Chunk& chunk) noexcept
     {

@@ -10,7 +10,7 @@ constexpr unsigned int SEA_LEVEL = 62;
 
 namespace GameConfig
 {
-    inline constexpr int DEFAULT_VIEW_DISTANCE = 16;
+    inline constexpr int DEFAULT_VIEW_DISTANCE = 8;
     inline constexpr int MAXIMUM_CHUNKS = (2 * DEFAULT_VIEW_DISTANCE + 1) * (2 * DEFAULT_VIEW_DISTANCE + 1);
     inline constexpr float DEFAULT_MOVE_SPEED = 40.0f;
 }
