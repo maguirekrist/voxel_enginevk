@@ -76,7 +76,10 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
-	init_imgui();
+	if (USE_IMGUI)
+	{
+		init_imgui();
+	}
 
 	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily }, m_queueMutex);
 
@@ -97,15 +100,18 @@ void VulkanEngine::cleanup()
 		_transparentSet.clear();
 		_meshManager.cleanup();
 		_materialManager.cleanup();
-		//ImGui cleanup
-		ImGui_ImplVulkan_Shutdown();
-		ImGui_ImplSDL2_Shutdown();
-		ImGui::DestroyContext();
+
+		if (USE_IMGUI)
+		{
+			//ImGui cleanup
+			ImGui_ImplVulkan_Shutdown();
+			ImGui_ImplSDL2_Shutdown();
+			ImGui::DestroyContext();
+		}
 
 		_mainDeletionQueue.flush();
 		_descriptorLayoutCache.cleanup();
 		_descriptorAllocator.cleanup();
-
 
 		vmaDestroyAllocator(_allocator);
 
@@ -124,7 +130,10 @@ void VulkanEngine::handle_input()
 	//Handle events on queue
 	while (SDL_PollEvent(&e) != 0)
 	{
-		ImGui_ImplSDL2_ProcessEvent(&e);
+		if (USE_IMGUI)
+		{
+			ImGui_ImplSDL2_ProcessEvent(&e);
+		}
 
 		switch(e.type) {
 			case SDL_KEYDOWN:
@@ -754,6 +763,8 @@ void VulkanEngine::init_imgui()
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
 	std::println("SwapChain image count: {}", _swapchainImages.size());
+
+
 
 	ImGui::StyleColorsDark();
 	ImGui_ImplVulkan_InitInfo init_info = {};

@@ -35,7 +35,7 @@ namespace vkutil {
         bool allocate(VkDescriptorSet* set, VkDescriptorSetLayout layout);
         void init(VkDevice newDevice);
 
-        void cleanup();
+        void cleanup() const;
         VkDescriptorPool grab_pool();
         VkDevice device;
     private:
@@ -44,6 +44,8 @@ namespace vkutil {
         PoolSizes descriptorSizes;
         std::vector<VkDescriptorPool> usedPools;
         std::vector<VkDescriptorPool> freePools;
+
+        static VkDescriptorPool create_pool(VkDevice device, const PoolSizes& poolSizes, int count, VkDescriptorPoolCreateFlags flags);
     };
 
     class DescriptorLayoutCache {
@@ -71,7 +73,7 @@ namespace vkutil {
         };
 
         std::unordered_map<DescriptorLayoutInfo, VkDescriptorSetLayout, DescriptorLayoutHash> layoutCache;
-        VkDevice device;
+        VkDevice device = nullptr;
     };
 
     class DescriptorBuilder {
@@ -88,7 +90,7 @@ namespace vkutil {
         std::vector<VkWriteDescriptorSet> writes;
         std::vector<VkDescriptorSetLayoutBinding> bindings;
 
-        DescriptorLayoutCache* cache;
-        DescriptorAllocator* alloc;
+        DescriptorLayoutCache* cache = nullptr;
+        DescriptorAllocator* alloc = nullptr;
     };
 };

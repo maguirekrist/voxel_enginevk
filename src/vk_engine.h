@@ -59,7 +59,6 @@ public:
 	std::vector<VkImageView> _swapchainImageViews;
 	//VkExtent2D _swapchainExtend;
 
-	//Queues
 	VkQueue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
 	VkQueue _transferQueue;
@@ -110,26 +109,15 @@ public:
 
 	struct SDL_Window* _window{ nullptr };
 
+
 	FrameData& get_current_frame();
-
 	void calculate_fps();
-
-	//initializes everything in the engine
 	void init();
-
-	//shuts down the engine
 	void cleanup();
-
 	void handle_input();
-
 	uint32_t advance_frame();
-
 	VkCommandBuffer begin_recording();
-
-	//draw loop
 	void draw();
-
-	//run main loop
 	void run();
 private:
 	std::shared_ptr<std::mutex> m_queueMutex = nullptr;

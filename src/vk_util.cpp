@@ -191,18 +191,18 @@ AllocatedImage vkutil::create_image(VmaAllocator allocator, VkExtent3D extent, V
 	return image;
 }
 
-VkDescriptorPool createPool(VkDevice device, const vkutil::DescriptorAllocator::PoolSizes& poolSizes, int count, VkDescriptorPoolCreateFlags flags)
+VkDescriptorPool vkutil::DescriptorAllocator::create_pool(const VkDevice device, const vkutil::DescriptorAllocator::PoolSizes& poolSizes, const int count, const VkDescriptorPoolCreateFlags flags)
 {
 		std::vector<VkDescriptorPoolSize> sizes;
 		sizes.reserve(poolSizes.sizes.size());
 		for (auto sz : poolSizes.sizes) {
-			sizes.push_back({ sz.first, uint32_t(sz.second * count) });
+			sizes.push_back({ sz.first, static_cast<uint32_t>(sz.second * count) });
 		}
 		VkDescriptorPoolCreateInfo pool_info = {};
 		pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		pool_info.flags = flags;
 		pool_info.maxSets = count;
-		pool_info.poolSizeCount = (uint32_t)sizes.size();
+		pool_info.poolSizeCount = static_cast<uint32_t>(sizes.size());
 		pool_info.pPoolSizes = sizes.data();
 
 		VkDescriptorPool descriptorPool;
@@ -233,7 +233,6 @@ bool vkutil::DescriptorAllocator::allocate(VkDescriptorSet *set, VkDescriptorSet
     if (currentPool == VK_NULL_HANDLE){
 
         currentPool = grab_pool();
-        usedPools.push_back(currentPool);
     }
 
     VkDescriptorSetAllocateInfo allocInfo = {};
@@ -265,7 +264,6 @@ bool vkutil::DescriptorAllocator::allocate(VkDescriptorSet *set, VkDescriptorSet
     if (needReallocate){
         //allocate a new pool and retry
         currentPool = grab_pool();
-        usedPools.push_back(currentPool);
 
         allocResult = vkAllocateDescriptorSets(device, &allocInfo, set);
 
@@ -283,7 +281,7 @@ void vkutil::DescriptorAllocator::init(VkDevice newDevice)
     device = newDevice;
 }
 
-void vkutil::DescriptorAllocator::cleanup()
+void vkutil::DescriptorAllocator::cleanup() const
 {
     for (auto p : freePools)
 	{
@@ -297,19 +295,16 @@ void vkutil::DescriptorAllocator::cleanup()
 
 VkDescriptorPool vkutil::DescriptorAllocator::grab_pool()
 {
-    //there are reusable pools availible
 	if (freePools.size() > 0)
 	{
-		//grab pool from the back of the vector and remove it from there.
 		VkDescriptorPool pool = freePools.back();
 		freePools.pop_back();
 		return pool;
 	}
-	else
-	{
-		//no pools availible, so create a new one
-		return createPool(device, descriptorSizes, 1000, 0);
-	}
+
+	auto new_pool = create_pool(device, descriptorSizes, 1000, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
+	usedPools.push_back(new_pool);
+	return new_pool;
 }
 
 

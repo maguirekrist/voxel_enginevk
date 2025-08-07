@@ -27,7 +27,10 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
 	ZoneScopedN("Render Scene");
     _currentScene->update_buffers();
 
-	_currentScene->draw_imgui();
+	if (USE_IMGUI)
+	{
+		_currentScene->draw_imgui();
+	}
 
     VkRenderPassBeginInfo rpOffscreenInfo = vkinit::render_pass_begin_info(
         VulkanEngine::instance()._offscreenPass, 
@@ -57,7 +60,10 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
     //Draw transparent
     draw_objects(cmd, VulkanEngine::instance()._transparentSet.data());
 
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+	if (USE_IMGUI)
+	{
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+	}
 
     vkCmdEndRenderPass(cmd);
 }
