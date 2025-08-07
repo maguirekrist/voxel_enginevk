@@ -22,7 +22,7 @@ void SceneRenderer::init()
 void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapchainImageIndex)
 {
 	ZoneScopedN("Render Scene");
-    _currentScene->queue_objects(_renderQueue);
+    _currentScene->queue_objects();
 
 	_currentScene->draw_imgui();
 
@@ -34,7 +34,7 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
         2);
 
     vkCmdBeginRenderPass(cmd, &rpOffscreenInfo, VK_SUBPASS_CONTENTS_INLINE);
-    draw_objects(cmd, _renderQueue.getOpaqueQueue());
+    draw_objects(cmd, VulkanEngine::instance()._opaqueSet.data());
 
     vkCmdEndRenderPass(cmd);
 
@@ -52,7 +52,7 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
     draw_fullscreen(cmd, VulkanEngine::instance()._materialManager.get_material("present"));
 
     //Draw transparent
-    draw_objects(cmd, _renderQueue.getTransparentQueue());
+    draw_objects(cmd, VulkanEngine::instance()._transparentSet.data());
 
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
@@ -66,7 +66,6 @@ Scene* SceneRenderer::get_current_scene() const
 
 void SceneRenderer::cleanup()
 {
-	_renderQueue.clear();
     for(auto it = _scenes.begin(); it != _scenes.end(); )
     {
     	auto& scene = *it->second;
@@ -134,9 +133,8 @@ void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const std::shared
 void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& object)
 {
 	if(object.mesh == nullptr) return;
-	if(!object.mesh->_isActive.load(std::memory_order_acquire))
+	if(!object.mesh->_isActive.load(std::memory_order::acquire))
 	{
-		//std::println("Object is inactive");
 		return;
 	};
 
@@ -195,16 +193,10 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
 	vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
 }
 
-void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<const RenderObject*>& objects)
+void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<RenderObject>& objects)
 {
 	for(const auto & object : objects)
 	{
-		if (object != nullptr)
-		{
-			draw_object(cmd, *object);
-		} else
-		{
-			throw std::runtime_error("Object is null");
-		}
+		draw_object(cmd, object);
 	}
 }

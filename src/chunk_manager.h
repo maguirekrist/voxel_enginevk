@@ -1,13 +1,10 @@
 #pragma once
 
-#include <vk_mesh.h>
 #include <game/chunk.h>
 #include <memory>
 #include <utils/concurrentqueue.h>
 #include <utils/blockingconcurrentqueue.h>
 #include <libcuckoo/cuckoohash_map.hh>
-
-class VulkanEngine;
 
 struct MapRange
 {
@@ -23,7 +20,7 @@ struct MapRange
     {
     }
 
-    constexpr bool contains(const ChunkCoord& coord) const
+    [[nodiscard]] constexpr bool contains(const ChunkCoord& coord) const
     {
         return (coord.x >= low_x &&
             coord.x <= high_x &&
@@ -31,7 +28,7 @@ struct MapRange
             coord.z <= high_z);
     }
 
-    constexpr bool is_border(const ChunkCoord& coord) const
+    [[nodiscard]] constexpr bool is_border(const ChunkCoord& coord) const
     {
         return (coord.x == low_x ||
             coord.x == high_x ||
@@ -76,22 +73,17 @@ enum class NeighborStatus
     Border
 };
 
-struct WorldUpdate
-{
-    std::vector<std::shared_ptr<Chunk>> newChunks{};
-    std::vector<std::shared_ptr<Chunk>> removedChunks{};
-};
-
 class ChunkManager {
 public:
     std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> _chunks;
+    // std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> m_snapshot;
 
     ChunkManager();
     ~ChunkManager();
 
     void cleanup();
-    std::optional<WorldUpdate> update_player_position(int x, int z);
-    int get_chunk_index(ChunkCoord coord) const;
+    void update_player_position(int x, int z);
+    //int get_chunk_index(ChunkCoord coord) const;
     std::optional<std::shared_ptr<Chunk>> get_chunk(ChunkCoord coord);
     std::optional<std::array<std::shared_ptr<Chunk>, 8>> get_chunk_neighbors(ChunkCoord coord);
 
@@ -101,14 +93,10 @@ public:
 
 private:
     void work_chunk(int threadId);
-    void work_update(int threadId);
-    std::optional<WorldUpdate> update_map(const MapRange mapRange, const ChunkCoord delta);
-    WorldUpdate initialize_map(const MapRange mapRange);
-    NeighborStatus chunk_has_neighbors(ChunkCoord coord);
-    //void queueWorldUpdate(int changeX, int changeZ);
-    //void worldUpdate();
+    void update_map(MapRange mapRange, ChunkCoord delta);
+    void initialize_map(MapRange mapRange);
+    NeighborStatus chunk_has_neighbors(ChunkCoord coord) const;
 
-    //void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
     bool _initialLoad{true};
     int _viewDistance{GameConfig::DEFAULT_VIEW_DISTANCE};
     size_t _maxChunks{GameConfig::MAXIMUM_CHUNKS};
@@ -116,11 +104,8 @@ private:
     ChunkCoord _lastPlayerChunk = {0, 0};
 
     ChunkWorkQueue _chunkWorkQueue;
-    moodycamel::BlockingConcurrentQueue<MapRange> _mapUpdateQueue;
 
     std::vector<std::thread> _workers;
-    std::thread _updateThread;
 
-    std::shared_mutex _mapMutex;
     std::atomic<bool> _running{true};
 };

@@ -85,7 +85,7 @@ void MeshManager::upload_mesh(std::shared_ptr<Mesh>&& mesh) const
 	vmaDestroyBuffer(m_allocator, vertexStagingBuffer._buffer, vertexStagingBuffer._allocation);
 	vmaDestroyBuffer(m_allocator, indexStagingBuffer._buffer, indexStagingBuffer._allocation);
 
-	mesh->_isActive.store(true, std::memory_order_release);
+	mesh->_isActive.store(true);
 	//std::println("MeshManager::upload_mesh()");
 }
 

@@ -282,8 +282,6 @@ void VulkanEngine::submit_queue_present(const VkCommandBuffer pCmd, const uint32
 void VulkanEngine::run()
 {
 
-	//imgui_upload_fonts();
-
 	//main loop
 	while (!bQuit)
 	{
@@ -776,23 +774,6 @@ void VulkanEngine::init_imgui()
 	ImGui_ImplVulkan_Init(&init_info);
 }
 
-void VulkanEngine::imgui_upload_fonts()
-{
-	// VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
-	// VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	//
-	// VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
-	//
-	// ImGui_ImplVulkan_CreateFontsTexture(cmd);
-	//
-	// VK_CHECK(vkEndCommandBuffer(cmd));
-	//
-	// VkSubmitInfo submit = vkinit::submit_info(&cmd);
-	// VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, VK_NULL_HANDLE));
-	// VK_CHECK(vkQueueWaitIdle(_graphicsQueue));
-	//
-	// ImGui_ImplVulkan_DestroyFontUploadObjects();
-}
 
 FrameData &VulkanEngine::get_current_frame()
 {

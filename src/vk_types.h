@@ -91,3 +91,4 @@ std::cout << "Detected Vulkan error: " << err << std::endl; \
 abort();                                                \
 }                                                           \
 } while (0)
+

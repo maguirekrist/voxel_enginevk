@@ -8,16 +8,6 @@
 #include "backends/imgui_impl_vulkan.h"
 
 GameScene::GameScene() {
-	init();
-}
-
-GameScene::~GameScene()
-{
-	std::println("GameScene::~GameScene");
-}
-
-void GameScene::init()
-{
 	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	_cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
@@ -25,14 +15,14 @@ void GameScene::init()
 
 	VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogResource);
 
-	auto translate = PushConstant{ 	
-				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT, 
-				.size = sizeof(ObjectPushConstants), 
+	auto translate = PushConstant{
+				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+				.size = sizeof(ObjectPushConstants),
 				.build_constant = [](const RenderObject& obj) -> ObjectPushConstants {
 					ObjectPushConstants push{};
 					push.chunk_translate = obj.xzPos;
 					return push;
-				} 
+				}
 			};
 
 	//VulkanEngine::instance()._materialManager.build_material_default(_cameraUboResource, translate);
@@ -77,38 +67,26 @@ void GameScene::init()
 	std::println("GameScene created!");
 }
 
-void GameScene::queue_objects(RenderQueue& queue) {
+GameScene::~GameScene()
+{
+	std::println("GameScene::~GameScene");
+}
+
+void GameScene::queue_objects() {
 	ZoneScopedN("Draw Chunks & Objects");
 	update_uniform_buffer();
 	update_fog_ubo();
-	if (_pendingWorldUpdate.has_value())
-	{
-		for (auto& chunk : _pendingWorldUpdate.value().newChunks)
-		{
-			queue.add(chunk->_opaqueRenderObject.get());
-			queue.add(chunk->_transparentRenderObject.get());
-		}
-
-		for (auto& chunk : _pendingWorldUpdate.value().removedChunks)
-		{
-			queue.remove(chunk->_opaqueRenderObject.get());
-			queue.remove(chunk->_transparentRenderObject.get());
-		}
-
-		_pendingWorldUpdate = std::nullopt;
-	}
 }
 
 void GameScene::update(const float deltaTime)
 {
 	_game._player._moveSpeed = GameConfig::DEFAULT_MOVE_SPEED * deltaTime;
 	_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
-    _pendingWorldUpdate = _game.update();
+	_game.update();
 }
 
 void GameScene::cleanup()
 {
-
     _game.cleanup();
 }
 
@@ -164,27 +142,63 @@ void GameScene::draw_imgui()
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
-	ImGui::ShowDemoWindow();
+	//ImGui::ShowDemoWindow();
 
 	{
-		static float f = 0.0f;
-		static int counter = 0;
+		ImGui::Begin("Chunk Debug");
 
-		ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+		ChunkCoord playerChunk = {static_cast<int>(_game._player._position.x) / static_cast<int>(CHUNK_SIZE), static_cast<int>(_game._player._position.z) / static_cast<int>(CHUNK_SIZE)};
+		ImGui::Text("Player Chunk: %d,%d", playerChunk.x, playerChunk.z);
+		const auto& render_set = VulkanEngine::instance()._opaqueSet.data();
+		auto active_set = render_set | std::views::filter([](const auto& renderObj)
+		{
+			return renderObj.mesh->_isActive.load(std::memory_order::acquire) == true;
+		});
+		const auto active_count = std::ranges::distance(active_set);
 
-		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-		// ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-		// ImGui::Checkbox("Another Window", &show_another_window);
+		ImGui::Text("Active Renderables: %d", static_cast<size_t>(active_count));
 
-		ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-		//ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+		const int max_chunks = (GameConfig::DEFAULT_VIEW_DISTANCE * 2) + 1;
+		if (ImGui::BeginTable("MyGrid", max_chunks)) {
+			for (int row = 0; row < max_chunks; ++row) {
+				ImGui::TableNextRow();
+				for (int col = 0; col < max_chunks; ++col) {
+					ImGui::TableSetColumnIndex(col);
+					const ChunkCoord chunkCoord = {playerChunk.x + (row - GameConfig::DEFAULT_VIEW_DISTANCE), playerChunk.z + (col - GameConfig::DEFAULT_VIEW_DISTANCE)};
+					const auto chunk = _game._chunkManager.get_chunk(chunkCoord);
+					if (chunk.has_value())
+					{
+						switch (chunk.value()->_state.load(std::memory_order::acquire))
+						{
+						case ChunkState::Border:
+							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
+							break;
+						case ChunkState::Rendered:
+							if (chunk.value()->_mesh->_isActive.load(std::memory_order::acquire) == true)
+							{
+								ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 0, 255));
+							} else
+							{
+								ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+							}
 
-		if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-			counter++;
-		ImGui::SameLine();
-		ImGui::Text("counter = %d", counter);
+							break;
+						default:
+							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
+							break;
+						}
+					} else
+					{
+						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+					}
+					ImGui::Text("[%d,%d]", chunkCoord.x, chunkCoord.z);
+					ImGui::PopStyleColor();
+				}
+			}
 
-		//ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+			ImGui::EndTable();
+		}
+
 		ImGui::End();
 	}
 

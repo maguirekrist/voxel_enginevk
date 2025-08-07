@@ -50,18 +50,22 @@ add_executable(vulkan_guide
     scenes/blueprint_builder_scene.cpp
     render/scene_renderer.h
     render/scene_renderer.cpp
-    render/render_queue.h
-    render/render_queue.cpp
-    render/resource.cpp
+        render/render_primitives.h
+        render/resource.cpp
     render/resource.h
+        world/chunk_cache.cpp
+        world/chunk_cache.h
+        collections/spare_set.h
 )
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
 
 target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(vulkan_guide vkbootstrap libcuckoo vma glm tinyobjloader imgui stb_image)
-
+target_link_libraries(vulkan_guide vkbootstrap libcuckoo vma glm tinyobjloader imgui spirv_reflect stb_image)
 target_link_libraries(vulkan_guide Vulkan::Vulkan sdl2 FastNoise TracyClient)
+
+target_compile_options(vulkan_guide PRIVATE)
+target_link_options(vulkan_guide PRIVATE)
 
 add_dependencies(vulkan_guide Shaders)

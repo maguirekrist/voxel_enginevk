@@ -2,12 +2,8 @@
 #include <terrain_gen.h>
 #include <tracy/Tracy.hpp>
 
-void Chunk::reset(ChunkCoord newCoord)
-{
-    _position = glm::ivec2(newCoord.x * CHUNK_SIZE, newCoord.z * CHUNK_SIZE);
-    //_isValid = false;
-    // _mesh = std::make_shared<Mesh>();
-}
+#include "vk_engine.h"
+
 
 void Chunk::generate()
 {
@@ -71,7 +67,6 @@ void Chunk::generate()
         _state = ChunkState::Generated;
 }
 
-
 //This returns the block at the world coordinates of pos.
 //This is why we normalize the position value passed in.
 std::optional<Block> ChunkView::get_block(const glm::ivec3& localPos) const
@@ -87,6 +82,34 @@ std::optional<Block> ChunkView::get_block(const glm::ivec3& localPos) const
 glm::ivec3 ChunkView::get_world_pos(const glm::ivec3& localPos) const
 {
     return { localPos.x + position.x, localPos.y, localPos.z + position.y };
+}
+
+Chunk::Chunk(const ChunkCoord coord): _opaqueHandle(), _transparentHandle(),
+                                      _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)),
+                                      _chunkCoord(coord)
+{
+    _mesh = std::make_unique<Mesh>();
+    _waterMesh = std::make_unique<Mesh>();
+    _opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
+        .mesh = _mesh,
+        .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
+        .xzPos = glm::ivec2(_position.x, _position.y),
+        .layer = RenderLayer::Opaque
+    });
+    _transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
+        .mesh = _waterMesh,
+        .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
+        .xzPos = glm::ivec2(_position.x, _position.y),
+        .layer = RenderLayer::Transparent
+    });
+}
+
+Chunk::~Chunk()
+{
+    VulkanEngine::instance()._opaqueSet.remove(_opaqueHandle);
+    VulkanEngine::instance()._transparentSet.remove(_transparentHandle);
+    VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(_mesh));
+    VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(_waterMesh));
 }
 
 glm::ivec3 Chunk::get_world_pos(const glm::ivec3& localPos) const

@@ -1,12 +1,11 @@
 #pragma once
 
 #include "SDL_events.h"
-#include <render/render_queue.h>
+#include <render/render_primitives.h>
 
 class Scene {
 public:
-    virtual void init() = 0;
-    virtual void queue_objects(RenderQueue& queue) = 0;
+    virtual void queue_objects() = 0;
     virtual void update(float deltaTime) = 0;
     virtual void handle_input(const SDL_Event& event) = 0;
     virtual void handle_keystate(const Uint8* state) = 0;
