@@ -18,7 +18,7 @@ public:
     explicit ChunkCache(int view_distance);
     ~ChunkCache();
 
-    [[nodiscard]] std::weak_ptr<Chunk> get_chunk(ChunkCoord coord) const;
+    //[[nodiscard]] std::weak_ptr<Chunk> get_chunk(ChunkCoord coord) const;
 
 
 

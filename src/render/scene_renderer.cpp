@@ -34,7 +34,7 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
         2);
 
     vkCmdBeginRenderPass(cmd, &rpOffscreenInfo, VK_SUBPASS_CONTENTS_INLINE);
-    draw_objects(cmd, VulkanEngine::instance()._opaqueSet.getSet());
+    draw_objects(cmd, VulkanEngine::instance()._opaqueSet.data());
 
     vkCmdEndRenderPass(cmd);
 
@@ -52,7 +52,7 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
     draw_fullscreen(cmd, VulkanEngine::instance()._materialManager.get_material("present"));
 
     //Draw transparent
-    draw_objects(cmd, VulkanEngine::instance()._transparentSet.getSet());
+    draw_objects(cmd, VulkanEngine::instance()._transparentSet.data());
 
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
@@ -133,9 +133,8 @@ void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const std::shared
 void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& object)
 {
 	if(object.mesh == nullptr) return;
-	if(!object.mesh->_isActive.load(std::memory_order_acquire))
+	if(!object.mesh->_isActive.load(std::memory_order::acquire))
 	{
-		//std::println("Object is inactive");
 		return;
 	};
 

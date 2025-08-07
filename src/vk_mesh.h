@@ -4,7 +4,6 @@
 struct PushConstant;
 struct RenderObject;
 struct Resource;
-struct Handle;
 
 struct VertexInputDescription {
 

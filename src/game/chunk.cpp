@@ -90,13 +90,13 @@ Chunk::Chunk(const ChunkCoord coord): _opaqueHandle(), _transparentHandle(),
 {
     _mesh = std::make_unique<Mesh>();
     _waterMesh = std::make_unique<Mesh>();
-    _opaqueHandle = VulkanEngine::instance()._opaqueSet.create(RenderObject{
+    _opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
         .mesh = _mesh,
         .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
         .xzPos = glm::ivec2(_position.x, _position.y),
         .layer = RenderLayer::Opaque
     });
-    _transparentHandle = VulkanEngine::instance()._transparentSet.create(RenderObject{
+    _transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
         .mesh = _waterMesh,
         .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
         .xzPos = glm::ivec2(_position.x, _position.y),
@@ -106,8 +106,8 @@ Chunk::Chunk(const ChunkCoord coord): _opaqueHandle(), _transparentHandle(),
 
 Chunk::~Chunk()
 {
-    VulkanEngine::instance()._opaqueSet.destroy(_opaqueHandle);
-    VulkanEngine::instance()._transparentSet.destroy(_transparentHandle);
+    VulkanEngine::instance()._opaqueSet.remove(_opaqueHandle);
+    VulkanEngine::instance()._transparentSet.remove(_transparentHandle);
     VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(_mesh));
     VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(_waterMesh));
 }

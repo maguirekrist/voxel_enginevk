@@ -73,9 +73,9 @@ public:
 	VkFramebuffer _offscreenFramebuffer;
 	std::vector<VkFramebuffer> _framebuffers;
 
-	SceneRenderer _sceneRenderer;
-	RenderSet _opaqueSet;
-	RenderSet _transparentSet;
+	SceneRenderer _sceneRenderer{};
+	dev_collections::sparse_set<RenderObject> _opaqueSet{};
+	dev_collections::sparse_set<RenderObject> _transparentSet{};
 
 	float _deltaTime;
 	TimePoint _lastFrameTime;
@@ -155,7 +155,6 @@ private:
 	void init_sync_structures();
 
 	void init_imgui();
-	void imgui_upload_fonts();
 
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
 };

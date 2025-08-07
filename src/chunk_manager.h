@@ -1,6 +1,5 @@
 #pragma once
 
-#include <vk_mesh.h>
 #include <game/chunk.h>
 #include <memory>
 #include <utils/concurrentqueue.h>
@@ -74,31 +73,18 @@ enum class NeighborStatus
     Border
 };
 
-struct WorldUpdateJob
-{
-    ChunkCoord center;
-    int viewDistance;
-
-};
-
-struct WorldUpdateResult
-{
-    std::shared_ptr<Chunk> chunk;
-};
-
 class ChunkManager {
 public:
     std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> _chunks;
-    std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> m_snapshot;
+    // std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> m_snapshot;
 
     ChunkManager();
     ~ChunkManager();
 
     void cleanup();
-    void poll_world_update();
     void update_player_position(int x, int z);
     //int get_chunk_index(ChunkCoord coord) const;
-    //std::optional<std::shared_ptr<Chunk>> get_chunk(ChunkCoord coord);
+    std::optional<std::shared_ptr<Chunk>> get_chunk(ChunkCoord coord);
     std::optional<std::array<std::shared_ptr<Chunk>, 8>> get_chunk_neighbors(ChunkCoord coord);
 
     //TODO: Chunk saving and loading from disk.
@@ -107,14 +93,10 @@ public:
 
 private:
     void work_chunk(int threadId);
-    void work_update(int threadId);
     void update_map(MapRange mapRange, ChunkCoord delta);
     void initialize_map(MapRange mapRange);
-    NeighborStatus chunk_has_neighbors(ChunkCoord coord);
-    //void queueWorldUpdate(int changeX, int changeZ);
-    //void worldUpdate();
+    NeighborStatus chunk_has_neighbors(ChunkCoord coord) const;
 
-    //void add_chunk(ChunkCoord coord, std::unique_ptr<Chunk>&& chunk);
     bool _initialLoad{true};
     int _viewDistance{GameConfig::DEFAULT_VIEW_DISTANCE};
     size_t _maxChunks{GameConfig::MAXIMUM_CHUNKS};
@@ -122,11 +104,8 @@ private:
     ChunkCoord _lastPlayerChunk = {0, 0};
 
     ChunkWorkQueue _chunkWorkQueue;
-    moodycamel::BlockingConcurrentQueue<MapRange> _mapUpdateQueue;
-    moodycamel::BlockingConcurrentQueue<WorldUpdateResult> _worldUpdateResultQueue;
 
     std::vector<std::thread> _workers;
-    std::thread _updateThread;
 
     std::atomic<bool> _running{true};
 };

@@ -50,11 +50,12 @@ add_executable(vulkan_guide
     scenes/blueprint_builder_scene.cpp
     render/scene_renderer.h
     render/scene_renderer.cpp
-    render/render_queue.h
+        render/render_primitives.h
         render/resource.cpp
     render/resource.h
         world/chunk_cache.cpp
         world/chunk_cache.h
+        collections/spare_set.h
 )
 
 

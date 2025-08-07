@@ -53,7 +53,7 @@ ChunkManager::ChunkManager()
     auto max_thread = std::thread::hardware_concurrency();
     _maxThreads = max_thread != 0 ? max_thread : _maxThreads;
 
-    _updateThread = std::thread(&ChunkManager::work_update, this, 0);
+    // _updateThread = std::thread(&ChunkManager::work_update, this, 0);
 
     for(size_t i = 1; i < _maxThreads; i++)
     {
@@ -65,11 +65,6 @@ ChunkManager::ChunkManager()
 void ChunkManager::cleanup()
 {
     std::println("ChunkManager::cleanup");
-    // for(const auto& [key, chunk] : _chunks)
-    // {
-    //     VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_mesh));
-    //     VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(chunk->_waterMesh));
-    // }
 
     _running = false;
 
@@ -77,18 +72,7 @@ void ChunkManager::cleanup()
         worker.join();
     }
 
-    _updateThread.join();
     _chunks.clear();
-}
-
-void ChunkManager::poll_world_update()
-{
-    WorldUpdateResult result{};
-    //Process world updates.
-    while (_worldUpdateResultQueue.try_dequeue(result))
-    {
-        m_snapshot[result.chunk->_chunkCoord] = result.chunk;
-    }
 }
 
 ChunkManager::~ChunkManager()
@@ -117,6 +101,16 @@ void ChunkManager::update_player_position(const int x, const int z)
     //calculate old chunks and remove.
     update_map(mapRange, { changeX, changeZ });
     std::println("Work Queue: {}", _chunkWorkQueue.size_approx());
+    std::println("Active chunks: {}", _chunks.size());
+}
+
+std::optional<std::shared_ptr<Chunk>> ChunkManager::get_chunk(ChunkCoord coord)
+{
+    if (_chunks.contains(coord))
+    {
+        return _chunks.at(coord);
+    }
+    return std::nullopt;
 }
 
 void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
@@ -177,12 +171,27 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
         }
     };
 
+    auto mark_border = [&, this](const ChunkCoord chunkCoord)
+    {
+        if (!_chunks.contains(chunkCoord))
+        {
+            std::println("Chunk does not exist: {}", chunkCoord);
+            throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
+        }
+
+        auto chunkToUpdate = _chunks.at(chunkCoord);
+        chunkToUpdate->_state.store(ChunkState::Border);
+    };
+
     if (delta.x == 1)
     {
         for (auto mapZ = mapRange.low_z; mapZ <= mapRange.high_z; ++mapZ)
         {
             const auto removeCoord = ChunkCoord{mapRange.low_x - 1, mapZ};
             remove_chunk(removeCoord);
+
+            const auto new_border = ChunkCoord{mapRange.low_x, mapZ};
+            mark_border(new_border);
 
             const auto newChunk = ChunkCoord{mapRange.high_x, mapZ};
             add_chunk(newChunk);
@@ -199,6 +208,9 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
             const auto removeCoord = ChunkCoord{mapRange.high_x + 1, mapZ};
             remove_chunk(removeCoord);
 
+            const auto new_border = ChunkCoord{mapRange.high_x, mapZ};
+            mark_border(new_border);
+
             const auto newChunk = ChunkCoord{mapRange.low_x, mapZ};
             add_chunk(newChunk);
 
@@ -214,11 +226,15 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
             const auto removeCoord = ChunkCoord{mapX, mapRange.low_z - 1};
             remove_chunk(removeCoord);
 
+            const auto new_border = ChunkCoord{mapX, mapRange.low_z};
+            mark_border(new_border);
+
             const auto newChunk = ChunkCoord{mapX, mapRange.high_z};
             add_chunk(newChunk);
 
             const auto oldBorderCoord = ChunkCoord{mapX, mapRange.high_z - 1};
             update_chunk(oldBorderCoord);
+
         }
     }
 
@@ -228,6 +244,9 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
         {
             const auto removeCoord = ChunkCoord{mapX, mapRange.high_z + 1};
             remove_chunk(removeCoord);
+
+            const auto new_border = ChunkCoord{mapX, mapRange.high_z};
+            mark_border(new_border);
 
             const auto newChunk = ChunkCoord{mapX, mapRange.low_z};
             add_chunk(newChunk);
@@ -268,7 +287,7 @@ void ChunkManager::initialize_map(const MapRange mapRange)
 }
 
 
-NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord)
+NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord) const
 {
     int count = 0;
 
@@ -456,9 +475,13 @@ void ChunkManager::work_chunk(int threadId)
                     {
                         VulkanEngine::instance()._meshManager.UploadQueue.enqueue(work_item.chunk->_waterMesh);
                     }
-                    VulkanEngine::instance()._meshManager.UploadQueue.enqueue(work_item.chunk->_mesh);
 
-                    //_worldUpdateResultQueue.enqueue(WorldUpdateResult{ .chunk = work_item.chunk });
+                    if (work_item.chunk->_mesh->_vertices.empty())
+                    {
+                        throw std::runtime_error("Chunk mesh is empty");
+                    }
+
+                    VulkanEngine::instance()._meshManager.UploadQueue.enqueue(work_item.chunk->_mesh);
                     break;
             }
         } else if (!_running)
@@ -468,15 +491,15 @@ void ChunkManager::work_chunk(int threadId)
     }
 }
 
-void ChunkManager::work_update(int threadId)
-{
-    tracy::SetThreadName(std::format("Chunk Update Thread: {}", threadId).c_str());
-    while(_running)
-    {
-        MapRange mapRange;
-        if (_mapUpdateQueue.try_dequeue(mapRange))
-        {
-
-        }
-    }
-}
+// void ChunkManager::work_update(int threadId)
+// {
+//     tracy::SetThreadName(std::format("Chunk Update Thread: {}", threadId).c_str());
+//     while(_running)
+//     {
+//         MapRange mapRange;
+//         if (_mapUpdateQueue.try_dequeue(mapRange))
+//         {
+//
+//         }
+//     }
+// }

@@ -142,27 +142,63 @@ void GameScene::draw_imgui()
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
-	ImGui::ShowDemoWindow();
+	//ImGui::ShowDemoWindow();
 
 	{
-		static float f = 0.0f;
-		static int counter = 0;
+		ImGui::Begin("Chunk Debug");
 
-		ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+		ChunkCoord playerChunk = {static_cast<int>(_game._player._position.x) / static_cast<int>(CHUNK_SIZE), static_cast<int>(_game._player._position.z) / static_cast<int>(CHUNK_SIZE)};
+		ImGui::Text("Player Chunk: %d,%d", playerChunk.x, playerChunk.z);
+		const auto& render_set = VulkanEngine::instance()._opaqueSet.data();
+		auto active_set = render_set | std::views::filter([](const auto& renderObj)
+		{
+			return renderObj.mesh->_isActive.load(std::memory_order::acquire) == true;
+		});
+		const auto active_count = std::ranges::distance(active_set);
 
-		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-		// ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-		// ImGui::Checkbox("Another Window", &show_another_window);
+		ImGui::Text("Active Renderables: %d", static_cast<size_t>(active_count));
 
-		ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-		//ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+		const int max_chunks = (GameConfig::DEFAULT_VIEW_DISTANCE * 2) + 1;
+		if (ImGui::BeginTable("MyGrid", max_chunks)) {
+			for (int row = 0; row < max_chunks; ++row) {
+				ImGui::TableNextRow();
+				for (int col = 0; col < max_chunks; ++col) {
+					ImGui::TableSetColumnIndex(col);
+					const ChunkCoord chunkCoord = {playerChunk.x + (row - GameConfig::DEFAULT_VIEW_DISTANCE), playerChunk.z + (col - GameConfig::DEFAULT_VIEW_DISTANCE)};
+					const auto chunk = _game._chunkManager.get_chunk(chunkCoord);
+					if (chunk.has_value())
+					{
+						switch (chunk.value()->_state.load(std::memory_order::acquire))
+						{
+						case ChunkState::Border:
+							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
+							break;
+						case ChunkState::Rendered:
+							if (chunk.value()->_mesh->_isActive.load(std::memory_order::acquire) == true)
+							{
+								ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 0, 255));
+							} else
+							{
+								ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+							}
 
-		if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-			counter++;
-		ImGui::SameLine();
-		ImGui::Text("counter = %d", counter);
+							break;
+						default:
+							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
+							break;
+						}
+					} else
+					{
+						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+					}
+					ImGui::Text("[%d,%d]", chunkCoord.x, chunkCoord.z);
+					ImGui::PopStyleColor();
+				}
+			}
 
-		//ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+			ImGui::EndTable();
+		}
+
 		ImGui::End();
 	}
 

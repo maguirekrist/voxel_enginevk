@@ -4,9 +4,8 @@
 #include <constants.h>
 #include <format>
 #include "block.h"
-#include "render/render_queue.h"
+#include "render/render_primitives.h"
 
-struct Handle;
 
 struct ChunkCoord {
     int x, z;
@@ -80,8 +79,8 @@ public:
     std::shared_ptr<Mesh> _mesh;
     std::shared_ptr<Mesh> _waterMesh;
 
-    Handle _opaqueHandle;
-    Handle _transparentHandle;
+    dev_collections::sparse_set<RenderObject>::Handle _opaqueHandle;
+    dev_collections::sparse_set<RenderObject>::Handle _transparentHandle;
 
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
     const ChunkCoord _chunkCoord;
