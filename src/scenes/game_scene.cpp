@@ -72,7 +72,7 @@ GameScene::~GameScene()
 	std::println("GameScene::~GameScene");
 }
 
-void GameScene::queue_objects() {
+void GameScene::update_buffers() {
 	ZoneScopedN("Draw Chunks & Objects");
 	update_uniform_buffer();
 	update_fog_ubo();
@@ -83,11 +83,6 @@ void GameScene::update(const float deltaTime)
 	_game._player._moveSpeed = GameConfig::DEFAULT_MOVE_SPEED * deltaTime;
 	_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
 	_game.update();
-}
-
-void GameScene::cleanup()
-{
-    _game.cleanup();
 }
 
 void GameScene::handle_input(const SDL_Event& event)

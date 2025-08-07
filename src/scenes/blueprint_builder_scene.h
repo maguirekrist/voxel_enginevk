@@ -13,11 +13,10 @@ struct GridUniform {
 class BlueprintBuilderScene final : public Scene {
 public:
     BlueprintBuilderScene();
-    void queue_objects() override;
+    void update_buffers() override;
     void update(float deltaTime) override;
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
-    void cleanup() override;
     void draw_imgui() override;
 private:
     void build_chunk_platform(ChunkCoord coord);

@@ -1,5 +1,5 @@
 #include "chunk.h"
-#include <terrain_gen.h>
+#include <world/terrain_gen.h>
 #include <tracy/Tracy.hpp>
 
 #include "vk_engine.h"

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <game/chunk.h>
+#include "../game/chunk.h"
 #include <memory>
-#include <utils/concurrentqueue.h>
-#include <utils/blockingconcurrentqueue.h>
+#include "../utils/concurrentqueue.h"
+#include "../utils/blockingconcurrentqueue.h"
 #include <libcuckoo/cuckoohash_map.hh>
 
 struct MapRange
@@ -81,7 +81,7 @@ public:
     ChunkManager();
     ~ChunkManager();
 
-    void cleanup();
+    //void cleanup();
     void update_player_position(int x, int z);
     //int get_chunk_index(ChunkCoord coord) const;
     std::optional<std::shared_ptr<Chunk>> get_chunk(ChunkCoord coord);

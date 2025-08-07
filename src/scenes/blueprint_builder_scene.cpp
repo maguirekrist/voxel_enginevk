@@ -20,7 +20,7 @@ BlueprintBuilderScene::BlueprintBuilderScene()
     // set_grid_uniform();
 }
 
-void BlueprintBuilderScene::queue_objects() {
+void BlueprintBuilderScene::update_buffers() {
     ZoneScopedN("Draw Chunks & Objects");
     // update_camera_uniform();
     // update_fog_ubo();
@@ -48,11 +48,6 @@ void BlueprintBuilderScene::handle_keystate(const Uint8 *state)
 {
 }
 
-void BlueprintBuilderScene::cleanup()
-{
-    //_renderObjects.clear();
-}
-
 void BlueprintBuilderScene::draw_imgui()
 {
 }
@@ -67,8 +62,6 @@ void BlueprintBuilderScene::build_chunk_platform(ChunkCoord coord)
         glm::ivec2(coord.x,coord.z),
         RenderLayer::Opaque
     );
-
-    //_renderObjects.push_back(std::move(chunkPlatform));
 }
 
 void BlueprintBuilderScene::set_grid_uniform()

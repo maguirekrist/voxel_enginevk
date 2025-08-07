@@ -1,12 +1,12 @@
 
 #include "chunk_manager.h"
-#include "game/chunk.h"
+#include "../game/chunk.h"
 #include "chunk_mesher.h"
 #include "tracy/Tracy.hpp"
-#include "vk_mesh.h"
+#include "../vk_mesh.h"
 #include <memory>
 
-#include "vk_engine.h"
+#include "../vk_engine.h"
 
 void ChunkWorkQueue::enqueue(const ChunkWork& work)
 {
@@ -53,8 +53,6 @@ ChunkManager::ChunkManager()
     auto max_thread = std::thread::hardware_concurrency();
     _maxThreads = max_thread != 0 ? max_thread : _maxThreads;
 
-    // _updateThread = std::thread(&ChunkManager::work_update, this, 0);
-
     for(size_t i = 1; i < _maxThreads; i++)
     {
         _workers.emplace_back(&ChunkManager::work_chunk, this, i);
@@ -62,22 +60,14 @@ ChunkManager::ChunkManager()
 
 }
 
-void ChunkManager::cleanup()
-{
-    std::println("ChunkManager::cleanup");
 
-    _running = false;
+ChunkManager::~ChunkManager()
+{
+    _running.store(false, std::memory_order::release);
 
     for (std::thread &worker : _workers) {
         worker.join();
     }
-
-    _chunks.clear();
-}
-
-ChunkManager::~ChunkManager()
-{
-    std::println("ChunkManager::~ChunkManager");
 }
 
 void ChunkManager::update_player_position(const int x, const int z)
@@ -99,7 +89,17 @@ void ChunkManager::update_player_position(const int x, const int z)
         return initialize_map(mapRange);
     }
     //calculate old chunks and remove.
-    update_map(mapRange, { changeX, changeZ });
+
+    if (changeX != 0)
+    {
+        update_map(mapRange, { changeX, 0 });
+    }
+
+    if (changeZ != 0)
+    {
+        update_map(mapRange, { 0, changeZ });
+    }
+
     std::println("Work Queue: {}", _chunkWorkQueue.size_approx());
     std::println("Active chunks: {}", _chunks.size());
 }
@@ -128,7 +128,7 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
             _chunks.erase(chunkCoord);
         } else
         {
-            std::println("Chunk does not exist: {}", chunkCoord);
+            std::println("Tried removing Chunk does not exist: {}", chunkCoord);
         }
     };
 
@@ -155,8 +155,9 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
 
         if (!_chunks.contains(chunkCoord))
         {
-            std::println("Chunk does not exist: {}", chunkCoord);
-            throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
+            std::println("Tried updating Chunk does not exist: {}", chunkCoord);
+           // throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
+            return;
         }
 
         auto chunkToUpdate = _chunks.at(chunkCoord);
@@ -167,7 +168,8 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
         } else
         {
             std::println("The work queue is {}", this->_chunkWorkQueue.size_approx());
-            throw std::runtime_error(std::format("Chunk is not border {}", chunkCoord));
+            //throw std::runtime_error(std::format("Chunk is not border {}", chunkCoord));a
+            return;
         }
     };
 
@@ -175,8 +177,9 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
     {
         if (!_chunks.contains(chunkCoord))
         {
-            std::println("Chunk does not exist: {}", chunkCoord);
-            throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
+            std::println("Tried marking border of Chunk does not exist: {}", chunkCoord);
+            //throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
+            return;
         }
 
         auto chunkToUpdate = _chunks.at(chunkCoord);

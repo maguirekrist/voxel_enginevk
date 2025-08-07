@@ -8,9 +8,8 @@ CubeEngine::CubeEngine()
     
 }
 
-void CubeEngine::cleanup()
+CubeEngine::~CubeEngine()
 {
-    _chunkManager.cleanup();
 }
 
 void CubeEngine::update()
