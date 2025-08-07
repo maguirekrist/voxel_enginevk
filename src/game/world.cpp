@@ -2,7 +2,7 @@
 
 #include "world.h"
 #include "block.h"
-#include "chunk_manager.h"
+#include "../world/chunk_manager.h"
 
 std::optional<Block> World::get_block(const glm::ivec3& worldPos) const
 {

@@ -1,6 +1,6 @@
 #include "player.h"
 
-Player::Player()
+Player::Player(): _lastMouseX(0), _lastMouseY(0), _pitch(0)
 {
     _position = glm::vec3(0.0f, 120.0f, 0.0f);
     _front = glm::vec3(0.0f, 0.0f, 1.0f);

@@ -12,7 +12,7 @@
 #include <sdl_utils.h>
 #include <vulkan/vulkan_core.h>
 
-#include <cube_engine.h>
+#include <game/cube_engine.h>
 
 #include "VkBootstrap.h"
 #include "vk_types.h"
@@ -92,18 +92,19 @@ void VulkanEngine::cleanup()
 
 		VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
 
-		_mainDeletionQueue.flush();
-
 		_sceneRenderer.cleanup();
+		_opaqueSet.clear();
+		_transparentSet.clear();
 		_meshManager.cleanup();
 		_materialManager.cleanup();
-		_descriptorLayoutCache.cleanup();
-		_descriptorAllocator.cleanup();
-
 		//ImGui cleanup
 		ImGui_ImplVulkan_Shutdown();
 		ImGui_ImplSDL2_Shutdown();
 		ImGui::DestroyContext();
+
+		_mainDeletionQueue.flush();
+		_descriptorLayoutCache.cleanup();
+		_descriptorAllocator.cleanup();
 
 
 		vmaDestroyAllocator(_allocator);

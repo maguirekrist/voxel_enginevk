@@ -21,16 +21,16 @@ add_executable(vulkan_guide
         game/chunk.cpp
         game/block.h
         game/block.cpp
-    chunk_mesher.h
-    chunk_mesher.cpp
-    chunk_manager.h
-    chunk_manager.cpp
-    cube_engine.h
-    cube_engine.cpp
+        world/chunk_mesher.h
+        world/chunk_mesher.cpp
+        world/chunk_manager.h
+        world/chunk_manager.cpp
+        game/cube_engine.h
+        game/cube_engine.cpp
         game/player.h
         game/player.cpp
-    terrain_gen.h
-    terrain_gen.cpp
+        world/terrain_gen.h
+        world/terrain_gen.cpp
     constants.h
     utils/concurrentqueue.h
     utils/blockingconcurrentqueue.h

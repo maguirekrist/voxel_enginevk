@@ -1,6 +1,6 @@
 
-#include <chunk_mesher.h>
-#include "game/block.h"
+#include "chunk_mesher.h"
+#include "../game/block.h"
 #include "tracy/Tracy.hpp"
 #include <game/world.h>
 

@@ -1,6 +1,6 @@
 
 #pragma once
-#include <game/chunk.h>
+
 #include <game/player.h>
 #include <game/world.h>
 

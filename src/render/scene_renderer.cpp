@@ -12,17 +12,20 @@
 
 void SceneRenderer::init()
 {
-	_scenes["game"] = std::make_unique<GameScene>();
-	//_scenes["blueprint"] = std::make_unique<BlueprintBuilderScene>();
+	_scenes["game"] = std::make_shared<GameScene>();
+	_currentScene = _scenes["game"];
+}
 
-	//set default scene
-	_currentScene = _scenes["game"].get();
+void SceneRenderer::cleanup()
+{
+	_scenes.clear();
+	_currentScene = nullptr;
 }
 
 void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapchainImageIndex)
 {
 	ZoneScopedN("Render Scene");
-    _currentScene->queue_objects();
+    _currentScene->update_buffers();
 
 	_currentScene->draw_imgui();
 
@@ -59,20 +62,9 @@ void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapc
     vkCmdEndRenderPass(cmd);
 }
 
-Scene* SceneRenderer::get_current_scene() const
+std::shared_ptr<Scene> SceneRenderer::get_current_scene() const
 {
-    return _currentScene;
-}
-
-void SceneRenderer::cleanup()
-{
-    for(auto it = _scenes.begin(); it != _scenes.end(); )
-    {
-    	auto& scene = *it->second;
-        scene.cleanup();
-
-    	it = _scenes.erase(it);
-    }
+	return _currentScene;
 }
 
 void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Material>& computeMaterial)
@@ -178,16 +170,9 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
     }
     
 
-	//only bind the mesh if it's a different one from last bind
-	if(object.mesh.get() != m_lastMesh) {
-		//bind the mesh vertex buffer with offset 0
-		constexpr VkDeviceSize offset = 0;
-		vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
-
-		vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-
-		m_lastMesh = object.mesh.get();
-	}
+	constexpr VkDeviceSize offset = 0;
+	vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
+	vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 
 	//we can now draw
 	vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);

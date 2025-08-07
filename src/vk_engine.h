@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <cube_engine.h>
+#include <game/cube_engine.h>
 #include <vulkan/vulkan_core.h>
 #include <vk_util.h>
 #include <render/mesh_manager.h>

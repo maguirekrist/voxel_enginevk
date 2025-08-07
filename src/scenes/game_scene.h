@@ -1,7 +1,7 @@
 #pragma once
 
 #include "camera.h"
-#include "cube_engine.h"
+#include "../game/cube_engine.h"
 #include "scene.h"
 #include "render/resource.h"
 
@@ -9,13 +9,12 @@ class GameScene final : public Scene {
 public:
     GameScene();
     ~GameScene() override;
-    void queue_objects() override;
+    void update_buffers() override;
 
     void update(float deltaTime) override;
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
     void draw_imgui() override;
-    void cleanup() override;
 private:
     void update_fog_ubo() const;
     void update_uniform_buffer() const;

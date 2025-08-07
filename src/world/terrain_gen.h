@@ -2,7 +2,7 @@
 
 #include <vk_types.h>
 #include <FastNoise/FastNoise.h>
-#include "random.h"
+#include "../random.h"
 
 struct SplinePoint {
     float noiseValue;
