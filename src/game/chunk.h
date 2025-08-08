@@ -32,7 +32,9 @@ namespace std {
     struct hash<ChunkCoord> {
         size_t operator()(const ChunkCoord& coord) const noexcept
         {
-            return hash<int>()(coord.x) ^ (hash<int>()(coord.z) << 1);
+            size_t seed = std::hash<int>()(coord.x);
+            seed ^= std::hash<int>()(coord.z) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+            return seed;
         }
     };
 }

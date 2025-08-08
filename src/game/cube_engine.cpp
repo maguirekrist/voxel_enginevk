@@ -3,7 +3,14 @@
 
 #include "tracy/Tracy.hpp"
 
-CubeEngine::CubeEngine(): _current_block(), _current_chunk()
+CubeEngine::CubeEngine() :
+    _player([this](const glm::vec3& pos) -> bool
+    {
+        const auto block = _world.get_block(pos);
+        return block->_solid;
+    }),
+    _current_block(),
+    _current_chunk()
 {
 }
 

@@ -4,7 +4,7 @@
 #include "block.h"
 #include "../world/chunk_manager.h"
 
-Block* World::get_block(const glm::ivec3& worldPos) const
+Block* World::get_block(const glm::vec3& worldPos) const
 {
     auto localPos = get_local_coordinates(worldPos);
     if (Chunk::is_outside_chunk(localPos))

@@ -10,7 +10,8 @@ public:
     glm::vec3 _up{};
     float _moveSpeed{GameConfig::DEFAULT_MOVE_SPEED};
     
-    Player();
+    Player() = delete;
+    explicit Player(const std::function<bool(glm::vec3)>& check_collision);
 
     void move_forward();
     void move_backward();
@@ -24,4 +25,6 @@ private:
     float _lastMouseY;
     float _yaw = 0.0f;
     float _pitch;
+
+    std::function<bool(glm::vec3)> _check_collision;
 };

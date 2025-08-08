@@ -1,9 +1,25 @@
 #include "camera.h"
 
-Camera::Camera() : _up(glm::vec3(0.0f, 1.0f, 0.0f)), _view(glm::mat4(1.0f)), _front(glm::vec3(1.0f, 0.0f, 0.0f)), _position(glm::vec3(0.0f, 120.0f, 0.0f))
+// Camera::Camera() :
+//     _up(glm::vec3(0.0f, 1.0f, 0.0f)),
+//     _check_collision([](const glm::vec3 pos) { return false; }),
+//     _view(glm::mat4(1.0f)),
+//     _front(glm::vec3(1.0f, 0.0f, 0.0f)),
+//     _position(glm::vec3(0.0f, 120.0f, 0.0f))
+// {
+//     _projection[1][1] *= -1;
+// }
+
+Camera::Camera(const std::function<bool(glm::vec3)>& check_collision) :
+    _up(glm::vec3(0.0f, 1.0f, 0.0f)),
+    _check_collision(check_collision),
+    _view(glm::mat4(1.0f)),
+    _front(glm::vec3(1.0f, 0.0f, 0.0f)),
+    _position(glm::vec3(0.0f, 120.0f, 0.0f))
 {
     _projection[1][1] *= -1;
 }
+
 
 void Camera::handle_mouse_move(float xChange, float yChange)
 {
@@ -34,22 +50,30 @@ void Camera::update_view()
 
 void Camera::move_forward()
 {
-    _position += _front * _moveSpeed;
+    const auto next_pos = _position + (_front * _moveSpeed);
+    if (!_check_collision(next_pos))
+        _position = next_pos;
 }
 
 void Camera::move_backward()
 {
-    _position -= _front * _moveSpeed;
+    const auto next_pos = _position - (_front * _moveSpeed);
+    if (!_check_collision(next_pos))
+        _position = next_pos;
 }
 
 void Camera::move_left()
 {
-    _position -= glm::normalize(glm::cross(_front, _up)) * _moveSpeed;
+    const auto next_pos = _position - (glm::normalize(glm::cross(_front, _up)) * _moveSpeed);
+    if (!_check_collision(next_pos))
+        _position = next_pos;
 }
 
 void Camera::move_right()
 {
-    _position += glm::normalize(glm::cross(_front, _up)) * _moveSpeed;
+    const auto next_pos = _position + (glm::normalize(glm::cross(_front, _up)) * _moveSpeed);
+    if (!_check_collision(next_pos))
+        _position = next_pos;
 }
 
 std::optional<RaycastResult> Camera::get_target_block(World& world, Player& player)

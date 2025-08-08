@@ -1,6 +1,17 @@
 #include "player.h"
 
-Player::Player(): _lastMouseX(0), _lastMouseY(0), _pitch(0)
+// Player::Player(): _lastMouseX(0), _lastMouseY(0), _pitch(0), _check_collision([](glm::vec3) -> bool { return false; })
+// {
+//     _position = glm::vec3(0.0f, 120.0f, 0.0f);
+//     _front = glm::vec3(1.0f, 0.0f, 0.0f);
+//     _up = glm::vec3(0.0f, 1.0f, 0.0f);
+// }
+
+Player::Player(const std::function<bool(glm::vec3)>& check_collision) :
+    _lastMouseX(0),
+    _lastMouseY(0),
+    _pitch(0),
+    _check_collision(check_collision)
 {
     _position = glm::vec3(0.0f, 120.0f, 0.0f);
     _front = glm::vec3(1.0f, 0.0f, 0.0f);
@@ -9,22 +20,30 @@ Player::Player(): _lastMouseX(0), _lastMouseY(0), _pitch(0)
 
 void Player::move_forward()
 {
-    _position += _front * _moveSpeed;
+    const auto next_pos = _position + (_front * _moveSpeed);
+    if (!_check_collision(next_pos))
+        _position = next_pos;
 }
 
 void Player::move_backward()
 {
-    _position -= _front * _moveSpeed;
+    const auto next_pos = _position - (_front * _moveSpeed);
+    if (!_check_collision(next_pos))
+        _position = next_pos;
 }
 
 void Player::move_left()
 {
-    _position -= glm::normalize(glm::cross(_front, _up)) * _moveSpeed;
+    const auto next_pos = _position - (glm::normalize(glm::cross(_front, _up)) * _moveSpeed);
+    if (!_check_collision(next_pos))
+        _position = next_pos;
 }
 
 void Player::move_right()
 {
-    _position += glm::normalize(glm::cross(_front, _up)) * _moveSpeed;
+    const auto next_pos = _position + (glm::normalize(glm::cross(_front, _up)) * _moveSpeed);
+    if (!_check_collision(next_pos))
+        _position = next_pos;
 }
 
 void Player::handle_mouse_move(float xChange, float yChange)
