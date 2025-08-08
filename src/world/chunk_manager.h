@@ -76,12 +76,10 @@ enum class NeighborStatus
 class ChunkManager {
 public:
     std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> _chunks;
-    // std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>> m_snapshot;
 
     ChunkManager();
     ~ChunkManager();
 
-    //void cleanup();
     void update_player_position(int x, int z);
     //int get_chunk_index(ChunkCoord coord) const;
     std::optional<std::shared_ptr<Chunk>> get_chunk(ChunkCoord coord);

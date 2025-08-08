@@ -25,5 +25,6 @@ private:
     CubeEngine _game;
     Camera _camera;
 
+
     std::optional<RaycastResult> _targetBlock;
 };

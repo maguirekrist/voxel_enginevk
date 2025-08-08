@@ -96,7 +96,7 @@ public:
 
     static ChunkView to_view(const Chunk& chunk) noexcept
     {
-        return ChunkView(chunk._blocks, chunk._position);
+        return { chunk._blocks, chunk._position };
     }
 
     static constexpr bool is_outside_chunk(const glm::ivec3& localPos)

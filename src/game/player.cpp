@@ -3,7 +3,7 @@
 Player::Player(): _lastMouseX(0), _lastMouseY(0), _pitch(0)
 {
     _position = glm::vec3(0.0f, 120.0f, 0.0f);
-    _front = glm::vec3(0.0f, 0.0f, 1.0f);
+    _front = glm::vec3(1.0f, 0.0f, 0.0f);
     _up = glm::vec3(0.0f, 1.0f, 0.0f);
 }
 
@@ -42,14 +42,11 @@ void Player::handle_mouse_move(float xChange, float yChange)
         _pitch = -89.0f;
 
 
-    //fmt::println("Pitch: {}", _pitch);
-
     glm::vec3 direction;
     direction.x = cos(glm::radians(_yaw)) * cos(glm::radians(_pitch));
     direction.y = sin(glm::radians(_pitch));
     direction.z = sin(glm::radians(_yaw)) * cos(glm::radians(_pitch));
 
-   // fmt::println("Direction, x: {}, y: {}, z: {}", direction.x, direction.y, direction.z);
 
     _front = glm::normalize(direction);
 }

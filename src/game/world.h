@@ -8,12 +8,12 @@ class ChunkManager;
 
 class World {
 public:
-    World(ChunkManager& chunkManager) : _chunkManager(chunkManager) {    }
+    explicit World(ChunkManager& chunkManager) : _chunkManager(chunkManager) {    }
 
-    std::optional<Block> get_block(const glm::ivec3& worldPos) const;
-    std::optional<ChunkView> get_chunk(glm::vec3 worldPos) const;
+    [[nodiscard]] Block* get_block(const glm::ivec3& worldPos) const;
+    [[nodiscard]] std::weak_ptr<Chunk> get_chunk(glm::vec3 worldPos) const;
 
-    static glm::ivec2 get_chunk_coordinates(const glm::vec3& worldPos);
+    static ChunkCoord get_chunk_coordinates(const glm::vec3& worldPos);
     static glm::ivec2 get_chunk_origin(const glm::vec3& worldPos);
     static glm::ivec3 get_local_coordinates(const glm::vec3& worldPos);
 private:

@@ -56,6 +56,8 @@ add_executable(vulkan_guide
         world/chunk_cache.cpp
         world/chunk_cache.h
         collections/spare_set.h
+        physics/aabb.cpp
+        physics/aabb.h
 )
 
 

@@ -5,9 +5,9 @@
 
 class Player {
 public:
-    glm::vec3 _position;
-    glm::vec3 _front;
-    glm::vec3 _up;
+    glm::vec3 _position{};
+    glm::vec3 _front{};
+    glm::vec3 _up{};
     float _moveSpeed{GameConfig::DEFAULT_MOVE_SPEED};
     
     Player();
@@ -22,6 +22,6 @@ private:
     bool _firstMouse = true;
     float _lastMouseX;
     float _lastMouseY;
-    float _yaw = 90.0f;
+    float _yaw = 0.0f;
     float _pitch;
 };

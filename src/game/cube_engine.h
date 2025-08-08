@@ -2,6 +2,7 @@
 
 #include "world.h"
 #include <world/chunk_manager.h>
+
 #include "player.h"
 
 class VulkanEngine;
@@ -14,7 +15,9 @@ public:
     ChunkManager _chunkManager;
     World _world{ _chunkManager };
     Player _player;
-    //Main Tick entry
+
+    Block* _current_block;
+    std::weak_ptr<Chunk> _current_chunk;
+
     void update();
-private:
 };

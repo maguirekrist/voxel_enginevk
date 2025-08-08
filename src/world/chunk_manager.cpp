@@ -104,7 +104,7 @@ void ChunkManager::update_player_position(const int x, const int z)
     std::println("Active chunks: {}", _chunks.size());
 }
 
-std::optional<std::shared_ptr<Chunk>> ChunkManager::get_chunk(ChunkCoord coord)
+std::optional<std::shared_ptr<Chunk>> ChunkManager::get_chunk(const ChunkCoord coord)
 {
     if (_chunks.contains(coord))
     {

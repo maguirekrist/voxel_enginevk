@@ -81,7 +81,8 @@ void GameScene::update_buffers() {
 void GameScene::update(const float deltaTime)
 {
 	_game._player._moveSpeed = GameConfig::DEFAULT_MOVE_SPEED * deltaTime;
-	_camera.update_view(_game._player._position, _game._player._front, _game._player._up);
+	_camera._moveSpeed = GameConfig::DEFAULT_MOVE_SPEED * deltaTime;
+	_camera.update_view();
 	_game.update();
 }
 
@@ -89,19 +90,20 @@ void GameScene::handle_input(const SDL_Event& event)
 {
 	switch(event.type) {
 		case SDL_MOUSEBUTTONDOWN:
-			_targetBlock = _camera.get_target_block(_game._world, _game._player);
-			if(_targetBlock.has_value())
-			{
-				auto block = _targetBlock.value()._block;
-				//auto chunk = _targetBlock.value()._chunk;
-				glm::vec3 worldBlockPos = _targetBlock.value()._worldPos;
-				//build_target_block_view(worldBlockPos);
-				//fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
-				//fmt::println("Current chunk: Chunk(x: {}, y: {})", chunk->_position.x, chunk->_position.y);
-			}
+			// _targetBlock = _camera.get_target_block(_game._world, _game._player);
+			// if(_targetBlock.has_value())
+			// {
+			// 	auto block = _targetBlock.value()._block;
+			// 	//auto chunk = _targetBlock.value()._chunk;
+			// 	glm::vec3 worldBlockPos = _targetBlock.value()._worldPos;
+			// 	//build_target_block_view(worldBlockPos);
+			// 	//fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
+			// 	//fmt::println("Current chunk: Chunk(x: {}, y: {})", chunk->_position.x, chunk->_position.y);
+			// }
 			break;
 		case SDL_MOUSEMOTION:
 			_game._player.handle_mouse_move(static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel));
+			_camera.handle_mouse_move(static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel));
 			break;
 		default:
 			//no-op
@@ -114,21 +116,25 @@ void GameScene::handle_keystate(const Uint8* state)
 	if (state[SDL_SCANCODE_W])
 	{
 		_game._player.move_forward();
+		_camera.move_forward();
 	}
 
 	if (state[SDL_SCANCODE_S])
 	{
 		_game._player.move_backward();
+		_camera.move_backward();
 	}
 
 	if (state[SDL_SCANCODE_A])
 	{
 		_game._player.move_left();
+		_camera.move_left();
 	}
 
 	if (state[SDL_SCANCODE_D])
 	{
 		_game._player.move_right();
+		_camera.move_right();
 	}
 }
 
@@ -142,8 +148,21 @@ void GameScene::draw_imgui()
 	{
 		ImGui::Begin("Chunk Debug");
 
-		ChunkCoord playerChunk = {static_cast<int>(_game._player._position.x) / static_cast<int>(CHUNK_SIZE), static_cast<int>(_game._player._position.z) / static_cast<int>(CHUNK_SIZE)};
-		ImGui::Text("Player Chunk: %d,%d", playerChunk.x, playerChunk.z);
+		ChunkCoord playerChunk = World::get_chunk_coordinates(_game._player._position);
+		if (!_game._current_chunk.expired())
+		{
+			ImGui::Text("Player Chunk: %d,%d", _game._current_chunk.lock()->_chunkCoord.x,  _game._current_chunk.lock()->_chunkCoord.z);
+		}
+
+		if (_game._current_block != nullptr)
+		{
+			ImGui::Text("Camera World Position: x: %f, z: %f, y: %f", _camera._position.x, _camera._position.z, _camera._position.y);
+			ImGui::Text("Player World Position: x: %f, z: %f, y: %f", _game._player._position.x, _game._player._position.z, _game._player._position.y);
+			ImGui::Text("Camera Front: x: %f, z: %f, y: %f", _camera._front.x, _camera._front.z, _camera._front.y);
+			auto local_pos = World::get_local_coordinates(_game._player._position);
+			ImGui::Text("Player Local Position: x: %d, z: %d, y: %d", local_pos.x, local_pos.z, local_pos.y);
+		}
+
 		const auto& render_set = VulkanEngine::instance()._opaqueSet.data();
 		auto active_set = render_set | std::views::filter([](const auto& renderObj)
 		{
