@@ -156,7 +156,7 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
         if (!_chunks.contains(chunkCoord))
         {
             std::println("Tried updating Chunk does not exist: {}", chunkCoord);
-           // throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
+            throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
             return;
         }
 
@@ -168,7 +168,7 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
         } else
         {
             std::println("The work queue is {}", this->_chunkWorkQueue.size_approx());
-            //throw std::runtime_error(std::format("Chunk is not border {}", chunkCoord));a
+            throw std::runtime_error(std::format("Chunk is not border {}", chunkCoord));
             return;
         }
     };
@@ -178,7 +178,7 @@ void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
         if (!_chunks.contains(chunkCoord))
         {
             std::println("Tried marking border of Chunk does not exist: {}", chunkCoord);
-            //throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
+            throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
             return;
         }
 

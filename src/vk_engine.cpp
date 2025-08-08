@@ -47,7 +47,7 @@ void VulkanEngine::init()
 	// We initialize SDL and create a window with it. 
 	SDL_Init(SDL_INIT_VIDEO);
 
-	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
+	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 	
 	_window = SDL_CreateWindow(
 		"Vulkan Engine",
@@ -136,6 +136,14 @@ void VulkanEngine::handle_input()
 		}
 
 		switch(e.type) {
+			case SDL_WINDOWEVENT:
+				if(e.window.event == SDL_WINDOWEVENT_RESIZED)
+				{
+					//TODO: Handle resize
+					std::println("RESIZED!");
+					throw std::runtime_error("RESIZED!");
+				}
+				break;
 			case SDL_KEYDOWN:
 				switch(e.key.keysym.sym)
 				{
@@ -303,6 +311,8 @@ void VulkanEngine::run()
 
 		handle_input();
 
+
+
 		_sceneRenderer.get_current_scene()->update(_deltaTime);
 
 		draw();
@@ -325,6 +335,7 @@ void VulkanEngine::init_vulkan()
 	_debug_messenger = vkb_inst.debug_messenger;
 
 	SDL_Vulkan_CreateSurface(_window, _instance, &_surface);
+
 
 	// //vulkan 1.3 features
 	// VkPhysicalDeviceVulkan13Features features{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };

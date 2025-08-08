@@ -7,7 +7,13 @@
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
 
-GameScene::GameScene() {
+GameScene::GameScene() :
+	_camera([this](const glm::vec3 pos)
+	{
+		const auto block = _game._world.get_block(pos);
+		return block->_solid;
+	})
+{
 	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	_cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
@@ -62,7 +68,6 @@ GameScene::GameScene() {
 	// 	_gameObjects.push_back(std::make_shared<RenderObject>(RenderObject{std::make_shared<SharedResource<Mesh>>(mesh), VulkanEngine::instance()._materialManager.get_material("defaultobj"), glm::vec2(0, 0), RenderLayer::Opaque }));
 	// 	fmt::println("Loaded object: {}", file.path().string());
 	// }
-
 
 	std::println("GameScene created!");
 }

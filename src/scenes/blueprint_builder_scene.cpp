@@ -4,7 +4,11 @@
 #include <vk_initializers.h>
 #include <vk_mesh.h>
 
-BlueprintBuilderScene::BlueprintBuilderScene()
+BlueprintBuilderScene::BlueprintBuilderScene() :
+    _camera([this](const glm::vec3 pos)
+    {
+        return false;
+    })
 {
     std::println("BlueprintBuilderScene created!");
 
