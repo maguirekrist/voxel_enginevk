@@ -25,7 +25,7 @@ private:
 
 
 private:
-    Camera _camera;
+    Camera* _camera;
 
     std::shared_ptr<Resource> _gridResource;
     std::shared_ptr<Resource> _cameraUboResource;

@@ -1,12 +1,14 @@
 #pragma once
 
 #include "camera.h"
-#include "../game/cube_engine.h"
 #include "scene.h"
 #include "render/resource.h"
+#include "game/cube_engine.h"
 
 class GameScene final : public Scene {
 public:
+    GameObject* _player;
+
     GameScene();
     ~GameScene() override;
     void update_buffers() override;
@@ -23,8 +25,12 @@ private:
     std::shared_ptr<Resource> _cameraUboResource;
 
     CubeEngine _game;
-    Camera _camera;
-
+    Camera* _camera;
 
     std::optional<RaycastResult> _targetBlock;
+
+    std::vector<std::unique_ptr<GameObject>> _gameObjects;
+
+    void create_player();
+    void create_camera();
 };

@@ -3,18 +3,17 @@
 #include "world.h"
 #include <world/chunk_manager.h>
 
-#include "player.h"
 
-class VulkanEngine;
+class GameScene;
 
 class CubeEngine {
 public:
-    CubeEngine();
+    explicit CubeEngine(GameScene& scene);
     ~CubeEngine();
 
+    GameScene& _scene;
     ChunkManager _chunkManager;
     World _world{ _chunkManager };
-    Player _player;
 
     Block* _current_block;
     std::weak_ptr<Chunk> _current_chunk;

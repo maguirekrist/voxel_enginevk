@@ -27,8 +27,6 @@ add_executable(vulkan_guide
         world/chunk_manager.cpp
         game/cube_engine.h
         game/cube_engine.cpp
-        game/player.h
-        game/player.cpp
         world/terrain_gen.h
         world/terrain_gen.cpp
     constants.h
@@ -58,6 +56,10 @@ add_executable(vulkan_guide
         collections/spare_set.h
         physics/aabb.cpp
         physics/aabb.h
+        components/player_input_component.cpp
+        components/player_input_component.h
+        components/game_object.h
+        components/component.h
 )
 
 
