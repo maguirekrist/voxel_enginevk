@@ -172,7 +172,7 @@ void GameScene::draw_debug_map()
 	ChunkCoord playerChunk = World::get_chunk_coordinates(_player->_position);
 	if (_game._current_chunk != nullptr)
 	{
-		ImGui::Text("Player Chunk: %d,%d", _game._current_chunk->_chunkCoord.x,  _game._current_chunk->_chunkCoord.z);
+		ImGui::Text("Player Chunk: %d,%d", _game._current_chunk->_data->coord.x,  _game._current_chunk->_data->coord.z);
 	}
 
 	if (_game._current_block != nullptr)
@@ -184,14 +184,14 @@ void GameScene::draw_debug_map()
 		ImGui::Text("Player Local Position: x: %d, z: %d, y: %d", local_pos.x, local_pos.z, local_pos.y);
 	}
 
-	const auto& render_set = VulkanEngine::instance()._opaqueSet.data();
-	auto active_set = render_set | std::views::filter([](const auto& renderObj)
-	{
-		return renderObj.mesh->_isActive.load(std::memory_order::acquire) == true;
-	});
-	const auto active_count = std::ranges::distance(active_set);
-
-	ImGui::Text("Active Renderables: %d", static_cast<int>(active_count));
+	// const auto& render_set = VulkanEngine::instance()._opaqueSet.data();
+	// auto active_set = render_set | std::views::filter([](const auto& renderObj)
+	// {
+	// 	return renderObj.mesh->_isActive.load(std::memory_order::acquire) == true;
+	// });
+	// const auto active_count = std::ranges::distance(active_set);
+	//
+	// ImGui::Text("Active Renderables: %d", static_cast<int>(active_count));
 
 	const int max_chunks = (GameConfig::DEFAULT_VIEW_DISTANCE * 2) + 1;
 	if (ImGui::BeginTable("MyGrid", max_chunks)) {
@@ -212,7 +212,7 @@ void GameScene::draw_debug_map()
 						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 255, 255));
 						break;
 					case ChunkState::Rendered:
-						if (chunk->_mesh->_isActive.load(std::memory_order::acquire) == true)
+						if (chunk->_meshData->mesh->_isActive.load(std::memory_order::acquire) == true)
 						{
 							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 0, 255));
 						} else

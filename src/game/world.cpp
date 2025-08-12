@@ -15,7 +15,7 @@ Block* World::get_block(const glm::vec3& worldPos) const
     auto chunk = get_chunk(worldPos);
     if (chunk != nullptr)
     {
-        return &chunk->_blocks[localPos.x][localPos.y][localPos.z];
+        return &chunk->_data->blocks[localPos.x][localPos.y][localPos.z];
     }
     return nullptr;
 }

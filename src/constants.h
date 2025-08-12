@@ -11,7 +11,7 @@ constexpr unsigned int SEA_LEVEL = 62;
 //number is in chunks away from player position.
 namespace GameConfig
 {
-    constexpr int DEFAULT_VIEW_DISTANCE = 8;
+    constexpr int DEFAULT_VIEW_DISTANCE = 24;
     constexpr int MAXIMUM_CHUNKS = (2 * DEFAULT_VIEW_DISTANCE + 1) * (2 * DEFAULT_VIEW_DISTANCE + 1);
     constexpr float DEFAULT_MOVE_SPEED = 40.0f;
     constexpr float DEFAULT_ROTATION_SPEED = 180.0f;

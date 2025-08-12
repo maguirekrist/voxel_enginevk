@@ -29,6 +29,26 @@ ChunkManager::~ChunkManager()
     }
 }
 
+void ChunkManager::update()
+{
+    Chunk* chunk = nullptr;
+    while (_readyChunks.try_dequeue(chunk))
+    {
+        chunk->_opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
+                            .mesh = chunk->_meshData->mesh,
+                            .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
+                            .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
+                            .layer = RenderLayer::Opaque
+                        });
+        chunk->_transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
+            .mesh = chunk->_meshData->waterMesh,
+            .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
+            .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
+            .layer = RenderLayer::Transparent
+        });
+    }
+}
+
 void ChunkManager::update_player_position(const int x, const int z)
 {
     const ChunkCoord playerChunk = {x / static_cast<int>(CHUNK_SIZE), z / static_cast<int>(CHUNK_SIZE)};
@@ -53,7 +73,13 @@ void ChunkManager::update_player_position(const int x, const int z)
 
     for (const auto& chunk : new_chunks)
     {
-        _chunkWorkQueue.enqueue(std::make_shared<const ChunkWork>(chunk, ChunkWork::Phase::Generate, mapRange));
+        _chunkWorkQueue.enqueue(std::make_shared<const ChunkWork>(
+            chunk,
+            chunk->_gen.load(std::memory_order::acquire),
+            chunk->_data,
+            ChunkWork::Phase::Generate,
+            mapRange
+        ));
     }
 
     std::println("Work Queue: {}", _chunkWorkQueue.size_approx());
@@ -67,19 +93,17 @@ Chunk* ChunkManager::get_chunk(const ChunkCoord coord) const
 
 void ChunkManager::initialize_map(const MapRange mapRange)
 {
-    std::vector<ChunkWork> WorkQueue;
-    WorkQueue.reserve(_maxChunks);
-
     m_chunkCache = ChunkCache{GameConfig::DEFAULT_VIEW_DISTANCE};
 
     for (auto& chunk : m_chunkCache.m_chunks)
     {
-        WorkQueue.emplace_back(chunk.get(), ChunkWork::Phase::Generate, mapRange);
-    }
-
-    for (const auto& chunkWork : WorkQueue)
-    {
-        _chunkWorkQueue.enqueue(std::make_shared<const ChunkWork>(std::move(chunkWork)));
+        _chunkWorkQueue.enqueue(std::make_shared<const ChunkWork>(
+            chunk.get(),
+            chunk->_gen.load(std::memory_order::acquire),
+            chunk->_data,
+            ChunkWork::Phase::Generate,
+            mapRange
+        ));
     }
 }
 
@@ -96,7 +120,7 @@ NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord) const
 
     if (chunk->_state.load() == ChunkState::Border)
     {
-        std::println("{} at border...", coord);
+        //std::println("{} at border...", coord);
         return NeighborStatus::Border;
     }
 
@@ -135,10 +159,10 @@ NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord) const
     return NeighborStatus::Incomplete;
 }
 
-std::optional<std::array<const Chunk*, 8>> ChunkManager::get_chunk_neighbors(const ChunkCoord coord) const
+std::optional<std::array<std::shared_ptr<const ChunkData>, 8>> ChunkManager::get_chunk_neighbors(const ChunkCoord coord) const
 {
     ZoneScopedN("Get Chunk Neighbors");
-    std::array<const Chunk*, 8> chunks{};
+    std::array<std::shared_ptr<const ChunkData>, 8> chunks{};
     int count = 0;
     for (const auto direction : directionList)
     {
@@ -153,7 +177,7 @@ std::optional<std::array<const Chunk*, 8>> ChunkManager::get_chunk_neighbors(con
         }
 
         if (chunk->_state.load() == ChunkState::Uninitialized) return std::nullopt;
-        chunks[direction] = chunk;
+        chunks[direction] = chunk->_data;
         count++;
     }
 
@@ -175,30 +199,45 @@ void ChunkManager::work_chunk(int threadId)
             switch (work_item->phase)
             {
                 case ChunkWork::Phase::Generate:
-                    work_item->chunk->generate();
-                    if (work_item->mapRange.is_border(work_item->chunk->_chunkCoord))
+                    work_item->data->generate();
+                    if (work_item->chunk->_gen.load(std::memory_order::acquire) == work_item->gen)
                     {
-                        work_item->chunk->_state.store(ChunkState::Border);
+                        work_item->chunk->_state.store(ChunkState::Generated);
+                        work_item->chunk->_data = std::move(work_item->data);
+                        if (work_item->mapRange.is_border(work_item->data->coord))
+                        {
+                            work_item->chunk->_state.store(ChunkState::Border);
+                        }
+                        _chunkWorkQueue.enqueue(
+                            std::make_shared<const ChunkWork>(
+                                work_item->chunk,
+                                work_item->gen,
+                                work_item->chunk->_data, //we remember to move valid chunk data now from the generation step...
+                                ChunkWork::Phase::WaitingForNeighbors,
+                                work_item->mapRange
+                                )
+                            );
                     }
-                    _chunkWorkQueue.enqueue(
-                        std::make_shared<const ChunkWork>(
-                            work_item->chunk,
-                            ChunkWork::Phase::WaitingForNeighbors,
-                            work_item->mapRange
-                            )
-                        );
                     break;
                 case ChunkWork::Phase::WaitingForNeighbors:
-                    if (work_item->chunk->_state.load() == ChunkState::Border && !_mapRange.is_border(work_item->chunk->_chunkCoord) )
+                    //Double check this... not sure if this is safe...
+                    if (work_item->gen != work_item->chunk->_gen.load(std::memory_order::acquire))
+                    {
+                        //This is an old job at this point, we just drop it?
+                        break;
+                    }
+                    if (work_item->chunk->_state.load() == ChunkState::Border && !_mapRange.is_border(work_item->data->coord) )
                     {
                         work_item->chunk->_state.store(ChunkState::Generated);
                     }
-                    switch(chunk_has_neighbors(work_item->chunk->_chunkCoord))
+                    switch(chunk_has_neighbors(work_item->data->coord))
                     {
                         case NeighborStatus::Ready:
                             _chunkWorkQueue.enqueue(
                                 std::make_shared<const ChunkWork>(
                                     work_item->chunk,
+                                    work_item->gen,
+                                    work_item->data,
                                     ChunkWork::Phase::Mesh,
                                     work_item->mapRange)
                             );
@@ -213,22 +252,31 @@ void ChunkManager::work_chunk(int threadId)
                     }
                     break;
                 case ChunkWork::Phase::Mesh:
-                    auto neighbors = get_chunk_neighbors(work_item->chunk->_chunkCoord);
-                    ChunkMesher mesher { work_item->chunk, neighbors };
-                    mesher.generate_mesh();
-                    work_item->chunk->_state.store(ChunkState::Rendered);
+                    auto neighbors = get_chunk_neighbors(work_item->data->coord);
+                    ChunkMesher mesher { work_item->data, neighbors };
+                    auto meshData = mesher.generate_mesh();
 
-                    if (!work_item->chunk->_waterMesh->_vertices.empty())
+                    //Commit change if chunk is still valid.
+                    if (work_item->chunk->_gen.load(std::memory_order::acquire) == work_item->gen)
                     {
-                        VulkanEngine::instance()._meshManager.UploadQueue.enqueue(work_item->chunk->_waterMesh);
+                        work_item->chunk->_state.store(ChunkState::Rendered);
+                        work_item->chunk->_meshData = std::move(meshData);
+
+                        _readyChunks.enqueue(work_item->chunk);
+
+                        if (!work_item->chunk->_meshData->waterMesh->_vertices.empty())
+                        {
+                            VulkanEngine::instance()._meshManager.UploadQueue.enqueue(work_item->chunk->_meshData->waterMesh);
+                        }
+
+                        if (work_item->chunk->_meshData->mesh->_vertices.empty())
+                        {
+                            throw std::runtime_error("Chunk mesh is empty");
+                        }
+
+                        VulkanEngine::instance()._meshManager.UploadQueue.enqueue(work_item->chunk->_meshData->mesh);
                     }
 
-                    if (work_item->chunk->_mesh->_vertices.empty())
-                    {
-                        throw std::runtime_error("Chunk mesh is empty");
-                    }
-
-                    VulkanEngine::instance()._meshManager.UploadQueue.enqueue(work_item->chunk->_mesh);
                     break;
             }
         } else if (!_running)

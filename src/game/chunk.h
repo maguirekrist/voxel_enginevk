@@ -57,16 +57,6 @@ constexpr int directionOffsetZ[] = { 1, -1, 0, 0, 1, 1, -1, -1 };
 
 using ChunkBlocks = Block[CHUNK_SIZE][CHUNK_HEIGHT][CHUNK_SIZE];
 
-struct ChunkView
-{
-    const ChunkBlocks& blocks;
-    const glm::ivec2 position;
-    ChunkView(const ChunkBlocks& blocks, const glm::ivec2 position) : blocks(blocks), position(position) {}
-
-    [[nodiscard]] std::optional<Block> get_block(const glm::ivec3& localPos) const;
-    [[nodiscard]] glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
-};
-
 enum class ChunkState : uint8_t
 {
     Uninitialized = 0,
@@ -75,18 +65,31 @@ enum class ChunkState : uint8_t
     Rendered = 3
 };
 
+struct ChunkData
+{
+    ChunkCoord coord{0, 0};
+    glm::ivec2 position{0, 0};
+    ChunkBlocks blocks{};
+
+    void generate();
+};
+
+struct ChunkMeshData
+{
+    std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
+    std::shared_ptr<Mesh> waterMesh = std::make_shared<Mesh>();
+
+    ~ChunkMeshData();
+};
+
 class Chunk {
 public:
-    ChunkBlocks _blocks = {};
-    std::shared_ptr<Mesh> _mesh;
-    std::shared_ptr<Mesh> _waterMesh;
+    std::shared_ptr<ChunkData> _data;
+    std::shared_ptr<ChunkMeshData> _meshData;
+
     dev_collections::sparse_set<RenderObject>::Handle _opaqueHandle;
     dev_collections::sparse_set<RenderObject>::Handle _transparentHandle;
-
-    glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
-    ChunkCoord _chunkCoord;
     std::atomic_uint32_t _gen;
-
     std::atomic<ChunkState> _state = ChunkState::Uninitialized;
 
     explicit Chunk(ChunkCoord coord);
@@ -94,12 +97,12 @@ public:
     ~Chunk();
 
     glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
-    void generate();
     void reset(ChunkCoord chunkCoord);
-    static ChunkView to_view(const Chunk& chunk) noexcept
-    {
-        return { chunk._blocks, chunk._position };
-    }
+
+    // static ChunkView to_view(const Chunk& chunk) noexcept
+    // {
+    //     return { chunk._blocks, chunk._position };
+    // }
 
     static constexpr bool is_outside_chunk(const glm::ivec3& localPos)
     {

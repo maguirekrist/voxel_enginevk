@@ -42,7 +42,7 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, GameObject& 
             std::println("Voxel Position: x:{}, y:{}, z:{}", voxelPos.x, voxelPos.y, voxelPos.z);
 
         const auto localPos = World::get_local_coordinates(voxelPos);
-        auto block = current_chunk->_blocks[localPos.x][localPos.y][localPos.z];
+        auto block = current_chunk->_data->blocks[localPos.x][localPos.y][localPos.z];
 
 
         if (block._solid)

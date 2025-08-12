@@ -21,7 +21,7 @@ ChunkCache::get_chunk_index(const ChunkCoord coord) const
 
     const std::size_t idx = static_cast<std::size_t>(buf_z + (buf_x * m_width));
 
-    if (auto* chunk = m_chunks[idx].get(); chunk && chunk->_chunkCoord == coord)
+    if (auto* chunk = m_chunks[idx].get(); chunk && chunk->_data->coord == coord)
         return idx;
 
     return std::nullopt;
@@ -37,7 +37,7 @@ std::vector<Chunk*> ChunkCache::slide_east()
     {
         auto chunkIndex = wrapped_index_col + (i * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        chunk->reset(ChunkCoord{chunk->_chunkCoord.x, m_origin.z + m_radius + 1});
+        chunk->reset(ChunkCoord{chunk->_data->coord.x, m_origin.z + m_radius + 1});
         chunks.push_back(chunk);
     }
     m_origin.z += 1;
@@ -55,7 +55,7 @@ std::vector<Chunk*> ChunkCache::slide_west()
     {
         auto chunkIndex = wrapped_index_col + (i * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        chunk->reset(ChunkCoord{chunk->_chunkCoord.x, m_origin.z - m_radius - 1});
+        chunk->reset(ChunkCoord{chunk->_data->coord.x, m_origin.z - m_radius - 1});
         chunks.push_back(chunk);
     }
     m_origin.z -= 1;
@@ -74,7 +74,7 @@ std::vector<Chunk*> ChunkCache::slide_north()
     {
         auto chunkIndex = i + (wrapped_index_row * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        chunk->reset(ChunkCoord{m_origin.x + m_radius + 1, chunk->_chunkCoord.z});
+        chunk->reset(ChunkCoord{m_origin.x + m_radius + 1, chunk->_data->coord.z});
         chunks.push_back(chunk);
     }
     m_origin.x += 1;
@@ -93,7 +93,7 @@ std::vector<Chunk*> ChunkCache::slide_south()
     {
         auto chunkIndex = i + (wrapped_index_row * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        chunk->reset(ChunkCoord{m_origin.x - m_radius - 1, chunk->_chunkCoord.z});
+        chunk->reset(ChunkCoord{m_origin.x - m_radius - 1, chunk->_data->coord.z});
         chunks.push_back(chunk);
     }
 

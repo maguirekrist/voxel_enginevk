@@ -22,6 +22,7 @@ void CubeEngine::update()
     }
 
     _chunkManager.update_player_position(static_cast<int>(_scene._player->_position.x), static_cast<int>(_scene._player->_position.z));
+    _chunkManager.update();
     _current_chunk = _world.get_chunk(_scene._player->_position);
     _current_block = _world.get_block(_scene._player->_position);
 }

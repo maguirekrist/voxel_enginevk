@@ -49,6 +49,8 @@ struct ChunkWork
     };
 
     Chunk* const chunk;
+    const uint32_t gen;
+    std::shared_ptr<ChunkData> data;
     const Phase phase;
     const MapRange mapRange;
 };
