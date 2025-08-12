@@ -46,6 +46,8 @@ void Chunk::reset(const ChunkCoord chunkCoord)
     _position = glm::ivec2(chunkCoord.x * CHUNK_SIZE, chunkCoord.z * CHUNK_SIZE);
     _chunkCoord = chunkCoord;
     _state = ChunkState::Uninitialized;
+    
+    _gen.fetch_add(1, std::memory_order_acq_rel);
 
     VulkanEngine::instance()._opaqueSet.remove(_opaqueHandle);
     VulkanEngine::instance()._transparentSet.remove(_transparentHandle);

@@ -48,22 +48,24 @@ struct ChunkWork
         WaitingForNeighbors = 1
     };
 
-    Chunk* chunk;
-    Phase phase;
-    MapRange mapRange;
+    Chunk* const chunk;
+    const Phase phase;
+    const MapRange mapRange;
 };
+
+using ChunkWorkPayload = std::shared_ptr<const ChunkWork>;
 
 class ChunkWorkQueue
 {
-    moodycamel::BlockingConcurrentQueue<ChunkWork> _highPriority;
-    moodycamel::BlockingConcurrentQueue<ChunkWork> _lowPriority;
-    moodycamel::BlockingConcurrentQueue<ChunkWork> _medPriority;
+    moodycamel::BlockingConcurrentQueue<ChunkWorkPayload> _highPriority;
+    moodycamel::BlockingConcurrentQueue<ChunkWorkPayload> _lowPriority;
+    moodycamel::BlockingConcurrentQueue<ChunkWorkPayload> _medPriority;
 
 public:
-    void enqueue(const ChunkWork& work);
-    bool try_dequeue(ChunkWork& work);
-    void wait_dequeue(ChunkWork& work);
-    bool wait_dequeue_timed(ChunkWork& work, int timeout_ms);
+    void enqueue(const ChunkWorkPayload&& work);
+    bool try_dequeue(ChunkWorkPayload& work);
+    void wait_dequeue(ChunkWorkPayload& work);
+    bool wait_dequeue_timed(ChunkWorkPayload& work, int timeout_ms);
     size_t size_approx() const;
 };
 

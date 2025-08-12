@@ -15,8 +15,8 @@ public:
     ChunkManager _chunkManager;
     World _world{ _chunkManager };
 
-    Block* _current_block;
-    Chunk* _current_chunk;
+    const Block* _current_block;
+    const Chunk* _current_chunk;
 
     void update();
 };

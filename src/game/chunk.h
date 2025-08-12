@@ -85,7 +85,7 @@ public:
 
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
     ChunkCoord _chunkCoord;
-    std::atomic_uint32_t gen;
+    std::atomic_uint32_t _gen;
 
     std::atomic<ChunkState> _state = ChunkState::Uninitialized;
 

@@ -21,7 +21,7 @@ public:
 
     void update_player_position(int x, int z);
     Chunk* get_chunk(ChunkCoord coord) const;
-    std::optional<std::array<Chunk*, 8>> get_chunk_neighbors(ChunkCoord coord) const;
+    std::optional<std::array<const Chunk*, 8>> get_chunk_neighbors(ChunkCoord coord) const;
 
 private:
     void work_chunk(int threadId);

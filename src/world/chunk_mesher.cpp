@@ -11,9 +11,9 @@ void ChunkMesher::generate_mesh()
     for (int x = 0; x < CHUNK_SIZE; ++x) {
         for (int y = 0; y < CHUNK_HEIGHT; ++y) {
             for (int z = 0; z < CHUNK_SIZE; ++z) {
-                Block block = _chunk->_blocks[x][y][z];
+                const Block block = _chunk->_blocks[x][y][z];
                 if (block._solid) {
-                    for(auto face : faceDirections)
+                    for(const auto face : faceDirections)
                     {
                         if(is_face_visible(x, y, z, face))
                         {
@@ -22,7 +22,7 @@ void ChunkMesher::generate_mesh()
                     }
                 } else if(block._type == BlockType::WATER)
                 {
-                    for(auto face : faceDirections)
+                    for(const auto face : faceDirections)
                     {
                         if(is_face_visible_water(x, y, z, face))
                         {
@@ -157,7 +157,7 @@ void ChunkMesher::propagate_sunlight()
     // Directions for checking neighbors (UP, DOWN, LEFT, RIGHT, FRONT, BACK)
     while (!lightQueue.empty())
     {
-        glm::ivec3 current = lightQueue.front();
+        const glm::ivec3 current = lightQueue.front();
         lightQueue.pop();
 
         for (auto face : faceDirections)
@@ -166,12 +166,10 @@ void ChunkMesher::propagate_sunlight()
             int ny = current.y + faceOffsetY[face];
             int nz = current.z + faceOffsetZ[face];
 
-            Block neighbor;
-
             if(!Chunk::is_outside_chunk({ nx, ny, nz }))
             {
-                neighbor = _chunk->_blocks[nx][ny][nz];
-                int newLight = _chunk->_blocks[current.x][current.y][current.z]._sunlight - 1;
+                Block neighbor = _chunk->_blocks[nx][ny][nz];
+                const int newLight = _chunk->_blocks[current.x][current.y][current.z]._sunlight - 1;
 
                 if (!neighbor._solid && neighbor._sunlight < newLight)
                 {
@@ -200,8 +198,8 @@ void ChunkMesher::propagate_sunlight()
 std::optional<Direction> ChunkMesher::get_chunk_direction(const glm::ivec3& localPos)
 {
     //auto local_offset = World::get_local_coordinates(localPos);
-    auto x = localPos.x > 15 ? 1 : (localPos.x < 0 ? -1 : 0);
-    auto z = localPos.z > 15 ? 1 : (localPos.z < 0 ? -1 : 0);
+    const auto x = localPos.x > 15 ? 1 : (localPos.x < 0 ? -1 : 0);
+    const auto z = localPos.z > 15 ? 1 : (localPos.z < 0 ? -1 : 0);
 
     if (x == 0 && z == 1) {
         return NORTH;
@@ -233,11 +231,11 @@ std::optional<Direction> ChunkMesher::get_chunk_direction(const glm::ivec3& loca
 
 bool ChunkMesher::is_position_solid(const glm::ivec3& localPos)
 {
-    auto direction = get_chunk_direction(localPos);
+    const auto direction = get_chunk_direction(localPos);
     if(direction.has_value() && _chunkNeighbors.has_value()) {
-        auto target_chunk = _chunkNeighbors.value()[direction.value()];
-        auto new_pos = World::get_local_coordinates(localPos);
-        auto block = target_chunk->_blocks[new_pos.x][new_pos.y][new_pos.z];
+        const auto target_chunk = _chunkNeighbors.value()[direction.value()];
+        const auto new_pos = World::get_local_coordinates(localPos);
+        const auto block = target_chunk->_blocks[new_pos.x][new_pos.y][new_pos.z];
 
         return block._solid;
     }
@@ -253,12 +251,12 @@ void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
 //note: a block's position is the back-bottom-right of the cube.
 void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z, const FaceDirection face, const std::shared_ptr<Mesh>& mesh)
 {
-    auto faceNeighbor = get_face_neighbor(x, y, z, face);
-    float sunLight = faceNeighbor.has_value() ? static_cast<float>(faceNeighbor.value()._sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : 1.0f;
+    const auto faceNeighbor = get_face_neighbor(x, y, z, face);
+    const float sunLight = faceNeighbor.has_value() ? static_cast<float>(faceNeighbor.value()._sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : 1.0f;
 
-    glm::ivec3 blockPos{x,y,z};
-    Block block = _chunk->_blocks[x][y][z];
-    glm::vec3 color = static_cast<glm::vec3>(blockColor[block._type]);
+    const glm::ivec3 blockPos{x,y,z};
+    const Block block = _chunk->_blocks[x][y][z];
+    const auto color = static_cast<glm::vec3>(blockColor[block._type]);
 
     for (int i = 0; i < 4; ++i) {
         //get the neighbors light-level
@@ -283,9 +281,9 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
 
 void ChunkMesher::add_face_to_water_mesh(const int x, const int y, const int z, const FaceDirection face, const std::shared_ptr<Mesh>& mesh) const
 {
-    glm::ivec3 blockPos{x,y,z};
-    Block block = _chunk->_blocks[x][y][z];
-    glm::vec3 color = static_cast<glm::vec3>(blockColor[block._type]);
+    const glm::ivec3 blockPos{x,y,z};
+    const Block block = _chunk->_blocks[x][y][z];
+    const auto color = static_cast<glm::vec3>(blockColor[block._type]);
 
     for (int i = 0; i < 4; ++i) {
         glm::ivec3 position = blockPos + faceVertices[face][i];

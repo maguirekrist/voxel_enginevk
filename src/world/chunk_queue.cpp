@@ -4,9 +4,9 @@
 
 #include "chunk_queue.h"
 
-void ChunkWorkQueue::enqueue(const ChunkWork& work)
+void ChunkWorkQueue::enqueue(const ChunkWorkPayload&& work)
 {
-    switch (work.phase)
+    switch (work->phase)
     {
     case ChunkWork::Phase::Generate:
         _highPriority.enqueue(work);
@@ -20,19 +20,19 @@ void ChunkWorkQueue::enqueue(const ChunkWork& work)
     }
 }
 
-bool ChunkWorkQueue::try_dequeue(ChunkWork& work)
+bool ChunkWorkQueue::try_dequeue(ChunkWorkPayload& work)
 {
     return _highPriority.try_dequeue(work) || _medPriority.try_dequeue(work) || _lowPriority.try_dequeue(work);
 }
 
-void ChunkWorkQueue::wait_dequeue(ChunkWork& work)
+void ChunkWorkQueue::wait_dequeue(ChunkWorkPayload& work)
 {
     if (_highPriority.try_dequeue(work)) return;
     if (_medPriority.try_dequeue(work)) return;
     _lowPriority.wait_dequeue(work);
 }
 
-bool ChunkWorkQueue::wait_dequeue_timed(ChunkWork& work, const int timeout_ms)
+bool ChunkWorkQueue::wait_dequeue_timed(ChunkWorkPayload& work, const int timeout_ms)
 {
     return _highPriority.try_dequeue(work) || _medPriority.try_dequeue(work) || _lowPriority.wait_dequeue_timed(work, std::chrono::milliseconds(timeout_ms));
 }

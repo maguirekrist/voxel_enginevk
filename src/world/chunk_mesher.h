@@ -5,13 +5,13 @@
 
 class ChunkMesher {
 public:
-    ChunkMesher(Chunk* chunk, std::optional<std::array<Chunk*, 8>>& neighbors) : _chunk(chunk), _chunkNeighbors(neighbors) {}
+    ChunkMesher(const Chunk* const chunk, std::optional<std::array<const Chunk*, 8>>& neighbors) : _chunk(chunk), _chunkNeighbors(neighbors) {}
 
     void generate_mesh();
 
 private:
-    Chunk* _chunk;
-    std::optional<std::array<Chunk*, 8>>& _chunkNeighbors;
+    const Chunk* const _chunk;
+    std::optional<std::array<const Chunk*, 8>>& _chunkNeighbors;
 
     //Mesh _mesh;
     //Mesh _waterMesh;
