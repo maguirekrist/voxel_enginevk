@@ -8,32 +8,6 @@
 void Chunk::generate()
 {
         ZoneScopedN("Generate chunk");
-
-        //std::vector<float> chunkDensityMap = generator.GenerateDensityMap(_position.x, _position.y);
-        // for(int x = 0; x < CHUNK_SIZE; x++)
-        // {
-        //     for(int z = 0; z < CHUNK_SIZE; z++)
-        //     {
-        //         for (int y = 0; y < CHUNK_HEIGHT; y++)
-        //         {
-        //             float density = generator.SampleNoise3D(x + _position.x, y, z + _position.y);
-        //             Block& block = _blocks[x][y][z];
-        //             if (density > 0)
-        //             {
-        //                 block._solid = true;
-        //                 block._type = BlockType::GROUND;
-        //                 block._sunlight = 0;
-        //             }
-        //             else {
-        //                 block._solid = false;
-        //                 block._type = BlockType::AIR;
-        //                 block._sunlight = MAX_LIGHT_LEVEL;
-//             }
-        //         }
-        //     }
-        // }
-
-
         std::vector<float> chunkHeightMap = TerrainGenerator::instance().GenerateHeightMap(_position.x, _position.y);
         for(int x = 0; x < CHUNK_SIZE; x++)
         {
@@ -67,6 +41,33 @@ void Chunk::generate()
         _state = ChunkState::Generated;
 }
 
+void Chunk::reset(const ChunkCoord chunkCoord)
+{
+    _position = glm::ivec2(chunkCoord.x * CHUNK_SIZE, chunkCoord.z * CHUNK_SIZE);
+    _chunkCoord = chunkCoord;
+    _state = ChunkState::Uninitialized;
+
+    VulkanEngine::instance()._opaqueSet.remove(_opaqueHandle);
+    VulkanEngine::instance()._transparentSet.remove(_transparentHandle);
+    VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(_mesh));
+    VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(_waterMesh));
+
+    _mesh = std::make_shared<Mesh>();
+    _waterMesh = std::make_shared<Mesh>();
+    _opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
+        .mesh = _mesh,
+        .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
+        .xzPos = glm::ivec2(_position.x, _position.y),
+        .layer = RenderLayer::Opaque
+    });
+    _transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
+        .mesh = _waterMesh,
+        .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
+        .xzPos = glm::ivec2(_position.x, _position.y),
+        .layer = RenderLayer::Transparent
+    });
+}
+
 //This returns the block at the world coordinates of pos.
 //This is why we normalize the position value passed in.
 std::optional<Block> ChunkView::get_block(const glm::ivec3& localPos) const
@@ -88,8 +89,8 @@ Chunk::Chunk(const ChunkCoord coord): _opaqueHandle(), _transparentHandle(),
                                       _position(glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)),
                                       _chunkCoord(coord)
 {
-    _mesh = std::make_unique<Mesh>();
-    _waterMesh = std::make_unique<Mesh>();
+    _mesh = std::make_shared<Mesh>();
+    _waterMesh = std::make_shared<Mesh>();
     _opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
         .mesh = _mesh,
         .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),

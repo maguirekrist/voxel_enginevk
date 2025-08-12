@@ -13,22 +13,22 @@ Block* World::get_block(const glm::vec3& worldPos) const
     }
 
     auto chunk = get_chunk(worldPos);
-    if (!chunk.expired())
+    if (chunk != nullptr)
     {
-        return &chunk.lock()->_blocks[localPos.x][localPos.y][localPos.z];
+        return &chunk->_blocks[localPos.x][localPos.y][localPos.z];
     }
     return nullptr;
 }
 
-std::weak_ptr<Chunk> World::get_chunk(const glm::vec3 worldPos) const
+Chunk* World::get_chunk(const glm::vec3 worldPos) const
 {
     const auto chunkCoord = get_chunk_coordinates(worldPos);
     if (const auto chunk = _chunkManager.get_chunk(chunkCoord))
     {
-        return chunk.value();
+        return chunk;
     }
 
-    throw std::runtime_error("Chunk not found");
+    return nullptr;
 }
 
 ChunkCoord World::get_chunk_coordinates(const glm::vec3 &worldPos)

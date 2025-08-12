@@ -16,7 +16,7 @@ public:
     World _world{ _chunkManager };
 
     Block* _current_block;
-    std::weak_ptr<Chunk> _current_chunk;
+    Chunk* _current_chunk;
 
     void update();
 };

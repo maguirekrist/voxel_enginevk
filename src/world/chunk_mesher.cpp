@@ -263,16 +263,16 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
     for (int i = 0; i < 4; ++i) {
         //get the neighbors light-level
         glm::ivec3 position = blockPos + faceVertices[face][i];
-        float ao = calculate_vertex_ao(blockPos, face, i);
+        const float ao = calculate_vertex_ao(blockPos, face, i);
 
-        auto normal = faceNormals[face];
-        auto final_color = color * (ao * sunLight);
+        const auto normal = faceNormals[face];
+        const auto final_color = color * (ao * sunLight);
 
         mesh->_vertices.push_back({ position, normal, final_color });
     }
 
     // Add indices for the face (two triangles)
-    uint32_t index = mesh->_vertices.size() - 4;
+    const uint32_t index = mesh->_vertices.size() - 4;
     mesh->_indices.push_back(index + 0);
     mesh->_indices.push_back(index + 1);
     mesh->_indices.push_back(index + 2);

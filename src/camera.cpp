@@ -36,18 +36,18 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, GameObject& 
         //voxel pos is worldPos
         auto current_chunk = world.get_chunk(voxelPos);
 
-        if (current_chunk.expired()) return std::nullopt;
+        if (current_chunk == nullptr) return std::nullopt;
 
         if(distance == 0.0f)
             std::println("Voxel Position: x:{}, y:{}, z:{}", voxelPos.x, voxelPos.y, voxelPos.z);
 
         const auto localPos = World::get_local_coordinates(voxelPos);
-        auto block = current_chunk.lock()->_blocks[localPos.x][localPos.y][localPos.z];
+        auto block = current_chunk->_blocks[localPos.x][localPos.y][localPos.z];
 
 
         if (block._solid)
         {
-            auto worldPos = current_chunk.lock()->get_world_pos(localPos);
+            auto worldPos = current_chunk->get_world_pos(localPos);
             auto faceDir = get_face_direction(faceNormal);
 
             //TODO: re-add chunk to raycast result.
@@ -56,19 +56,19 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, GameObject& 
 
         // Advance to next voxel
         if (tMax.x < tMax.y && tMax.x < tMax.z) {
-            voxelPos.x += stepSize.x;
+            voxelPos.x += static_cast<int>(stepSize.x);
             distance = tMax.x;
             tMax.x += tDelta.x;
             faceNormal = glm::ivec3(-stepSize.x, 0, 0);
         }
         else if (tMax.y < tMax.z) {
-            voxelPos.y += stepSize.y;
+            voxelPos.y += static_cast<int>(stepSize.y);
             distance = tMax.y;
             tMax.y += tDelta.y;
             faceNormal = glm::ivec3(0, -stepSize.y, 0);
         }
         else {
-            voxelPos.z += stepSize.z;
+            voxelPos.z += static_cast<int>(stepSize.z);
             distance = tMax.z;
             tMax.z += tDelta.z;
             faceNormal = glm::ivec3(0, 0, -stepSize.z);

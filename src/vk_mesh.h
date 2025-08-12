@@ -27,6 +27,11 @@ struct PointVertex {
     static VertexInputDescription get_vertex_description();
 };
 
+// struct MeshGpu
+// {
+//
+// };
+
 struct Mesh {
     std::vector<Vertex> _vertices;
     AllocatedBuffer _vertexBuffer;
@@ -46,6 +51,7 @@ struct Mesh {
     ~Mesh()
     {
         //std::println("Mesh::~Mesh()");
+
     };
 };
 

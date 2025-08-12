@@ -80,12 +80,12 @@ public:
     ChunkBlocks _blocks = {};
     std::shared_ptr<Mesh> _mesh;
     std::shared_ptr<Mesh> _waterMesh;
-
     dev_collections::sparse_set<RenderObject>::Handle _opaqueHandle;
     dev_collections::sparse_set<RenderObject>::Handle _transparentHandle;
 
     glm::ivec2 _position; //this is in world position, where is ChunkCoord is in chunk space.
-    const ChunkCoord _chunkCoord;
+    ChunkCoord _chunkCoord;
+    std::atomic_uint32_t gen;
 
     std::atomic<ChunkState> _state = ChunkState::Uninitialized;
 
@@ -95,7 +95,7 @@ public:
 
     glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
     void generate();
-
+    void reset(ChunkCoord chunkCoord);
     static ChunkView to_view(const Chunk& chunk) noexcept
     {
         return { chunk._blocks, chunk._position };

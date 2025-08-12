@@ -8,48 +8,8 @@
 
 #include "../vk_engine.h"
 
-void ChunkWorkQueue::enqueue(const ChunkWork& work)
+ChunkManager::ChunkManager() : m_chunkCache(0)
 {
-    switch (work.phase)
-    {
-    case ChunkWork::Phase::Generate:
-        _highPriority.enqueue(work);
-        break;
-    case ChunkWork::Phase::Mesh:
-        _medPriority.enqueue(work);
-        break;
-    case ChunkWork::Phase::WaitingForNeighbors:
-        _lowPriority.enqueue(work);
-        break;
-    }
-}
-
-bool ChunkWorkQueue::try_dequeue(ChunkWork& work)
-{
-    return _highPriority.try_dequeue(work) || _medPriority.try_dequeue(work) || _lowPriority.try_dequeue(work);
-}
-
-void ChunkWorkQueue::wait_dequeue(ChunkWork& work)
-{
-    if (_highPriority.try_dequeue(work)) return;
-    if (_medPriority.try_dequeue(work)) return;
-    _lowPriority.wait_dequeue(work);
-}
-
-bool ChunkWorkQueue::wait_dequeue_timed(ChunkWork& work, const int timeout_ms)
-{
-    return _highPriority.try_dequeue(work) || _medPriority.try_dequeue(work) || _lowPriority.wait_dequeue_timed(work, std::chrono::milliseconds(timeout_ms));
-}
-
-size_t ChunkWorkQueue::size_approx() const
-{
-    return _highPriority.size_approx() + _lowPriority.size_approx() + _medPriority.size_approx();
-}
-
-ChunkManager::ChunkManager()
-{
-    _chunks.reserve(_maxChunks);
-
     auto max_thread = std::thread::hardware_concurrency();
     _maxThreads = max_thread != 0 ? max_thread : _maxThreads;
 
@@ -59,7 +19,6 @@ ChunkManager::ChunkManager()
     }
 
 }
-
 
 ChunkManager::~ChunkManager()
 {
@@ -82,6 +41,7 @@ void ChunkManager::update_player_position(const int x, const int z)
     std::println("Player position: x {},  z {}", playerChunk.x, playerChunk.z);
     _lastPlayerChunk = playerChunk;
     const MapRange mapRange(playerChunk, _viewDistance);
+    _mapRange = mapRange;
 
     if (_initialLoad)
     {
@@ -89,198 +49,32 @@ void ChunkManager::update_player_position(const int x, const int z)
         return initialize_map(mapRange);
     }
     //calculate old chunks and remove.
+    auto new_chunks = m_chunkCache.slide({ changeX, changeZ });
 
-    if (changeX != 0)
+    for (const auto& chunk : new_chunks)
     {
-        update_map(mapRange, { changeX, 0 });
-    }
-
-    if (changeZ != 0)
-    {
-        update_map(mapRange, { 0, changeZ });
+        _chunkWorkQueue.enqueue({chunk, ChunkWork::Phase::Generate, mapRange});
     }
 
     std::println("Work Queue: {}", _chunkWorkQueue.size_approx());
-    std::println("Active chunks: {}", _chunks.size());
+    std::println("Active chunks: {}", m_chunkCache.m_chunks.size());
 }
 
-std::optional<std::shared_ptr<Chunk>> ChunkManager::get_chunk(const ChunkCoord coord)
+Chunk* ChunkManager::get_chunk(const ChunkCoord coord) const
 {
-    if (_chunks.contains(coord))
-    {
-        return _chunks.at(coord);
-    }
-    return std::nullopt;
+    return m_chunkCache.get_chunk(coord);
 }
 
-void ChunkManager::update_map(const MapRange mapRange, const ChunkCoord delta)
-{
-    if (delta.x == 0 && delta.z == 0) return;
-
-    std::vector<ChunkWork> WorkQueue;
-    WorkQueue.reserve(_maxChunks);
-
-    auto remove_chunk = [&, this](const ChunkCoord chunkCoord)
-    {
-        if (_chunks.contains(chunkCoord))
-        {
-            auto chunk = _chunks.at(chunkCoord);
-            _chunks.erase(chunkCoord);
-        } else
-        {
-            std::println("Tried removing Chunk does not exist: {}", chunkCoord);
-        }
-    };
-
-    // new chunks will always be at the border.
-    auto add_chunk = [&, this](const ChunkCoord chunkCoord)
-    {
-        if (!_chunks.contains(chunkCoord))
-        {
-            auto unchunked = std::make_shared<Chunk>(chunkCoord);
-            _chunks.insert({ chunkCoord, unchunked });
-            WorkQueue.emplace_back(unchunked, ChunkWork::Phase::Generate, mapRange);
-        } else
-        {
-            std::println("Chunk already exists: {}", chunkCoord);
-        }
-    };
-
-    auto update_chunk = [&, this](const ChunkCoord chunkCoord)
-    {
-        if (mapRange.is_border(chunkCoord))
-        {
-            return;
-        }
-
-        if (!_chunks.contains(chunkCoord))
-        {
-            std::println("Tried updating Chunk does not exist: {}", chunkCoord);
-            throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
-            return;
-        }
-
-        auto chunkToUpdate = _chunks.at(chunkCoord);
-        if (chunkToUpdate->_state.load() == ChunkState::Border)
-        {
-            chunkToUpdate->_state.store(ChunkState::Generated);
-            WorkQueue.emplace_back(chunkToUpdate, ChunkWork::Phase::WaitingForNeighbors, mapRange);
-        } else
-        {
-            std::println("The work queue is {}", this->_chunkWorkQueue.size_approx());
-            throw std::runtime_error(std::format("Chunk is not border {}", chunkCoord));
-            return;
-        }
-    };
-
-    auto mark_border = [&, this](const ChunkCoord chunkCoord)
-    {
-        if (!_chunks.contains(chunkCoord))
-        {
-            std::println("Tried marking border of Chunk does not exist: {}", chunkCoord);
-            throw std::runtime_error(std::format("Chunk does not exist: {}", chunkCoord));
-            return;
-        }
-
-        auto chunkToUpdate = _chunks.at(chunkCoord);
-        chunkToUpdate->_state.store(ChunkState::Border);
-    };
-
-    if (delta.x == 1)
-    {
-        for (auto mapZ = mapRange.low_z; mapZ <= mapRange.high_z; ++mapZ)
-        {
-            const auto removeCoord = ChunkCoord{mapRange.low_x - 1, mapZ};
-            remove_chunk(removeCoord);
-
-            const auto new_border = ChunkCoord{mapRange.low_x, mapZ};
-            mark_border(new_border);
-
-            const auto newChunk = ChunkCoord{mapRange.high_x, mapZ};
-            add_chunk(newChunk);
-
-            const auto oldBorderCoord = ChunkCoord{mapRange.high_x - 1, mapZ};
-            update_chunk(oldBorderCoord);
-        }
-    }
-
-    if (delta.x == -1)
-    {
-        for (auto mapZ = mapRange.low_z; mapZ <= mapRange.high_z; ++mapZ)
-        {
-            const auto removeCoord = ChunkCoord{mapRange.high_x + 1, mapZ};
-            remove_chunk(removeCoord);
-
-            const auto new_border = ChunkCoord{mapRange.high_x, mapZ};
-            mark_border(new_border);
-
-            const auto newChunk = ChunkCoord{mapRange.low_x, mapZ};
-            add_chunk(newChunk);
-
-            const auto oldBorderCoord = ChunkCoord{mapRange.low_x + 1, mapZ};
-            update_chunk(oldBorderCoord);
-        }
-    }
-
-    if (delta.z == 1)
-    {
-        for (auto mapX = mapRange.low_x; mapX <= mapRange.high_x; ++mapX)
-        {
-            const auto removeCoord = ChunkCoord{mapX, mapRange.low_z - 1};
-            remove_chunk(removeCoord);
-
-            const auto new_border = ChunkCoord{mapX, mapRange.low_z};
-            mark_border(new_border);
-
-            const auto newChunk = ChunkCoord{mapX, mapRange.high_z};
-            add_chunk(newChunk);
-
-            const auto oldBorderCoord = ChunkCoord{mapX, mapRange.high_z - 1};
-            update_chunk(oldBorderCoord);
-
-        }
-    }
-
-    if (delta.z == -1)
-    {
-        for (auto mapX = mapRange.low_x; mapX <= mapRange.high_x; ++mapX)
-        {
-            const auto removeCoord = ChunkCoord{mapX, mapRange.high_z + 1};
-            remove_chunk(removeCoord);
-
-            const auto new_border = ChunkCoord{mapX, mapRange.high_z};
-            mark_border(new_border);
-
-            const auto newChunk = ChunkCoord{mapX, mapRange.low_z};
-            add_chunk(newChunk);
-
-            const auto oldBorderCoord = ChunkCoord{mapX, mapRange.low_z + 1};
-            update_chunk(oldBorderCoord);
-        }
-    }
-
-    for (const auto& chunkWork : WorkQueue)
-    {
-        _chunkWorkQueue.enqueue(chunkWork);
-    }
-}
-
-void ChunkManager::initialize_map(const MapRange mapRange)
+void ChunkManager::initialize_map(MapRange mapRange)
 {
     std::vector<ChunkWork> WorkQueue;
     WorkQueue.reserve(_maxChunks);
 
-    for (auto mapX = mapRange.low_x; mapX <= mapRange.high_x; ++mapX)
-    {
-        for (auto mapZ = mapRange.low_z; mapZ <= mapRange.high_z; ++mapZ)
-        {
-            auto chunkCoord = ChunkCoord{mapX, mapZ};
-            auto new_chunk = std::make_shared<Chunk>(chunkCoord);
-            _chunks.insert({ chunkCoord, new_chunk });
-            WorkQueue.emplace_back(new_chunk, ChunkWork::Phase::Generate, mapRange);
+    m_chunkCache = ChunkCache{GameConfig::DEFAULT_VIEW_DISTANCE};
 
-            if (mapRange.is_border(chunkCoord)) {  continue; } //do not render chunks that are at the border. Just Generate.
-        }
+    for (auto& chunk : m_chunkCache.m_chunks)
+    {
+        WorkQueue.emplace_back(chunk.get(), ChunkWork::Phase::Generate, mapRange);
     }
 
     for (const auto& chunkWork : WorkQueue)
@@ -294,13 +88,12 @@ NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord) const
 {
     int count = 0;
 
-    if (!_chunks.contains(coord))
+    auto chunk = m_chunkCache.get_chunk(coord);
+    if (chunk == nullptr)
     {
-        // throw std::runtime_error(std::format("Chunk does not exist: {}", coord));
         return NeighborStatus::Missing;
     }
 
-    auto chunk = _chunks.at(coord);
     if (chunk->_state.load() == ChunkState::Border)
     {
         std::println("{} at border...", coord);
@@ -313,9 +106,9 @@ NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord) const
         const auto offsetZ = directionOffsetZ[direction];
         const auto offset_coord = ChunkCoord{ coord.x + offsetX, coord.z + offsetZ };
 
-        if (_chunks.contains(offset_coord))
+        auto neighbor_chunk = m_chunkCache.get_chunk(offset_coord);
+        if (neighbor_chunk != nullptr)
         {
-            const auto neighbor_chunk = _chunks.at(offset_coord);
             switch (neighbor_chunk->_state.load())
             {
                 case ChunkState::Uninitialized:
@@ -339,14 +132,13 @@ NeighborStatus ChunkManager::chunk_has_neighbors(const ChunkCoord coord) const
         return NeighborStatus::Ready;
     }
 
-    //std::println("{} not ready...", coord);
     return NeighborStatus::Incomplete;
 }
 
-std::optional<std::array<std::shared_ptr<Chunk>, 8>> ChunkManager::get_chunk_neighbors(const ChunkCoord coord)
+std::optional<std::array<Chunk*, 8>> ChunkManager::get_chunk_neighbors(const ChunkCoord coord) const
 {
     ZoneScopedN("Get Chunk Neighbors");
-    std::array<std::shared_ptr<Chunk>, 8> chunks;
+    std::array<Chunk*, 8> chunks;
     int count = 0;
     for (const auto direction : directionList)
     {
@@ -354,16 +146,15 @@ std::optional<std::array<std::shared_ptr<Chunk>, 8>> ChunkManager::get_chunk_nei
         const auto offsetZ = directionOffsetZ[direction];
         const auto offset_coord = ChunkCoord{ coord.x + offsetX, coord.z + offsetZ };
 
-        if(auto it = _chunks.find(offset_coord); it != _chunks.end())
-        {
-            auto chunk = it->second;
-            if (chunk->_state.load() == ChunkState::Uninitialized) return std::nullopt;
-            chunks[direction] = chunk;
-            count++;
-        } else
+        auto chunk = m_chunkCache.get_chunk(offset_coord);
+        if (chunk == nullptr)
         {
             return std::nullopt;
         }
+
+        if (chunk->_state.load() == ChunkState::Uninitialized) return std::nullopt;
+        chunks[direction] = chunk;
+        count++;
     }
 
     if(count == 8)
@@ -373,64 +164,6 @@ std::optional<std::array<std::shared_ptr<Chunk>, 8>> ChunkManager::get_chunk_nei
         return std::nullopt;
     }
 }
-
-// int ChunkManager::get_chunk_index(const ChunkCoord coord) const
-// {
-//     //get a unique index for the chunk coord
-//     const int x = coord.x - _lastPlayerChunk.x;
-//     const int y = coord.z - _lastPlayerChunk.z;
-//
-//     // Normalize the relative coordinates to the range [0, 64] by adding viewDistance
-//     const int normalizedX = std::clamp(x + _viewDistance, 0, (2 * GameConfig::DEFAULT_VIEW_DISTANCE + 1) - 1);
-//     const int normalizedZ = std::clamp(y + _viewDistance, 0, (1 + 2 * GameConfig::DEFAULT_VIEW_DISTANCE) - 1);
-//
-//     // Calculate the 1D index in the vector
-//     const int index = normalizedZ * (2 * GameConfig::DEFAULT_VIEW_DISTANCE + 1) + normalizedX;
-//
-//     return index;
-// }
-
-// std::optional<std::shared_ptr<Chunk>> ChunkManager::get_chunk(const ChunkCoord coord)
-// {
-//     if (_chunks.contains(coord))
-//     {
-//         return _chunks.at(coord);
-//     }
-//     return std::nullopt;
-// }
-
-// void ChunkManager::save_chunk(const Chunk &chunk, const std::string &filename)
-// {
-//     std::ofstream outFile(filename, std::ios::binary);
-//
-//     outFile.write(reinterpret_cast<const char*>(&chunk._position), sizeof(chunk._position));
-//
-//     for (const auto& block : chunk._blocks)
-//     {
-//         outFile.write(reinterpret_cast<const char*>(&block), sizeof(block));
-//     }
-//
-//     outFile.close();
-// }
-
-// std::unique_ptr<Chunk> ChunkManager::load_chunk(const std::string &filename)
-// {
-//     auto chunk = std::make_unique<Chunk>();
-//
-//     std::ifstream inFile(filename, std::ios::binary);
-//
-//     inFile.read(reinterpret_cast<char*>(&chunk->_position), sizeof(chunk->_position));
-//
-//     for (auto& block : chunk->_blocks)
-//     {
-//         inFile.read(reinterpret_cast<char *>(&block), sizeof(block));
-//     }
-//
-//     inFile.close();
-//     return chunk;
-// }
-
-
 
 void ChunkManager::work_chunk(int threadId)
 {
@@ -445,14 +178,16 @@ void ChunkManager::work_chunk(int threadId)
                     work_item.chunk->generate();
                     if (work_item.mapRange.is_border(work_item.chunk->_chunkCoord))
                     {
-                        //std::println("Marking chunk {} as border", work_item.chunk->_chunkCoord);
                         work_item.chunk->_state.store(ChunkState::Border);
-                        break;
                     }
                     work_item.phase = ChunkWork::Phase::WaitingForNeighbors;
                     _chunkWorkQueue.enqueue(work_item);
                     break;
                 case ChunkWork::Phase::WaitingForNeighbors:
+                    if (work_item.chunk->_state.load() == ChunkState::Border && !_mapRange.is_border(work_item.chunk->_chunkCoord) )
+                    {
+                        work_item.chunk->_state.store(ChunkState::Generated);
+                    }
                     switch(chunk_has_neighbors(work_item.chunk->_chunkCoord))
                     {
                         case NeighborStatus::Ready:
@@ -460,11 +195,11 @@ void ChunkManager::work_chunk(int threadId)
                             _chunkWorkQueue.enqueue(work_item);
                             break;
                         case NeighborStatus::Incomplete:
+                        case NeighborStatus::Border:
                             std::this_thread::sleep_for(std::chrono::milliseconds(10));
                             _chunkWorkQueue.enqueue(work_item);
                             break;
                         case NeighborStatus::Missing:
-                        case NeighborStatus::Border:
                             break;
                     }
                     break;
@@ -474,7 +209,7 @@ void ChunkManager::work_chunk(int threadId)
                     mesher.generate_mesh();
                     work_item.chunk->_state.store(ChunkState::Rendered);
 
-                    if(!work_item.chunk->_waterMesh->_vertices.empty())
+                    if (!work_item.chunk->_waterMesh->_vertices.empty())
                     {
                         VulkanEngine::instance()._meshManager.UploadQueue.enqueue(work_item.chunk->_waterMesh);
                     }
@@ -493,16 +228,3 @@ void ChunkManager::work_chunk(int threadId)
         }
     }
 }
-
-// void ChunkManager::work_update(int threadId)
-// {
-//     tracy::SetThreadName(std::format("Chunk Update Thread: {}", threadId).c_str());
-//     while(_running)
-//     {
-//         MapRange mapRange;
-//         if (_mapUpdateQueue.try_dequeue(mapRange))
-//         {
-//
-//         }
-//     }
-// }
