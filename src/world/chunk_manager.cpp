@@ -244,7 +244,8 @@ void ChunkManager::work_chunk(int threadId)
                             break;
                         case NeighborStatus::Incomplete:
                         case NeighborStatus::Border:
-                            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                            //This sleep seems to effect starvation of the mesh job...
+                            //std::this_thread::sleep_for(std::chrono::milliseconds(1));
                             _chunkWorkQueue.enqueue(std::move(work_item));
                             break;
                         case NeighborStatus::Missing:
