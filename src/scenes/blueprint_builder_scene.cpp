@@ -4,7 +4,7 @@
 #include <vk_initializers.h>
 #include <vk_mesh.h>
 
-BlueprintBuilderScene::BlueprintBuilderScene()
+BlueprintBuilderScene::BlueprintBuilderScene() : _camera(nullptr)
 {
     std::println("BlueprintBuilderScene created!");
 
@@ -81,9 +81,9 @@ void BlueprintBuilderScene::set_grid_uniform()
 void BlueprintBuilderScene::update_camera_uniform()
 {
 	CameraUBO cameraUBO{};
-	cameraUBO.projection = _camera._projection;
-	cameraUBO.view = _camera._view;
-	cameraUBO.viewproject = _camera._projection * _camera._view; 
+	cameraUBO.projection = _camera->_projection;
+	cameraUBO.view = _camera->_view;
+	cameraUBO.viewproject = _camera->_projection * _camera->_view;
 
 	void* data;
 	vmaMapMemory(VulkanEngine::instance()._allocator, _cameraUboResource->value.buffer._allocation, &data);

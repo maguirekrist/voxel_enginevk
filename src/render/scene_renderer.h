@@ -1,5 +1,6 @@
 #pragma once
 #include <scenes/scene.h>
+#include <render/render_primitives.h>
 
 class SceneRenderer {
 public:

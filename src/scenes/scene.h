@@ -1,7 +1,6 @@
 #pragma once
 
 #include "SDL_events.h"
-#include <render/render_primitives.h>
 
 class Scene {
 public:

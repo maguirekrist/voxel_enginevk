@@ -3,32 +3,36 @@
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
 #include <vk_mesh.h>
-
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
+#include "components/player_input_component.h"
 
-GameScene::GameScene() {
-	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-	auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+GameScene::GameScene(): _player(nullptr), _game(*this), _camera(nullptr)
+{
+	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO),
+	                                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO),
+	                                             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	_cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
 	_fogResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(fogUboBuffer));
 
 	VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogResource);
 
 	auto translate = PushConstant{
-				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-				.size = sizeof(ObjectPushConstants),
-				.build_constant = [](const RenderObject& obj) -> ObjectPushConstants {
-					ObjectPushConstants push{};
-					push.chunk_translate = obj.xzPos;
-					return push;
-				}
-			};
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		.size = sizeof(ObjectPushConstants),
+		.build_constant = [](const RenderObject& obj) -> ObjectPushConstants
+		{
+			ObjectPushConstants push{};
+			push.chunk_translate = obj.xzPos;
+			return push;
+		}
+	};
 
 	//VulkanEngine::instance()._materialManager.build_material_default(_cameraUboResource, translate);
 	VulkanEngine::instance()._materialManager.build_graphics_pipeline(
-		{ _cameraUboResource },
-		{ translate },
+		{_cameraUboResource},
+		{translate},
 		{},
 		"tri_mesh.vert.spv",
 		"tri_mesh.frag.spv",
@@ -37,8 +41,8 @@ GameScene::GameScene() {
 
 	VulkanEngine::instance()._materialManager.build_graphics_pipeline(
 		{_cameraUboResource, _fogResource}, // Order Matters here
-		{ translate },
-		{ .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = true},
+		{translate},
+		{.depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = true},
 		"water_mesh.vert.spv",
 		"water_mesh.frag.spv",
 		"watermesh"
@@ -63,6 +67,8 @@ GameScene::GameScene() {
 	// 	fmt::println("Loaded object: {}", file.path().string());
 	// }
 
+	create_player();
+	create_camera();
 
 	std::println("GameScene created!");
 }
@@ -80,9 +86,10 @@ void GameScene::update_buffers() {
 
 void GameScene::update(const float deltaTime)
 {
-	_game._player._moveSpeed = GameConfig::DEFAULT_MOVE_SPEED * deltaTime;
-	_camera._moveSpeed = GameConfig::DEFAULT_MOVE_SPEED * deltaTime;
-	_camera.update_view();
+	for (const auto& obj : _gameObjects)
+	{
+		obj->update(deltaTime);
+	}
 	_game.update();
 }
 
@@ -102,8 +109,10 @@ void GameScene::handle_input(const SDL_Event& event)
 			// }
 			break;
 		case SDL_MOUSEMOTION:
-			_game._player.handle_mouse_move(static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel));
-			_camera.handle_mouse_move(static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel));
+			for (auto [go, component] : ComponentIter<PlayerInputComponent>(_gameObjects))
+			{
+				component.handle_mouse_move(go, static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel));
+			}
 			break;
 		default:
 			//no-op
@@ -113,28 +122,28 @@ void GameScene::handle_input(const SDL_Event& event)
 
 void GameScene::handle_keystate(const Uint8* state)
 {
-	if (state[SDL_SCANCODE_W])
+	//TODO: Build a custom component iterator that does some of this filter boilerplate.
+	for (auto [go, component] : ComponentIter<PlayerInputComponent>(_gameObjects))
 	{
-		_game._player.move_forward();
-		_camera.move_forward();
-	}
+		if (state[SDL_SCANCODE_W])
+		{
+			component.move_forward(go);
+		}
 
-	if (state[SDL_SCANCODE_S])
-	{
-		_game._player.move_backward();
-		_camera.move_backward();
-	}
+		if (state[SDL_SCANCODE_S])
+		{
+			component.move_backward(go);
+		}
 
-	if (state[SDL_SCANCODE_A])
-	{
-		_game._player.move_left();
-		_camera.move_left();
-	}
+		if (state[SDL_SCANCODE_A])
+		{
+			component.move_left(go);
+		}
 
-	if (state[SDL_SCANCODE_D])
-	{
-		_game._player.move_right();
-		_camera.move_right();
+		if (state[SDL_SCANCODE_D])
+		{
+			component.move_right(go);
+		}
 	}
 }
 
@@ -146,90 +155,158 @@ void GameScene::draw_imgui()
 	//ImGui::ShowDemoWindow();
 
 	{
-		ImGui::Begin("Chunk Debug");
-
-		ChunkCoord playerChunk = World::get_chunk_coordinates(_game._player._position);
-		if (!_game._current_chunk.expired())
-		{
-			ImGui::Text("Player Chunk: %d,%d", _game._current_chunk.lock()->_chunkCoord.x,  _game._current_chunk.lock()->_chunkCoord.z);
-		}
-
-		if (_game._current_block != nullptr)
-		{
-			ImGui::Text("Camera World Position: x: %f, z: %f, y: %f", _camera._position.x, _camera._position.z, _camera._position.y);
-			ImGui::Text("Player World Position: x: %f, z: %f, y: %f", _game._player._position.x, _game._player._position.z, _game._player._position.y);
-			ImGui::Text("Camera Front: x: %f, z: %f, y: %f", _camera._front.x, _camera._front.z, _camera._front.y);
-			auto local_pos = World::get_local_coordinates(_game._player._position);
-			ImGui::Text("Player Local Position: x: %d, z: %d, y: %d", local_pos.x, local_pos.z, local_pos.y);
-		}
-
-		const auto& render_set = VulkanEngine::instance()._opaqueSet.data();
-		auto active_set = render_set | std::views::filter([](const auto& renderObj)
-		{
-			return renderObj.mesh->_isActive.load(std::memory_order::acquire) == true;
-		});
-		const auto active_count = std::ranges::distance(active_set);
-
-		ImGui::Text("Active Renderables: %d", static_cast<size_t>(active_count));
-
-		const int max_chunks = (GameConfig::DEFAULT_VIEW_DISTANCE * 2) + 1;
-		if (ImGui::BeginTable("MyGrid", max_chunks)) {
-			for (int row = 0; row < max_chunks; ++row) {
-				ImGui::TableNextRow();
-				for (int col = 0; col < max_chunks; ++col) {
-					ImGui::TableSetColumnIndex(col);
-					const ChunkCoord chunkCoord = {playerChunk.x + (row - GameConfig::DEFAULT_VIEW_DISTANCE), playerChunk.z + (col - GameConfig::DEFAULT_VIEW_DISTANCE)};
-					const auto chunk = _game._chunkManager.get_chunk(chunkCoord);
-					if (chunk.has_value())
-					{
-						switch (chunk.value()->_state.load(std::memory_order::acquire))
-						{
-						case ChunkState::Border:
-							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
-							break;
-						case ChunkState::Rendered:
-							if (chunk.value()->_mesh->_isActive.load(std::memory_order::acquire) == true)
-							{
-								ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 0, 255));
-							} else
-							{
-								ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
-							}
-
-							break;
-						default:
-							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
-							break;
-						}
-					} else
-					{
-						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
-					}
-					ImGui::Text("[%d,%d]", chunkCoord.x, chunkCoord.z);
-					ImGui::PopStyleColor();
-				}
-			}
-
-			ImGui::EndTable();
-		}
-
-		ImGui::End();
+		draw_debug_map();
+	}
+	{
+		//draw_debug_cache();
 	}
 
 	ImGuiIO& io = ImGui::GetIO();
 	ImGui::Render();
 }
 
+void GameScene::draw_debug_map()
+{
+	ImGui::Begin("Chunk Debug");
+
+	ChunkCoord playerChunk = World::get_chunk_coordinates(_player->_position);
+	if (_game._current_chunk != nullptr)
+	{
+		ImGui::Text("Player Chunk: %d,%d", _game._current_chunk->_data->coord.x,  _game._current_chunk->_data->coord.z);
+	}
+
+	if (_game._current_block != nullptr)
+	{
+		ImGui::Text("Camera World Position: x: %f, z: %f, y: %f", _camera->_position.x, _camera->_position.z, _camera->_position.y);
+		ImGui::Text("Player World Position: x: %f, z: %f, y: %f", _player->_position.x, _player->_position.z, _player->_position.y);
+		ImGui::Text("Camera Front: x: %f, z: %f, y: %f", _camera->_front.x, _camera->_front.z, _camera->_front.y);
+		auto local_pos = World::get_local_coordinates(_player->_position);
+		ImGui::Text("Player Local Position: x: %d, z: %d, y: %d", local_pos.x, local_pos.z, local_pos.y);
+	}
+
+	// const auto& render_set = VulkanEngine::instance()._opaqueSet.data();
+	// auto active_set = render_set | std::views::filter([](const auto& renderObj)
+	// {
+	// 	return renderObj.mesh->_isActive.load(std::memory_order::acquire) == true;
+	// });
+	// const auto active_count = std::ranges::distance(active_set);
+	//
+	// ImGui::Text("Active Renderables: %d", static_cast<int>(active_count));
+
+	const int max_chunks = (GameConfig::DEFAULT_VIEW_DISTANCE * 2) + 1;
+	if (ImGui::BeginTable("MyGrid", max_chunks)) {
+		for (int row = 0; row < max_chunks; ++row) {
+			ImGui::TableNextRow();
+			for (int col = 0; col < max_chunks; ++col) {
+				ImGui::TableSetColumnIndex(col);
+				const ChunkCoord chunkCoord = {playerChunk.x + (row - GameConfig::DEFAULT_VIEW_DISTANCE), playerChunk.z + (col - GameConfig::DEFAULT_VIEW_DISTANCE)};
+				const auto chunk = _game._chunkManager.get_chunk(chunkCoord);
+				if (chunk)
+				{
+					switch (chunk->_state.load(std::memory_order::acquire))
+					{
+					// case ChunkState::Border:
+					// 	ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
+					// 	break;
+					case ChunkState::Generated:
+						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 255, 255));
+						break;
+					case ChunkState::Rendered:
+						if (chunk->_meshData->mesh->_isActive.load(std::memory_order::acquire) == true)
+						{
+							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 0, 255));
+						} else
+						{
+							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 20, 125, 255));
+						}
+						break;
+					default:
+						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
+						break;
+					}
+				} else
+				{
+					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+				}
+				ImGui::Text("[%d,%d,%d]", chunkCoord.x, chunkCoord.z, chunk != nullptr ? chunk->_gen.load(std::memory_order::acquire) : -1);
+				ImGui::PopStyleColor();
+			}
+		}
+
+		ImGui::EndTable();
+	}
+	ImGui::End();
+}
+
+// void GameScene::draw_debug_cache()
+// {
+// 	ImGui::Begin("Chunk Cache Debug");
+//
+// 	ImGui::Text("Origin: %d,%d", m_chunkCache.m_origin.x, m_chunkCache.m_origin.z);
+//
+// 	if (ImGui::Button("Move North"))
+// 	{
+// 		m_chunkCache.slide({ 1, 0 });
+// 	}
+//
+// 	if (ImGui::Button("Move South"))
+// 	{
+// 		m_chunkCache.slide({ -1, 0 });
+// 	}
+//
+// 	if (ImGui::Button("Move East"))
+// 	{
+// 		m_chunkCache.slide({ 0, 1 });
+// 	}
+//
+// 	if (ImGui::Button("Move West"))
+// 	{
+// 		m_chunkCache.slide({ 0, -1 });
+// 	}
+//
+// 	const int width = (GameConfig::DEFAULT_VIEW_DISTANCE * 2) + 1;
+// 	if (ImGui::BeginTable("MyGrid", width))
+// 	{
+// 		for (int row = 0; row < width; ++row)
+// 		{
+// 			ImGui::TableNextRow();
+// 			for (int col = 0; col < width; ++col)
+// 			{
+// 				ImGui::TableSetColumnIndex(col);
+// 				auto chunk = m_chunkCache.m_chunks[col + (row * width)].get();
+// 				if (chunk != nullptr)
+// 				{
+// 					if (chunk->_chunkCoord == m_chunkCache.m_origin)
+// 					{
+// 						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+// 						ImGui::Text("[%d,%d]", chunk->_chunkCoord.x, chunk->_chunkCoord.z);
+// 						ImGui::PopStyleColor();
+// 					} else
+// 					{
+// 						ImGui::Text("[%d,%d]", chunk->_chunkCoord.x, chunk->_chunkCoord.z);
+// 					}
+// 				} else
+// 				{
+// 					ImGui::Text("[%d,%d]", -1, -1);
+// 				}
+// 			}
+// 		}
+// 		ImGui::EndTable();
+// 	}
+//
+// 	ImGui::End();
+// }
+
 void GameScene::update_fog_ubo() const
 {
-	FogUBO fogUBO;
+	FogUBO fogUBO{};
 	fogUBO.fogColor = static_cast<glm::vec3>(Colors::skyblueHigh);
 	fogUBO.fogEndColor = static_cast<glm::vec3>(Colors::skyblueLow);
 
-	fogUBO.fogCenter = _game._player._position;
+	fogUBO.fogCenter = _player->_position;
 	fogUBO.fogRadius = (CHUNK_SIZE * GameConfig::DEFAULT_VIEW_DISTANCE) - 60.0f;
 	fogUBO.screenSize = glm::ivec2(VulkanEngine::instance()._windowExtent.width, VulkanEngine::instance()._windowExtent.height);
-	fogUBO.invViewProject = glm::inverse(_camera._projection * _camera._view);
+	fogUBO.invViewProject = glm::inverse(_camera->_projection * _camera->_view);
 
 	void* data;
 	vmaMapMemory(VulkanEngine::instance()._allocator, _fogResource->value.buffer._allocation, &data);
@@ -239,14 +316,50 @@ void GameScene::update_fog_ubo() const
 
 void GameScene::update_uniform_buffer() const
 {
-	CameraUBO cameraUBO;
-	cameraUBO.projection = _camera._projection;
-	cameraUBO.view = _camera._view;
-	cameraUBO.viewproject = _camera._projection * _camera._view; 
+	CameraUBO cameraUBO{};
+	cameraUBO.projection = _camera->_projection;
+	cameraUBO.view = _camera->_view;
+	cameraUBO.viewproject = _camera->_projection * _camera->_view;
 
 	void* data;
 	vmaMapMemory(VulkanEngine::instance()._allocator, _cameraUboResource->value.buffer._allocation, &data);
 	memcpy(data, &cameraUBO, sizeof(CameraUBO));
 	vmaUnmapMemory(VulkanEngine::instance()._allocator, _cameraUboResource->value.buffer._allocation);
+}
+
+
+
+void GameScene::create_player()
+{
+	auto player = std::make_unique<GameObject>(GameConfig::DEFAULT_POSITION);
+	auto& ref = *player;
+	ref.Add<PlayerInputComponent>([this](const glm::vec3& pos) -> bool
+	{
+		const auto block = _game._world.get_block(pos);
+		if (block != nullptr)
+		{
+			return block->_solid;
+		}
+		return false;
+	});
+	_gameObjects.emplace_back(std::move(player));
+	_player = _gameObjects.back().get();
+}
+
+void GameScene::create_camera()
+{
+	auto camera = std::make_unique<Camera>(GameConfig::DEFAULT_POSITION);
+	auto& ref = *camera;
+	ref.Add<PlayerInputComponent>([this](const glm::vec3& pos) -> bool
+	{
+		const auto block = _game._world.get_block(pos);
+		if (block != nullptr)
+		{
+			return block->_solid;
+		}
+		return false;
+	});
+	_gameObjects.emplace_back(std::move(camera));
+	_camera = dynamic_cast<Camera*>(_gameObjects.back().get());
 }
 

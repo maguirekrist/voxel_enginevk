@@ -4,9 +4,9 @@
 
 class Color {
 public:
-    int _red, _green, _blue;
+    const int _red, _green, _blue;
 
-    constexpr Color(int r, int g, int b) : _red(r), _green(g), _blue(b) {}
+    constexpr Color(const int r, const int g, const int b) : _red(r), _green(g), _blue(b) {}
 
     explicit operator glm::vec3() const {
         return glm::vec3(_red / 255.0f, _green / 255.0f, _blue / 255.0f);
