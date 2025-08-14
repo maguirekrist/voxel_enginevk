@@ -205,9 +205,9 @@ void GameScene::draw_debug_map()
 				{
 					switch (chunk->_state.load(std::memory_order::acquire))
 					{
-					case ChunkState::Border:
-						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
-						break;
+					// case ChunkState::Border:
+					// 	ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
+					// 	break;
 					case ChunkState::Generated:
 						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 255, 255));
 						break;
@@ -228,7 +228,7 @@ void GameScene::draw_debug_map()
 				{
 					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
 				}
-				ImGui::Text("[%d,%d]", chunkCoord.x, chunkCoord.z);
+				ImGui::Text("[%d,%d,%d]", chunkCoord.x, chunkCoord.z, chunk != nullptr ? chunk->_gen.load(std::memory_order::acquire) : -1);
 				ImGui::PopStyleColor();
 			}
 		}
@@ -340,6 +340,7 @@ void GameScene::create_player()
 		{
 			return block->_solid;
 		}
+		return false;
 	});
 	_gameObjects.emplace_back(std::move(player));
 	_player = _gameObjects.back().get();
@@ -356,6 +357,7 @@ void GameScene::create_camera()
 		{
 			return block->_solid;
 		}
+		return false;
 	});
 	_gameObjects.emplace_back(std::move(camera));
 	_camera = dynamic_cast<Camera*>(_gameObjects.back().get());

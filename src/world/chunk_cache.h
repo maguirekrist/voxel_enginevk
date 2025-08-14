@@ -4,12 +4,15 @@
 
 #ifndef CHUNK_CACHE_H
 #define CHUNK_CACHE_H
+#include "neighbor_barrier.h"
 #include "game/chunk.h"
 
 
 class ChunkCache {
     int m_radius{};
     int m_width{};
+    mutable std::shared_mutex m_mutex{};
+
     [[nodiscard]] std::optional<std::size_t> get_chunk_index(ChunkCoord coord) const;
 
     std::vector<Chunk*> slide_east();
@@ -28,13 +31,14 @@ public:
     ChunkCoord m_origin{0, 0};
     int m_origin_buf_x{0};
     int m_origin_buf_z{0};
+    NeighborBarrier& m_neighborBarrier;
     std::vector<std::unique_ptr<Chunk>> m_chunks{};
 
-    explicit ChunkCache(int view_distance);
+    explicit ChunkCache(int view_distance, NeighborBarrier& neighborBarrier);
     ~ChunkCache();
 
-    ChunkCache(ChunkCache&&) noexcept = default;
-    ChunkCache& operator=(ChunkCache&&) noexcept = default;
+    ChunkCache(ChunkCache&&) noexcept = delete;
+    ChunkCache& operator=(ChunkCache&&) noexcept = delete;
 
     ChunkCache(const ChunkCache&) = delete;
     ChunkCache& operator=(const ChunkCache&) = delete;

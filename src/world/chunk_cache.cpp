@@ -8,6 +8,7 @@
 std::optional<std::size_t>
 ChunkCache::get_chunk_index(const ChunkCoord coord) const
 {
+    std::shared_lock lock(m_mutex);
     const int rx = coord.x - m_origin.x;
     const int rz = coord.z - m_origin.z;
 
@@ -19,7 +20,7 @@ ChunkCache::get_chunk_index(const ChunkCoord coord) const
     const int buf_x = wrap(m_origin_buf_x + rx, m_width);
     const int buf_z = wrap(m_origin_buf_z + rz, m_width);
 
-    const std::size_t idx = static_cast<std::size_t>(buf_z + (buf_x * m_width));
+    const auto idx = static_cast<std::size_t>(buf_z + (buf_x * m_width));
 
     if (auto* chunk = m_chunks[idx].get(); chunk && chunk->_data->coord == coord)
         return idx;
@@ -37,6 +38,7 @@ std::vector<Chunk*> ChunkCache::slide_east()
     {
         auto chunkIndex = wrapped_index_col + (i * m_width);
         auto chunk = m_chunks[chunkIndex].get();
+        m_neighborBarrier.cancel(chunk->_data->coord);
         chunk->reset(ChunkCoord{chunk->_data->coord.x, m_origin.z + m_radius + 1});
         chunks.push_back(chunk);
     }
@@ -55,6 +57,7 @@ std::vector<Chunk*> ChunkCache::slide_west()
     {
         auto chunkIndex = wrapped_index_col + (i * m_width);
         auto chunk = m_chunks[chunkIndex].get();
+        m_neighborBarrier.cancel(chunk->_data->coord);
         chunk->reset(ChunkCoord{chunk->_data->coord.x, m_origin.z - m_radius - 1});
         chunks.push_back(chunk);
     }
@@ -74,6 +77,7 @@ std::vector<Chunk*> ChunkCache::slide_north()
     {
         auto chunkIndex = i + (wrapped_index_row * m_width);
         auto chunk = m_chunks[chunkIndex].get();
+        m_neighborBarrier.cancel(chunk->_data->coord);
         chunk->reset(ChunkCoord{m_origin.x + m_radius + 1, chunk->_data->coord.z});
         chunks.push_back(chunk);
     }
@@ -93,6 +97,7 @@ std::vector<Chunk*> ChunkCache::slide_south()
     {
         auto chunkIndex = i + (wrapped_index_row * m_width);
         auto chunk = m_chunks[chunkIndex].get();
+        m_neighborBarrier.cancel(chunk->_data->coord);
         chunk->reset(ChunkCoord{m_origin.x - m_radius - 1, chunk->_data->coord.z});
         chunks.push_back(chunk);
     }
@@ -101,7 +106,8 @@ std::vector<Chunk*> ChunkCache::slide_south()
     return chunks;
 }
 
-ChunkCache::ChunkCache(const int view_distance) : m_radius(view_distance), m_width(view_distance * 2 + 1), m_chunks(m_width * m_width)
+ChunkCache::ChunkCache(const int view_distance, NeighborBarrier& neighbor_barrier) : m_radius(view_distance),
+    m_width(view_distance * 2 + 1), m_neighborBarrier(neighbor_barrier), m_chunks(m_width * m_width)
 {
     if (view_distance == 0)
     {
@@ -124,8 +130,9 @@ ChunkCache::ChunkCache(const int view_distance) : m_radius(view_distance), m_wid
 
 ChunkCache::~ChunkCache() = default;
 
-Chunk* ChunkCache::get_chunk(ChunkCoord coord) const
+Chunk* ChunkCache::get_chunk(const ChunkCoord coord) const
 {
+    std::shared_lock lock(m_mutex);
     auto chunk_index = get_chunk_index(coord);
     if (chunk_index.has_value())
     {
@@ -136,8 +143,9 @@ Chunk* ChunkCache::get_chunk(ChunkCoord coord) const
 
 //we can only slide in 1 direction at a time, so that is 4 directions.
 //
-std::vector<Chunk*> ChunkCache::slide(ChunkCoord delta)
+std::vector<Chunk*> ChunkCache::slide(const ChunkCoord delta)
 {
+    std::unique_lock lock(m_mutex);
     std::vector<Chunk*> chunks;
     if (delta.x == 1)
     {

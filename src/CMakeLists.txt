@@ -60,8 +60,10 @@ add_executable(vulkan_guide
         components/player_input_component.h
         components/game_object.h
         components/component.h
-        world/chunk_queue.cpp
-        world/chunk_queue.h
+        world/thread_pool.cpp
+        world/thread_pool.h
+        world/neighbor_barrier.cpp
+        world/neighbor_barrier.h
 )
 
 

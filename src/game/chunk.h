@@ -55,14 +55,27 @@ constexpr Direction directionList[8] = { NORTH, SOUTH, EAST, WEST, NORTH_EAST, N
 constexpr int directionOffsetX[] = { 0, 0, -1, 1, -1, 1, -1, 1 };
 constexpr int directionOffsetZ[] = { 1, -1, 0, 0, 1, 1, -1, -1 };
 
+constexpr std::array<ChunkCoord, 8> neighbors_of(const ChunkCoord c)
+{
+    std::array<ChunkCoord, 8> neighbors{};
+    for (const auto direction : directionList)
+    {
+        const auto offsetX = directionOffsetX[direction];
+        const auto offsetZ = directionOffsetZ[direction];
+        const auto offset_coord = ChunkCoord{ c.x + offsetX, c.z + offsetZ };
+        neighbors[direction] = offset_coord;
+    }
+
+    return neighbors;
+}
+
 using ChunkBlocks = Block[CHUNK_SIZE][CHUNK_HEIGHT][CHUNK_SIZE];
 
 enum class ChunkState : uint8_t
 {
     Uninitialized = 0,
     Generated = 1,
-    Border = 2,
-    Rendered = 3
+    Rendered = 2
 };
 
 struct ChunkData
