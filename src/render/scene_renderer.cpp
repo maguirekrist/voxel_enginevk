@@ -2,10 +2,7 @@
 #include <vk_engine.h>
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
-#include <vk_mesh.h>
-
 #include <scenes/game_scene.h>
-#include <scenes/blueprint_builder_scene.h>
 
 #include "imgui.h"
 #include "backends/imgui_impl_vulkan.h"
@@ -22,9 +19,10 @@ void SceneRenderer::cleanup()
 	_currentScene = nullptr;
 }
 
-void SceneRenderer::render_scene(const VkCommandBuffer cmd, const uint32_t swapchainImageIndex)
+void SceneRenderer::render_scene(VkCommandBuffer cmd, const uint32_t swapchainImageIndex)
 {
 	ZoneScopedN("Render Scene");
+	m_last_allocator = nullptr;
     _currentScene->update_buffers();
 
 	if (USE_IMGUI)
@@ -174,14 +172,52 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
     	ObjectPushConstants data = pConstant.build_constant(object);
         vkCmdPushConstants(cmd, object.material->pipelineLayout, pConstant.stageFlags, 0, pConstant.size, &data);
     }
-    
 
-	constexpr VkDeviceSize offset = 0;
-	vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
-	vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+	//We only need to rebind these when the allocator changes.
+	// if (m_last_allocator == nullptr || m_last_allocator != object.mesh->_vertexAllocation.allocator)
+	// {
+	// 	vkCmdBindVertexBuffers(
+	// 		cmd,
+	// 		0,
+	// 		1,
+	// 		&object.mesh->_vertexAllocation.allocator->m_vertexBuffer._buffer,
+	// 		(VkDeviceSize[]){0}
+	// 	);
+	// 	vkCmdBindIndexBuffer(
+	// 		cmd,
+	// 		object.mesh->_vertexAllocation.allocator->m_indexBuffer._buffer,
+	// 		0,
+	// 		VK_INDEX_TYPE_UINT32
+	// 	);
+	//
+	// 	m_last_allocator = object.mesh->_vertexAllocation.allocator;
+	// }
+	//
+	// uint32_t firstIndex   = (uint32_t)(object.mesh->_indexAllocation.slot.index_offset  / sizeof(uint32_t));
+	// int32_t  baseVertex   = (int32_t) (object.mesh->_vertexAllocation.slot.vertex_offset / sizeof(Vertex));
+	//
+	// // Sanity: offsets must be aligned
+	// assert(object.mesh->_indexAllocation.slot.index_offset  % sizeof(uint32_t) == 0);
+	// assert(object.mesh->_vertexAllocation.slot.vertex_offset % sizeof(Vertex)   == 0);
+	//
+	// //we can now draw
+	// //question: how does draw Indexed work? How does it know index count of my vertices, is this computed based on the indices?
+	// vkCmdDrawIndexed(
+	// 	cmd,
+	// 	static_cast<uint32_t>(object.mesh->_indices.size()),
+	// 	1,
+	// 	firstIndex,
+	// 	baseVertex,
+	// 	0
+	// );
 
-	//we can now draw
-	vkCmdDrawIndexed(cmd, object.mesh->_indices.size(), 1, 0, 0, 0);
+	VkDeviceSize vbOff = object.mesh->_allocation.slot.vertex_offset;
+	VkDeviceSize ibOff =  object.mesh->_allocation.slot.index_offset;
+
+	vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_allocation.allocator->m_vertexBuffer._buffer, &vbOff);
+	vkCmdBindIndexBuffer(cmd, object.mesh->_allocation.allocator->m_indexBuffer._buffer, ibOff, VK_INDEX_TYPE_UINT32);
+
+	vkCmdDrawIndexed(cmd,static_cast<uint32_t>(object.mesh->_indices.size()), 1, 0, 0, 0);
 }
 
 void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<RenderObject>& objects)

@@ -4,7 +4,6 @@
 #include <vk_util.h>
 #include <vk_initializers.h>
 #include <vk_pipeline_builder.h>
-#include <vk_mesh.h>
 #include <vk_engine.h>
 
 #include <scenes/blueprint_builder_scene.h>

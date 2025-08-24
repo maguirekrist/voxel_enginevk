@@ -1,6 +1,9 @@
 #pragma once
 #include <scenes/scene.h>
+#include <vk_types.h>
 #include <render/render_primitives.h>
+
+class MeshAllocator;
 
 class SceneRenderer {
 public:
@@ -20,6 +23,8 @@ private:
     
 	std::unordered_map<std::string, std::shared_ptr<Scene>> _scenes;
     std::shared_ptr<Scene> _currentScene = nullptr;
+
+    MeshAllocator* m_last_allocator = nullptr;
 
     std::string m_lastMaterialKey;
 };

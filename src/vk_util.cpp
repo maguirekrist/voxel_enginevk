@@ -154,19 +154,16 @@ void vkutil::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout 
 	);
 }
 
-AllocatedBuffer vkutil::create_buffer(VmaAllocator allocator, size_t size, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage)
+AllocatedBuffer vkutil::create_buffer(VmaAllocator allocator, const size_t size, const VkBufferUsageFlags bufferUsage, const VmaMemoryUsage memUsage)
 {
 	VkBufferCreateInfo bufferInfo = vkinit::buffer_create_info(size, bufferUsage);
-
-	std::string debugMsg = "THIS IS A TEST";
-
-	VmaAllocationCreateInfo vmaallocInfo = {};
-	vmaallocInfo.usage = memUsage;
-	vmaallocInfo.pUserData = static_cast<void*>(const_cast<char*>(debugMsg.c_str()));
-
+	VmaAllocationCreateInfo vma_allocInfo = {};
+	vma_allocInfo.usage = memUsage;
+	//vma allows you to attach debug messages to allocations, interesting.
+	//vmaallocInfo.pUserData = static_cast<void*>(const_cast<char*>(debugMsg.c_str()));
 	AllocatedBuffer buffer = {};
 
-	vmaCreateBuffer(allocator, &bufferInfo, &vmaallocInfo,
+	vmaCreateBuffer(allocator, &bufferInfo, &vma_allocInfo,
 		&buffer._buffer,
 		&buffer._allocation,
 		nullptr);

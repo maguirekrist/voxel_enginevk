@@ -34,7 +34,7 @@ class VulkanEngine {
 public:
 	static VulkanEngine& instance()		
 	{
-		static VulkanEngine *instance = new VulkanEngine();
+		static auto *instance = new VulkanEngine();
         return *instance;
 	}
 
@@ -120,8 +120,6 @@ public:
 	void draw();
 	void run();
 private:
-	std::shared_ptr<std::mutex> m_queueMutex = nullptr;
-
 	VulkanEngine();
 
 	//General Vulkan Init for renderering

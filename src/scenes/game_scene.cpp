@@ -2,7 +2,6 @@
 #include "vk_engine.h"
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
-#include <vk_mesh.h>
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "components/player_input_component.h"

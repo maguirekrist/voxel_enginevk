@@ -1,11 +1,18 @@
 #pragma once
 
-#include <vk_mesh.h>
+#include <vk_types.h>
 #include <collections/spare_set.h>
+
+struct Mesh;
+struct Material;
 
 enum class RenderLayer {
     Opaque,
     Transparent
+};
+
+struct ObjectPushConstants {
+    glm::ivec2 chunk_translate;
 };
 
 struct RenderObject {
@@ -14,4 +21,10 @@ struct RenderObject {
     glm::ivec2 xzPos;
     RenderLayer layer;
     dev_collections::sparse_set<RenderObject>::Handle handle;
+};
+
+struct PushConstant {
+    VkShaderStageFlags stageFlags;
+    uint32_t size;
+    std::function<ObjectPushConstants(const RenderObject&)> build_constant;
 };

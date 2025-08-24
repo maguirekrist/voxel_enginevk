@@ -4,6 +4,7 @@
 #include "scene.h"
 #include "render/resource.h"
 
+
 struct GridUniform {
     glm::ivec2 gridSpacing;
     glm::vec3 color;
@@ -19,6 +20,11 @@ public:
     void handle_keystate(const Uint8* state) override;
     void draw_imgui() override;
 private:
+    struct CameraUBO {
+        glm::mat4 projection;
+        glm::mat4 view;
+        glm::mat4 viewproject;
+    };
     void build_chunk_platform(ChunkCoord coord);
     void set_grid_uniform();
     void update_camera_uniform();

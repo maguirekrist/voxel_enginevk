@@ -3,7 +3,6 @@
 #include "../game/chunk.h"
 #include "chunk_mesher.h"
 #include "tracy/Tracy.hpp"
-#include "../vk_mesh.h"
 #include <memory>
 
 #include "../vk_engine.h"
@@ -58,7 +57,7 @@ void ChunkManager::update_player_position(const int x, const int z)
 
     for (const auto& chunk : new_chunks)
     {
-        schedule_generate(chunk, chunk->_gen.load(std::memory_order::acquire), mapRange);
+        schedule_generate(chunk, chunk->_gen.load(std::memory_order::acquire));
     }
 
     // std::println("Work Queue: {}", _chunkWorkQueue.size_approx());
@@ -76,38 +75,27 @@ void ChunkManager::initialize_map(const MapRange mapRange)
 
     for (auto& chunk : m_chunkCache->m_chunks)
     {
-        schedule_generate(chunk.get(), chunk->_gen.load(std::memory_order::acquire), mapRange);
+        schedule_generate(chunk.get(), chunk->_gen.load(std::memory_order::acquire));
     }
 }
 
-void ChunkManager::schedule_generate(Chunk* const chunk, const uint32_t gen, const MapRange range)
+void ChunkManager::schedule_generate(Chunk* const chunk, const uint32_t gen)
 {
     //the expected value needs to be calculated.
     const ChunkCoord cc = chunk->_data->coord;
-
-    std::vector<ChunkCoord> required;
-    required.reserve(8);
-    for (auto n : neighbors_of(cc))
-    {
-        required.push_back(n);
-    }
-
+    std::array<ChunkCoord, 8> required = neighbors_of(cc);
     _neighborBarrier.init(cc, required.begin(), required.end());
 
-    const auto data = chunk->_data;
-    _threadPool.post([=, this]() noexcept
+    _threadPool.post([cc, gen, chunk, this]() noexcept
     {
-        data->generate();
         if (chunk->_gen.load(std::memory_order::acquire) != gen) return;
-
-        chunk->_data = data;
+        chunk->_data->generate();
         chunk->_state.store(ChunkState::Generated, std::memory_order::release);
-
 
         _neighborBarrier.mark_present(cc);
 
         //signals neighbors.
-        for (const ChunkCoord c : required)
+        for (const ChunkCoord c : neighbors_of(cc))
         {
             if (_neighborBarrier.signal(c))
             {
