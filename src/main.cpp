@@ -1,3 +1,4 @@
+#include <csignal>
 #include <vk_engine.h>
 
 #include <FastNoise/FastNoise.h>
@@ -31,6 +32,7 @@ void test()
 int main(int argc, char* argv[])
 {
 
+	//std::raise(SIGTRAP);
 	VulkanEngine& engine = VulkanEngine::instance();
 
 	engine.init();	

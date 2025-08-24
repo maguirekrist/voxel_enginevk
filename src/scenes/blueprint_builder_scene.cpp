@@ -2,7 +2,6 @@
 #include "vk_engine.h"
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
-#include <vk_mesh.h>
 
 BlueprintBuilderScene::BlueprintBuilderScene() : _camera(nullptr)
 {

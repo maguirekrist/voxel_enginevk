@@ -10,8 +10,8 @@ add_executable(vulkan_guide
     vk_initializers.cpp
     vk_initializers.h
     sdl_utils.h
-    vk_mesh.h
-    vk_mesh.cpp
+        vk_vertex.h
+        vk_vertex.cpp
     camera.h
     camera.cpp
         game/world.h
@@ -64,6 +64,14 @@ add_executable(vulkan_guide
         world/thread_pool.h
         world/neighbor_barrier.cpp
         world/neighbor_barrier.h
+        render/staging_buffer.cpp
+        render/staging_buffer.h
+        render/mesh_allocator.cpp
+        render/mesh_allocator.h
+        render/material.cpp
+        render/material.h
+        render/mesh.cpp
+        render/mesh.h
 )
 
 

@@ -1,6 +1,6 @@
 #pragma once
+#include "material.h"
 
-#include "vk_mesh.h"
 
 struct PipelineMetadata {
 	bool depthTest = true;

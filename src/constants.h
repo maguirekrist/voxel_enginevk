@@ -5,8 +5,9 @@
 constexpr unsigned int CHUNK_SIZE = 16;
 constexpr unsigned int CHUNK_HEIGHT = 256;
 constexpr unsigned int MAX_LIGHT_LEVEL = 15;
-
 constexpr unsigned int SEA_LEVEL = 62;
+
+constexpr unsigned int TOTAL_BLOCKS_IN_CHUNK = CHUNK_SIZE * CHUNK_SIZE * CHUNK_HEIGHT;
 
 //number is in chunks away from player position.
 namespace GameConfig

@@ -50,7 +50,7 @@ public:
 
 private:
     void initialize_map(MapRange mapRange);
-    void schedule_generate(Chunk* chunk, uint32_t gen, MapRange range);
+    void schedule_generate(Chunk* chunk, uint32_t gen);
     void schedule_mesh(Chunk* chunk, uint32_t gen);
 
     bool _initialLoad{true};

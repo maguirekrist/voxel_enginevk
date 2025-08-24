@@ -34,6 +34,7 @@ void Chunk::reset(const ChunkCoord chunkCoord)
 
 void ChunkData::generate()
 {
+    ZoneScopedN("Generate Chunk Data");
     std::vector<float> chunkHeightMap = TerrainGenerator::instance().GenerateHeightMap(position.x, position.y);
     for(int x = 0; x < CHUNK_SIZE; x++)
     {

@@ -81,7 +81,7 @@ void VulkanEngine::init()
 		init_imgui();
 	}
 
-	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily }, m_queueMutex);
+	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily });
 
 	_sceneRenderer.init();
 
@@ -211,7 +211,7 @@ uint32_t VulkanEngine::advance_frame()
 VkCommandBuffer VulkanEngine::begin_recording()
 {
 	//naming it cmd for shorter writing
-	const VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
+	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
 
 	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let Vulkan know that
 	VkCommandBufferBeginInfo cmdBeginInfo = {};
@@ -229,19 +229,16 @@ VkCommandBuffer VulkanEngine::begin_recording()
 void VulkanEngine::draw()
 {
 	ZoneScopedN("RenderFrame");
-	
+
 	uint32_t swapchainImageIndex = advance_frame();
 	_meshManager.unload_garbage();
 	_meshManager.handle_transfers();
-	const VkCommandBuffer cmd = begin_recording();
+	VkCommandBuffer cmd = begin_recording();
 
 	_sceneRenderer.render_scene(cmd, swapchainImageIndex);
 
 	VK_CHECK(vkEndCommandBuffer(cmd));
-	
-
 	submit_queue_present(cmd, swapchainImageIndex);
-
 	//increase the number of frames drawn
 	_frameNumber++;
 }
@@ -270,13 +267,6 @@ void VulkanEngine::submit_queue_present(const VkCommandBuffer pCmd, const uint32
 	submit.commandBufferCount = 1;
 	submit.pCommandBuffers = &pCmd;
 
-	//submit command buffer to the queue and execute it.
-	// _renderFence will now block until the graphic commands finish execution
-	std::unique_lock<std::mutex> lock;
-	if (m_queueMutex)
-	{
-		lock = std::unique_lock(*m_queueMutex);
-	}
 	VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
 
 	// this will put the image we just rendered into the visible window.
@@ -310,8 +300,6 @@ void VulkanEngine::run()
 		_lastFrameTime = now;
 
 		handle_input();
-
-
 
 		_sceneRenderer.get_current_scene()->update(_deltaTime);
 
@@ -372,6 +360,7 @@ void VulkanEngine::init_vulkan()
 	_gpuProperties = vkbDevice.physical_device.properties;
 
 	std::println("The GPU has a minimum buffer alignment of {}", _gpuProperties.limits.minUniformBufferOffsetAlignment);
+	//std::println("The GPU has a nonCoherentAtomSize of {}", _gpuProperties.limits.nonCoherentAtomSize);
 
 	auto queue_families = vkbDevice.queue_families;
 
@@ -392,7 +381,6 @@ void VulkanEngine::init_vulkan()
 	} else {
 		_transferQueue = _graphicsQueue;
 		_transferQueueFamily = _graphicsQueueFamily;
-		m_queueMutex = std::make_shared<std::mutex>();
 	}
 
 	VmaAllocatorCreateInfo allocatorInfo = {};

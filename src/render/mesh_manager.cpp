@@ -1,17 +1,15 @@
 #include "mesh_manager.h"
 #include <vk_initializers.h>
 #include <tracy/Tracy.hpp>
-#include <vk_util.h>
 #include <tiny_obj_loader.h>
 
 #include "vk_engine.h"
 
-void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamily& queue, std::shared_ptr<std::mutex> pMutex)
+void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamily& queue)
 {
 	m_device = device;
 	m_allocator = allocator;
 	m_transferQueue = queue;
-	m_queueMutex = std::move(pMutex);
 
 	VkFenceCreateInfo uploadCreateInfo = vkinit::fence_create_info();
 
@@ -25,6 +23,8 @@ void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamil
 	//allocate the default command buffer that we will use for the instant commands
 	VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(m_uploadContext._commandPool, 1);
 	VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_uploadContext._commandBuffer));
+
+	m_stagingBuffer = std::make_unique<StagingBuffer>(m_allocator);
 
 	//Start transfer thread
 	//m_transferThread = std::thread(&MeshManager::handle_transfers, this);
@@ -40,6 +40,7 @@ void MeshManager::cleanup()
 
 void MeshManager::unload_garbage()
 {
+	ZoneScopedN("Handle Unload Meshes");
 	std::shared_ptr<Mesh> unloadMesh;
 	while(UnloadQueue.try_dequeue(unloadMesh))
 	{
@@ -47,54 +48,54 @@ void MeshManager::unload_garbage()
 	}
 }
 
-void MeshManager::upload_mesh(std::shared_ptr<Mesh>&& mesh) const
-{
-	AllocatedBuffer vertexStagingBuffer = vkutil::create_buffer(m_allocator, mesh->_vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-	AllocatedBuffer indexStagingBuffer = vkutil::create_buffer(m_allocator, mesh->_indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-
-	//copy vertex data
-	void* vertexData;
-	vmaMapMemory(m_allocator, vertexStagingBuffer._allocation, &vertexData);
-	memcpy(vertexData, mesh->_vertices.data(), mesh->_vertices.size() * sizeof(Vertex));
-	vmaUnmapMemory(m_allocator, vertexStagingBuffer._allocation);
-
-	void* indexData;
-	vmaMapMemory(m_allocator, indexStagingBuffer._allocation, &indexData);
-	memcpy(indexData, mesh->_indices.data(), mesh->_indices.size() * sizeof(uint32_t));
-	vmaUnmapMemory(m_allocator, indexStagingBuffer._allocation);
-
-	mesh->_vertexBuffer = vkutil::create_buffer(m_allocator, mesh->_vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-	mesh->_indexBuffer = vkutil::create_buffer(m_allocator, mesh->_indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-
-	immediate_submit([=](VkCommandBuffer cmd) {
-		VkBufferCopy copy;
-		copy.dstOffset = 0;
-		copy.srcOffset = 0;
-		copy.size = mesh->_vertices.size() * sizeof(Vertex);
-		vkCmdCopyBuffer(cmd, vertexStagingBuffer._buffer, mesh->_vertexBuffer._buffer, 1, &copy);
-	});
-
-	immediate_submit([=](VkCommandBuffer cmd) {
-		VkBufferCopy copy;
-		copy.dstOffset = 0;
-		copy.srcOffset = 0;
-		copy.size = mesh->_indices.size() * sizeof(uint32_t);
-		vkCmdCopyBuffer(cmd, indexStagingBuffer._buffer,mesh->_indexBuffer._buffer, 1, &copy);
-	});
-
-	vmaDestroyBuffer(m_allocator, vertexStagingBuffer._buffer, vertexStagingBuffer._allocation);
-	vmaDestroyBuffer(m_allocator, indexStagingBuffer._buffer, indexStagingBuffer._allocation);
-
-	mesh->_isActive.store(true);
-	//std::println("MeshManager::upload_mesh()");
-}
+// void MeshManager::upload_mesh(std::shared_ptr<Mesh>&& mesh) const
+// {
+// 	ZoneScopedN("upload_mesh");
+// 	AllocatedBuffer vertexStagingBuffer = vkutil::create_buffer(m_allocator, mesh->_vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+// 	AllocatedBuffer indexStagingBuffer = vkutil::create_buffer(m_allocator, mesh->_indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+//
+// 	//copy vertex data
+// 	void* vertexData;
+// 	vmaMapMemory(m_allocator, vertexStagingBuffer._allocation, &vertexData);
+// 	memcpy(vertexData, mesh->_vertices.data(), mesh->_vertices.size() * sizeof(Vertex));
+// 	vmaUnmapMemory(m_allocator, vertexStagingBuffer._allocation);
+//
+// 	void* indexData;
+// 	vmaMapMemory(m_allocator, indexStagingBuffer._allocation, &indexData);
+// 	memcpy(indexData, mesh->_indices.data(), mesh->_indices.size() * sizeof(uint32_t));
+// 	vmaUnmapMemory(m_allocator, indexStagingBuffer._allocation);
+//
+// 	mesh->_vertexBuffer = vkutil::create_buffer(m_allocator, mesh->_vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+// 	mesh->_indexBuffer = vkutil::create_buffer(m_allocator, mesh->_indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+//
+// 	immediate_submit([&mesh, indexStagingBuffer, vertexStagingBuffer](VkCommandBuffer cmd) {
+// 		VkBufferCopy copy;
+// 		copy.dstOffset = 0;
+// 		copy.srcOffset = 0;
+// 		copy.size = mesh->_vertices.size() * sizeof(Vertex);
+// 		vkCmdCopyBuffer(cmd, vertexStagingBuffer._buffer, mesh->_vertexBuffer._buffer, 1, &copy);
+//
+// 		VkBufferCopy index_copy;
+// 		index_copy.dstOffset = 0;
+// 		index_copy.srcOffset = 0;
+// 		index_copy.size = mesh->_indices.size() * sizeof(uint32_t);
+// 		vkCmdCopyBuffer(cmd, indexStagingBuffer._buffer,mesh->_indexBuffer._buffer, 1, &index_copy);
+// 	});
+//
+// 	vmaDestroyBuffer(m_allocator, vertexStagingBuffer._buffer, vertexStagingBuffer._allocation);
+// 	vmaDestroyBuffer(m_allocator, indexStagingBuffer._buffer, indexStagingBuffer._allocation);
+//
+// 	mesh->_isActive.store(true, std::memory_order::release);
+// 	//std::println("MeshManager::upload_mesh()");
+// }
 
 void MeshManager::unload_mesh(std::shared_ptr<Mesh>&& mesh) const
 {
-	std::unique_lock unique(*m_queueMutex);
-	mesh->_isActive.store(false, std::memory_order_seq_cst);
-	vmaDestroyBuffer(m_allocator, mesh->_vertexBuffer._buffer, mesh->_vertexBuffer._allocation);
-	vmaDestroyBuffer(m_allocator, mesh->_indexBuffer._buffer, mesh->_indexBuffer._allocation);
+	ZoneScopedN("unload_mesh()");
+	// vmaDestroyBuffer(m_allocator, mesh->_vertexBuffer._buffer, mesh->_vertexBuffer._allocation);
+	// vmaDestroyBuffer(m_allocator, mesh->_indexBuffer._buffer, mesh->_indexBuffer._allocation);
+	m_stagingBuffer->m_meshAllocator.free(mesh->_allocation);
+	mesh->_isActive.store(false, std::memory_order::release);
 }
 
 //TODO: Re-implement tiny-obj uploads?
@@ -176,14 +177,8 @@ void MeshManager::immediate_submit(std::function<void(VkCommandBuffer cmd)> &&fu
 
 	VkSubmitInfo submit = vkinit::submit_info(&cmd);
 
-
 	//submit command buffer to the queue and execute it.
 	// _uploadFence will now block until the graphic commands finish execution
-	std::unique_lock<std::mutex> lock;
-	if (m_queueMutex)
-	{
-		lock = std::unique_lock(*m_queueMutex);
-	}
 	VK_CHECK(vkQueueSubmit(m_transferQueue._queue, 1, &submit, m_uploadContext._uploadFence));
 
 	vkWaitForFences(m_device, 1, &m_uploadContext._uploadFence, true, 9999999999);
@@ -195,11 +190,15 @@ void MeshManager::immediate_submit(std::function<void(VkCommandBuffer cmd)> &&fu
 
 void MeshManager::handle_transfers()
 {
-	ZoneScopedN("Handle Unload and Upload meshes");
-
+	ZoneScopedN("Handle Upload meshes");
+	m_stagingBuffer->begin_recording();
 	std::shared_ptr<Mesh> uploadMesh;
 	while (UploadQueue.try_dequeue(uploadMesh))
 	{
-		upload_mesh(std::move(uploadMesh));
+		m_stagingBuffer->upload_mesh(std::move(uploadMesh));
 	}
+
+	immediate_submit(m_stagingBuffer->build_submission());
+
+	m_stagingBuffer->end_recording();
 }

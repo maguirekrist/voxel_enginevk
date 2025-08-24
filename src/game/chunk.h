@@ -1,11 +1,13 @@
 #pragma once
 #include <memory>
-#include <vk_mesh.h>
 #include <constants.h>
 #include <format>
 #include "block.h"
-#include "render/render_primitives.h"
+#include "collections/spare_set.h"
+#include "render/mesh.h"
 
+
+struct RenderObject;
 
 struct ChunkCoord {
     int x, z;
