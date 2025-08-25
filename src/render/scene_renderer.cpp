@@ -128,11 +128,15 @@ void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const std::shared
 
 void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& object)
 {
-	if(object.mesh == nullptr) return;
-	if(!object.mesh->_isActive.load(std::memory_order::acquire))
+	if(object.mesh == nullptr || !object.mesh->allocation)
 	{
 		return;
 	};
+
+	if (object.mesh->allocator == nullptr)
+	{
+		throw std::runtime_error("Mesh allocator is null");
+	}
 
 	//only bind the pipeline if it doesn't match with the already bound one
 	// if (object.material->key != m_lastMaterialKey) {
@@ -211,13 +215,13 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
 	// 	0
 	// );
 
-	VkDeviceSize vbOff = object.mesh->_allocation.slot.vertex_offset;
-	VkDeviceSize ibOff =  object.mesh->_allocation.slot.index_offset;
+	VkDeviceSize vbOff = object.mesh->allocation.slot.vertex_offset;
+	VkDeviceSize ibOff =  object.mesh->allocation.slot.index_offset;
 
-	vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_allocation.allocator->m_vertexBuffer._buffer, &vbOff);
-	vkCmdBindIndexBuffer(cmd, object.mesh->_allocation.allocator->m_indexBuffer._buffer, ibOff, VK_INDEX_TYPE_UINT32);
+	vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->allocator->m_vertexBuffer._buffer, &vbOff);
+	vkCmdBindIndexBuffer(cmd, object.mesh->allocator->m_indexBuffer._buffer, ibOff, VK_INDEX_TYPE_UINT32);
 
-	vkCmdDrawIndexed(cmd,static_cast<uint32_t>(object.mesh->_indices.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(cmd,object.mesh->allocation.indices_size, 1, 0, 0, 0);
 }
 
 void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<RenderObject>& objects)

@@ -15,19 +15,19 @@ ChunkManager::~ChunkManager() = default;
 
 void ChunkManager::update()
 {
-    Chunk* chunk = nullptr;
-    while (_readyChunks.try_dequeue(chunk))
+    ChunkReadyPayload payload{};
+    while (_readyChunks.try_dequeue(payload))
     {
-        chunk->_opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
-                            .mesh = chunk->_meshData->mesh,
-                            .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
-                            .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
-                            .layer = RenderLayer::Opaque
-                        });
-        chunk->_transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
-            .mesh = chunk->_meshData->waterMesh,
+        payload.chunk->_opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
+            .mesh = payload.opaqueMesh,
+            .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
+            .xzPos = glm::ivec2(payload.chunk->_data->position.x, payload.chunk->_data->position.y),
+            .layer = RenderLayer::Opaque
+        });
+        payload.chunk->_transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
+            .mesh = payload.transparentMesh,
             .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
-            .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
+            .xzPos = glm::ivec2(payload.chunk->_data->position.x, payload.chunk->_data->position.y),
             .layer = RenderLayer::Transparent
         });
     }
@@ -132,20 +132,23 @@ void ChunkManager::schedule_mesh(Chunk* const chunk, const uint32_t gen)
 
         if (chunk->_gen.load(std::memory_order_acquire) != gen) return;
 
-        if (meshData->mesh->_vertices.empty()) {
+        if (meshData->opaqueMesh._vertices.empty()) {
             // log instead of throw from worker
             std::println("Chunk mesh empty at {}", chunk->_data->coord);
             return;
         }
 
-        chunk->_meshData = std::move(meshData);
+        //chunk->_meshData = std::move(meshData);
         chunk->_state.store(ChunkState::Rendered, std::memory_order_release);
-        _readyChunks.enqueue(chunk);
 
         // Uploads can be posted to a dedicated thread if needed
-        VulkanEngine::instance()._meshManager.UploadQueue.enqueue(chunk->_meshData->mesh);
-        if (!chunk->_meshData->waterMesh->_vertices.empty())
-            VulkanEngine::instance()._meshManager.UploadQueue.enqueue(chunk->_meshData->waterMesh);
+        // VulkanEngine::instance()._meshManager.UploadQueue.enqueue(chunk->_meshData->mesh);
+        auto opaqueRef = VulkanEngine::instance()._meshManager.enqueue_upload(std::move(meshData->opaqueMesh));
+        std::shared_ptr<MeshRef> transparentRef = nullptr;
+        if (!meshData->transparentMesh._vertices.empty())
+            transparentRef = VulkanEngine::instance()._meshManager.enqueue_upload(std::move(meshData->transparentMesh));
+
+        _readyChunks.enqueue(ChunkReadyPayload{ .chunk = chunk, .opaqueMesh = opaqueRef, .transparentMesh = transparentRef});
     });
 }
 

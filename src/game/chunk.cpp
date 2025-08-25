@@ -10,26 +10,28 @@ void Chunk::reset(const ChunkCoord chunkCoord)
     _state = ChunkState::Uninitialized;
     _gen.fetch_add(1, std::memory_order_acq_rel);
 
-    auto old_mesh_data = std::make_shared<ChunkMeshData>();
-    _meshData.swap(old_mesh_data);
+    // auto old_mesh_data = std::make_shared<ChunkMeshData>();
+    // _meshData.swap(old_mesh_data);
 
     VulkanEngine::instance()._opaqueSet.remove(_opaqueHandle);
     VulkanEngine::instance()._transparentSet.remove(_transparentHandle);
     // VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(old_mesh_data->mesh));
     // VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(old_mesh_data->waterMesh));
 
-    _opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
-        .mesh = _meshData->mesh,
-        .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
-        .xzPos = glm::ivec2(_data->position.x, _data->position.y),
-        .layer = RenderLayer::Opaque
-    });
-    _transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
-        .mesh = _meshData->waterMesh,
-        .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
-        .xzPos = glm::ivec2(_data->position.x, _data->position.y),
-        .layer = RenderLayer::Transparent
-    });
+    // _opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
+    //     .mesh = nullptr,
+    //     .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
+    //     .xzPos = glm::ivec2(_data->position.x, _data->position.y),
+    //     .layer = RenderLayer::Opaque
+    // });
+    // _transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
+    //     .mesh = nullptr,
+    //     .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
+    //     .xzPos = glm::ivec2(_data->position.x, _data->position.y),
+    //     .layer = RenderLayer::Transparent
+    // });
+    _opaqueHandle = dev_collections::sparse_set<RenderObject>::null_handle;
+    _transparentHandle = dev_collections::sparse_set<RenderObject>::null_handle;
 }
 
 void ChunkData::generate()
@@ -66,30 +68,36 @@ void ChunkData::generate()
     }
 }
 
-ChunkMeshData::~ChunkMeshData()
-{
-    VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(mesh));
-    VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(waterMesh));
-}
+// ChunkMeshData::~ChunkMeshData()
+// {
+//     VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(opaqueMesh);
+//     VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(transparentMesh);
+// }
 
 Chunk::Chunk(const ChunkCoord coord) :
     _opaqueHandle(),
     _transparentHandle(),
-    _data(std::make_shared<ChunkData>(coord, glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE))),
-    _meshData(std::make_shared<ChunkMeshData>())
+    _data(std::make_shared<ChunkData>(coord, glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE)))
+    // _meshData(std::make_shared<ChunkMeshData>())
 {
-    _opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
-        .mesh = _meshData->mesh,
-        .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
-        .xzPos = glm::ivec2(_data->position.x, _data->position.y),
-        .layer = RenderLayer::Opaque
-    });
-    _transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
-        .mesh = _meshData->waterMesh,
-        .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
-        .xzPos = glm::ivec2(_data->position.x, _data->position.y),
-        .layer = RenderLayer::Transparent
-    });
+    // _opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(
+    //     RenderObject{
+    //         .mesh = nullptr,
+    //         .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
+    //         .xzPos = glm::ivec2(_data->position.x, _data->position.y),
+    //         .layer = RenderLayer::Opaque
+    //     }
+    // );
+    // _transparentHandle = VulkanEngine::instance()._transparentSet.insert(
+    //     RenderObject{
+    //         .mesh = nullptr,
+    //         .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
+    //         .xzPos = glm::ivec2(_data->position.x, _data->position.y),
+    //         .layer = RenderLayer::Transparent
+    //     }
+    // );
+    _opaqueHandle = dev_collections::sparse_set<RenderObject>::null_handle;
+    _transparentHandle = dev_collections::sparse_set<RenderObject>::null_handle;
 }
 
 Chunk::~Chunk()

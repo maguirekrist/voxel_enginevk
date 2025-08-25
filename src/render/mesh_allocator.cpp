@@ -4,7 +4,7 @@
 
 #include "mesh_allocator.h"
 #include "vk_util.h"
-#include "mesh.h"
+#include "utils/logging_utils.h"
 
 MeshAllocator::MeshAllocator(VmaAllocator allocator) : m_free_list(CAPACITY), m_allocator(allocator)
 {
@@ -15,6 +15,8 @@ MeshAllocator::MeshAllocator(VmaAllocator allocator) : m_free_list(CAPACITY), m_
     {
         m_free_list[i] = i;
     }
+
+    std::println("MeshAllocator - Vertex Buffer Size: {}, Index Buffer Size: {}", bytes_to_mb_string(VERTEX_BUFFER_SIZE), bytes_to_mb_string(INDEX_BUFFER_SIZE));
 }
 
 MeshAllocator::~MeshAllocator()

@@ -2,13 +2,12 @@
 // Created by Maguire Krist on 8/23/25.
 //
 
-#include "mesh.h"
-
+#include "mesh_payload.h"
 #include "game/block.h"
 
-std::shared_ptr<Mesh> Mesh::create_cube_mesh()
+std::shared_ptr<MeshPayload> MeshPayload::create_cube_mesh()
 {
-    auto cubeMesh = std::make_shared<Mesh>();
+    auto cubeMesh = std::make_shared<MeshPayload>();
 
     for (auto face : faceDirections)
     {
@@ -32,9 +31,9 @@ std::shared_ptr<Mesh> Mesh::create_cube_mesh()
     return cubeMesh;
 }
 
-std::shared_ptr<Mesh> Mesh::create_quad_mesh()
+std::shared_ptr<MeshPayload> MeshPayload::create_quad_mesh()
 {
-    auto quadMesh = std::make_shared<Mesh>();
+    auto quadMesh = std::make_shared<MeshPayload>();
 
     // Define the four vertices of the quad in normalized coordinates
     // You can adjust the position values to scale the quad if needed.

@@ -164,7 +164,7 @@ void GameScene::draw_imgui()
 	ImGui::Render();
 }
 
-void GameScene::draw_debug_map()
+void GameScene::draw_debug_map() const
 {
 	ImGui::Begin("Chunk Debug");
 
@@ -211,7 +211,7 @@ void GameScene::draw_debug_map()
 						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 255, 255));
 						break;
 					case ChunkState::Rendered:
-						if (chunk->_meshData->mesh->_isActive.load(std::memory_order::acquire) == true)
+						if constexpr (true)
 						{
 							ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 0, 255));
 						} else

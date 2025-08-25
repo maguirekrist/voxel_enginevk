@@ -5,7 +5,7 @@
 #ifndef STAGING_BUFFER_H
 #define STAGING_BUFFER_H
 #include "constants.h"
-#include "mesh.h"
+#include "mesh_payload.h"
 #include "mesh_allocator.h"
 
 constexpr size_t APPROXIMATE_VERTEX_BUFFER_SIZE = GameConfig::DEFAULT_VIEW_DISTANCE * TOTAL_BLOCKS_IN_CHUNK * 8 * sizeof(Vertex);
@@ -15,8 +15,8 @@ constexpr size_t APPROXIMATE_BUFFER_SIZE = APPROXIMATE_INDEX_BUFFER_SIZE + APPRO
 
 struct UploadHandle
 {
-    std::shared_ptr<Mesh> mesh;
-
+    //MeshPayload payload;
+    MeshAllocation allocation;
     VkDeviceSize vertexOffset = 0;
     VkDeviceSize vertexSize = 0;
     VkDeviceSize indexOffset = 0;
@@ -30,7 +30,7 @@ public:
     ~StagingBuffer();
 
     void begin_recording();
-    void upload_mesh(std::shared_ptr<Mesh>&& mesh);
+    void upload_mesh(MeshPayload&& mesh);
     [[nodiscard]] std::function<void(VkCommandBuffer cmd)> build_submission() const;
     void end_recording();
 
@@ -46,10 +46,15 @@ private:
     AllocatedBuffer m_stagingBuffer{};
     std::vector<UploadHandle> m_uploadHandles{};
 
-    uint64_t m_v_total_size = 0;
-    uint64_t m_i_total_size = 0;
-    uint32_t m_v_total_count = 0;
-    uint32_t m_i_total_count = 0;
+    uint32_t min_v_size = std::numeric_limits<uint32_t>::min();
+    uint32_t min_i_size = std::numeric_limits<uint32_t>::min();
+    uint32_t max_v_size = std::numeric_limits<uint32_t>::max();
+    uint32_t max_i_size = std::numeric_limits<uint32_t>::max();
+
+    // uint64_t m_v_total_size = 0;
+    // uint64_t m_i_total_size = 0;
+    // uint32_t m_v_total_count = 0;
+    // uint32_t m_i_total_count = 0;
 };
 
 

@@ -70,8 +70,10 @@ add_executable(vulkan_guide
         render/mesh_allocator.h
         render/material.cpp
         render/material.h
-        render/mesh.cpp
-        render/mesh.h
+        render/mesh_payload.cpp
+        render/mesh_payload.h
+        utils/logging_utils.h
+        render/render_primitives.cpp
 )
 
 

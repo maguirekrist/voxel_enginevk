@@ -18,7 +18,7 @@ public:
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
     void draw_imgui() override;
-    void draw_debug_map();
+    void draw_debug_map() const;
     void draw_debug_cache();
 private:
     struct CameraUBO {

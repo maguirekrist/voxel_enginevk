@@ -53,14 +53,14 @@ void BlueprintBuilderScene::draw_imgui()
 
 void BlueprintBuilderScene::build_chunk_platform(ChunkCoord coord)
 {
-    auto quadMesh = Mesh::create_quad_mesh();
+    auto quadMesh = MeshPayload::create_quad_mesh();
 
-    auto chunkPlatform = std::make_shared<RenderObject>(
-        std::move(quadMesh),
-        VulkanEngine::instance()._materialManager.get_material("grid"),
-        glm::ivec2(coord.x,coord.z),
-        RenderLayer::Opaque
-    );
+    // auto chunkPlatform = std::make_shared<RenderObject>(
+    //     std::move(quadMesh),
+    //     VulkanEngine::instance()._materialManager.get_material("grid"),
+    //     glm::ivec2(coord.x,coord.z),
+    //     RenderLayer::Opaque
+    // );
 }
 
 void BlueprintBuilderScene::set_grid_uniform()

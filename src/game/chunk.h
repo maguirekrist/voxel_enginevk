@@ -4,8 +4,7 @@
 #include <format>
 #include "block.h"
 #include "collections/spare_set.h"
-#include "render/mesh.h"
-
+#include "render/mesh_allocator.h"
 
 struct RenderObject;
 
@@ -89,19 +88,17 @@ struct ChunkData
     void generate();
 };
 
-struct ChunkMeshData
-{
-    std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
-    std::shared_ptr<Mesh> waterMesh = std::make_shared<Mesh>();
-
-    ~ChunkMeshData();
-};
+// struct ChunkMeshData
+// {
+//     MeshAllocation opaqueMesh;
+//     MeshAllocation transparentMesh;
+//
+//     ~ChunkMeshData();
+// };
 
 class Chunk {
 public:
     std::shared_ptr<ChunkData> _data;
-    std::shared_ptr<ChunkMeshData> _meshData;
-
     dev_collections::sparse_set<RenderObject>::Handle _opaqueHandle;
     dev_collections::sparse_set<RenderObject>::Handle _transparentHandle;
     std::atomic_uint32_t _gen;
@@ -113,11 +110,6 @@ public:
 
     glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
     void reset(ChunkCoord chunkCoord);
-
-    // static ChunkView to_view(const Chunk& chunk) noexcept
-    // {
-    //     return { chunk._blocks, chunk._position };
-    // }
 
     static constexpr bool is_outside_chunk(const glm::ivec3& localPos)
     {

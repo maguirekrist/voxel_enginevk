@@ -31,7 +31,16 @@ namespace dev_collections
         {
             int id;
             int generation;
+
+            [[nodiscard]] bool operator==(const Handle& other) const noexcept
+            {
+                return id == other.id && generation == other.generation;
+            }
+
+            explicit constexpr operator bool() const noexcept { return id != -1; }
+            static constexpr Handle null() noexcept { return { -1, 0 } ; }
         };
+        inline static constexpr Handle null_handle = Handle::null();
 
         T* get(Handle h);
         const T* get(Handle h) const;

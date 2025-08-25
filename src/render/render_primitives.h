@@ -2,8 +2,9 @@
 
 #include <vk_types.h>
 #include <collections/spare_set.h>
+#include "mesh_allocator.h"
 
-struct Mesh;
+struct MeshPayload;
 struct Material;
 
 enum class RenderLayer {
@@ -16,11 +17,14 @@ struct ObjectPushConstants {
 };
 
 struct RenderObject {
-    std::shared_ptr<Mesh> mesh;
+    std::shared_ptr<MeshRef> mesh;
     std::shared_ptr<Material> material;
     glm::ivec2 xzPos;
     RenderLayer layer;
-    dev_collections::sparse_set<RenderObject>::Handle handle;
+
+    //dev_collections::sparse_set<RenderObject>::Handle handle;
+
+    ~RenderObject();
 };
 
 struct PushConstant {

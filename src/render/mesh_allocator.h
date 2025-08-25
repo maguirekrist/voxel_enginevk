@@ -12,6 +12,7 @@ struct MeshSlot
     VkDeviceSize index_offset;
 };
 
+
 class MeshAllocator {
 public:
 
@@ -28,8 +29,8 @@ private:
     std::vector<int32_t> m_free_list;
     VmaAllocator m_allocator;
 
-    inline static constexpr VkDeviceSize VERTEX_SLAB_SIZE = 200000; //2 mb
-    inline static constexpr VkDeviceSize INDEX_SLAB_SIZE = 200000; //2 mb
+    inline static constexpr VkDeviceSize VERTEX_SLAB_SIZE =  200000; //2 mb
+    inline static constexpr VkDeviceSize INDEX_SLAB_SIZE  =  100000; //2 mb
 
     inline static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = VERTEX_SLAB_SIZE * CAPACITY;
     inline static constexpr VkDeviceSize INDEX_BUFFER_SIZE = INDEX_SLAB_SIZE * CAPACITY;
@@ -41,10 +42,23 @@ struct MeshAllocation
 {
     MeshSlot slot{};
     int32_t slot_index = -1;
+    uint32_t indices_size = 0;
     uint32_t gen = 0;
     VkDeviceSize slab_size = 0;
+    bool is_active = false;
     MeshAllocator* allocator = nullptr;
+
+    explicit constexpr operator bool() const noexcept { return slot_index != -1; }
+    // bool operator==(const MeshAllocation& other) const noexcept { return slot_index == other.slot_index; }
+    // bool operator!=(const MeshAllocation& other) const noexcept { return !(*this == other); }
+
+    static constexpr MeshAllocation null() noexcept { return MeshAllocation{}; }
 };
 
+struct MeshRef
+{
+    MeshAllocation allocation{};
+    MeshAllocator* allocator = nullptr;
+};
 
 #endif //MESH_ALLOCATOR_H

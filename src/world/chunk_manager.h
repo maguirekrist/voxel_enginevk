@@ -36,6 +36,13 @@ struct MapRange
     }
 };
 
+struct ChunkReadyPayload
+{
+    Chunk* chunk;
+    std::shared_ptr<MeshRef> opaqueMesh;
+    std::shared_ptr<MeshRef> transparentMesh;
+};
+
 class ChunkManager {
 public:
     std::unique_ptr<ChunkCache> m_chunkCache;
@@ -59,7 +66,7 @@ private:
     ChunkCoord _lastPlayerChunk = {0, 0};
     MapRange _mapRange{};
 
-    moodycamel::BlockingConcurrentQueue<Chunk*> _readyChunks;
+    moodycamel::BlockingConcurrentQueue<ChunkReadyPayload> _readyChunks;
 
     ThreadPool _threadPool{4};
     NeighborBarrier _neighborBarrier;

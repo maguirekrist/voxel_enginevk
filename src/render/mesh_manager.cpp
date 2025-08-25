@@ -41,10 +41,10 @@ void MeshManager::cleanup()
 void MeshManager::unload_garbage()
 {
 	ZoneScopedN("Handle Unload Meshes");
-	std::shared_ptr<Mesh> unloadMesh;
+	MeshAllocation unloadMesh{};
 	while(UnloadQueue.try_dequeue(unloadMesh))
 	{
-		unload_mesh(std::move(unloadMesh));
+		unload_mesh(unloadMesh);
 	}
 }
 
@@ -89,13 +89,11 @@ void MeshManager::unload_garbage()
 // 	//std::println("MeshManager::upload_mesh()");
 // }
 
-void MeshManager::unload_mesh(std::shared_ptr<Mesh>&& mesh) const
+void MeshManager::unload_mesh(MeshAllocation mesh_allocation) const
 {
 	ZoneScopedN("unload_mesh()");
-	// vmaDestroyBuffer(m_allocator, mesh->_vertexBuffer._buffer, mesh->_vertexBuffer._allocation);
-	// vmaDestroyBuffer(m_allocator, mesh->_indexBuffer._buffer, mesh->_indexBuffer._allocation);
-	m_stagingBuffer->m_meshAllocator.free(mesh->_allocation);
-	mesh->_isActive.store(false, std::memory_order::release);
+	m_stagingBuffer->m_meshAllocator.free(mesh_allocation);
+	mesh_allocation.is_active = false;
 }
 
 //TODO: Re-implement tiny-obj uploads?
@@ -192,7 +190,7 @@ void MeshManager::handle_transfers()
 {
 	ZoneScopedN("Handle Upload meshes");
 	m_stagingBuffer->begin_recording();
-	std::shared_ptr<Mesh> uploadMesh;
+	MeshPayload uploadMesh;
 	while (UploadQueue.try_dequeue(uploadMesh))
 	{
 		m_stagingBuffer->upload_mesh(std::move(uploadMesh));
@@ -201,4 +199,18 @@ void MeshManager::handle_transfers()
 	immediate_submit(m_stagingBuffer->build_submission());
 
 	m_stagingBuffer->end_recording();
+}
+
+std::shared_ptr<MeshRef> MeshManager::enqueue_upload(MeshPayload&& mesh)
+{
+	auto ref = std::make_shared<MeshRef>();
+	ref->allocator = &m_stagingBuffer->m_meshAllocator;
+	mesh._mesh = ref;
+	UploadQueue.enqueue(std::move(mesh));
+	return ref;
+}
+
+void MeshManager::enqueue_unload(MeshAllocation mesh_allocation)
+{
+	UnloadQueue.enqueue(mesh_allocation);
 }
