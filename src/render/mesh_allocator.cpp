@@ -35,7 +35,7 @@ MeshAllocation MeshAllocator::acquire()
 
     //latest free_index
     auto slot = get_slot(free_index);
-    return MeshAllocation{ .slot = slot, .slot_index = free_index, .gen = 0, .slab_size = VERTEX_SLAB_SIZE, .allocator = this };
+    return MeshAllocation{ .slot = slot, .slot_index = free_index, .slab_size = VERTEX_SLAB_SIZE, .allocator = this };
 }
 
 void MeshAllocator::free(MeshAllocation allocation)

@@ -53,9 +53,10 @@ void StagingBuffer::upload_mesh(std::shared_ptr<Mesh>&& mesh)
     m_i_total_count += 1;
     m_i_total_size += i_size;
 
-    std::println("average v size: {}", m_v_total_size / m_v_total_count);
-    std::println("average i size: {}", m_i_total_size / m_i_total_count);
+    // std::println("average v size: {}", m_v_total_size / m_v_total_count);
+    // std::println("average i size: {}", m_i_total_size / m_i_total_count);
 
+    allocation.indices_size = static_cast<uint32_t>(mesh->_indices.size());
     mesh->_allocation = allocation;
 
     m_uploadHandles.emplace_back(
@@ -87,6 +88,8 @@ std::function<void(VkCommandBuffer cmd)> StagingBuffer::build_submission() const
             vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer,m_meshAllocator.m_indexBuffer._buffer, 1, &index_copy);
 
             handle.mesh->_isActive.store(true, std::memory_order::relaxed);
+            handle.mesh->_indices = {};
+            handle.mesh->_vertices = {};
         }
     };
 }
