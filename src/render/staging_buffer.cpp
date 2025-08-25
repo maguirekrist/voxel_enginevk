@@ -59,6 +59,10 @@ void StagingBuffer::upload_mesh(std::shared_ptr<Mesh>&& mesh)
     allocation.indices_size = static_cast<uint32_t>(mesh->_indices.size());
     mesh->_allocation = allocation;
 
+    //Clear out mesh memory
+    mesh->_indices = std::vector<uint32_t>();
+    mesh->_vertices = std::vector<Vertex>();
+
     m_uploadHandles.emplace_back(
         mesh,
         vertex_offset,
@@ -88,8 +92,6 @@ std::function<void(VkCommandBuffer cmd)> StagingBuffer::build_submission() const
             vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer,m_meshAllocator.m_indexBuffer._buffer, 1, &index_copy);
 
             handle.mesh->_isActive.store(true, std::memory_order::relaxed);
-            // handle.mesh->_indices = {};
-            // handle.mesh->_vertices = {};
         }
     };
 }
