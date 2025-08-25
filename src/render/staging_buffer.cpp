@@ -88,8 +88,8 @@ std::function<void(VkCommandBuffer cmd)> StagingBuffer::build_submission() const
             vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer,m_meshAllocator.m_indexBuffer._buffer, 1, &index_copy);
 
             handle.mesh->_isActive.store(true, std::memory_order::relaxed);
-            handle.mesh->_indices = {};
-            handle.mesh->_vertices = {};
+            // handle.mesh->_indices = {};
+            // handle.mesh->_vertices = {};
         }
     };
 }
