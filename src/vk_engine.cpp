@@ -196,7 +196,7 @@ uint32_t VulkanEngine::advance_frame()
 	uint32_t swapchainImageIndex;
 	{
 		ZoneScopedN("Request Image");
-		VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex));
+		VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex));
 	}
 
 	{

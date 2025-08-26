@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <barrier>
 #include <bitset>
+#include <print>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>

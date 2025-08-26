@@ -2,7 +2,7 @@
 #include <vk_engine.h>
 #include <FastNoise/FastNoise.h>
 
-#define TRACY_MEM_ENABLE 1
+#define TRACY_MEM_ENABLE 0
 
 #if TRACY_MEM_ENABLE
   #include <tracy/Tracy.hpp>
