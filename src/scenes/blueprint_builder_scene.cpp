@@ -51,6 +51,14 @@ void BlueprintBuilderScene::draw_imgui()
 {
 }
 
+void BlueprintBuilderScene::rebuild_pipelines()
+{
+}
+
+void BlueprintBuilderScene::build_pipelines()
+{
+}
+
 void BlueprintBuilderScene::build_chunk_platform(ChunkCoord coord)
 {
     auto quadMesh = Mesh::create_quad_mesh();

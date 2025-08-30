@@ -22,7 +22,7 @@ std::shared_ptr<Material> MaterialManager::get_material(const std::string &name)
 
 void MaterialManager::cleanup()
 {
-	for(auto it = m_materials.begin(); it != m_materials.end(); ) {
+	for(auto it = m_materials.begin(); it != m_materials.end();) {
 		auto& material = *it->second;
 		vkDestroyPipeline(VulkanEngine::instance()._device, material.pipeline, nullptr);
 		vkDestroyPipelineLayout(VulkanEngine::instance()._device, material.pipelineLayout, nullptr);
@@ -160,14 +160,16 @@ void MaterialManager::build_graphics_pipeline(
 	VkPipeline meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, render_pass);
 
 
-	m_materials.emplace(name, std::make_shared<Material>(Material {
+	auto new_material = Material{
 		.key = name,
 		.pipeline = meshPipeline,
 		.pipelineLayout = pipelineLayout,
 		.descriptorSets = descriptorSets,
 		.resources = resources,
-		.pushConstants = pConstants }
-	));
+		.pushConstants = pConstants
+	};
+
+	add_material(name, std::move(new_material));
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, fragmentShader, nullptr);
 	vkDestroyShaderModule(VulkanEngine::instance()._device, vertexShader, nullptr);
@@ -242,12 +244,15 @@ void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUb
 		throw std::runtime_error("Failed to create compute pipeline!");
 	}
 
-	m_materials.emplace("compute", std::make_shared<Material>(Material {
+	auto new_material = Material{
 		.pipeline = computePipeline,
 		.pipelineLayout = computePipelineLayout,
 		.descriptorSets = { colorImageSet, depthImageSet, fogSet },
 		.resources = { fogUboBuffer },
-		.pushConstants = {}}));
+		.pushConstants = {} };
+
+	/*m_materials.emplace("compute", std::make_shared<Material>());*/
+	add_material("compute", std::move(new_material));
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, computeShaderModule, nullptr);
 }
@@ -345,15 +350,29 @@ void MaterialManager::build_present_pipeline()
 	//create_material(meshPipeline, meshPipelineLayout, "present");
 	VkDescriptorSet descriptors[] = { VulkanEngine::instance()._sampledImageSet };
 
-	m_materials.emplace("present", std::make_shared<Material>(Material {
+	auto new_material = Material{
 		.key = "present",
 		.pipeline = meshPipeline,
 		.pipelineLayout = meshPipelineLayout,
 		.descriptorSets = { VulkanEngine::instance()._sampledImageSet },
-		.resources = {}}
-	));
+		.resources = {} };
+	add_material("present", std::move(new_material));
 
 	vkDestroyShaderModule(VulkanEngine::instance()._device, fragShader, nullptr);
 	vkDestroyShaderModule(VulkanEngine::instance()._device, vertexShader, nullptr);
+}
+
+void MaterialManager::add_material(const std::string& name, Material&& material)
+{
+	if (m_materials.contains(name))
+	{
+		auto& map = m_materials[name];
+		vkDestroyPipeline(VulkanEngine::instance()._device, map->pipeline, nullptr);
+		vkDestroyPipelineLayout(VulkanEngine::instance()._device, map->pipelineLayout, nullptr);
+		std::swap(*map, material);
+	}
+	else {
+		m_materials.emplace(name, std::make_shared<Material>(material));
+	}
 }
 

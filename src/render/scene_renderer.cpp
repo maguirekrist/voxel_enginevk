@@ -217,7 +217,7 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
 	vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_allocation.allocator->m_vertexBuffer._buffer, &vbOff);
 	vkCmdBindIndexBuffer(cmd, object.mesh->_allocation.allocator->m_indexBuffer._buffer, ibOff, VK_INDEX_TYPE_UINT32);
 
-	vkCmdDrawIndexed(cmd,static_cast<uint32_t>(object.mesh->_indices.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(cmd,object.mesh->_allocation.indices_size, 1, 0, 0, 0);
 }
 
 void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<RenderObject>& objects)

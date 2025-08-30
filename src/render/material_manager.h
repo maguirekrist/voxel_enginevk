@@ -29,4 +29,6 @@ public:
 	
 private:
     std::unordered_map<std::string, std::shared_ptr<Material>> m_materials;
+
+	void add_material(const std::string& name, Material&& material);
 };

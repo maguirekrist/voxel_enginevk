@@ -5,6 +5,9 @@
 #ifndef GAMEOBJECT_H
 #define GAMEOBJECT_H
 #include <atomic>
+#include <array>
+#include <memory>
+#include <stdexcept>
 
 #include "constants.h"
 #include "glm/vec3.hpp"

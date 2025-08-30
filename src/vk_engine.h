@@ -44,6 +44,7 @@ public:
 	bool bFocused = false;
 	bool bQuit = false;
 	bool bUseValidationLayers = USE_VALIDATION_LAYERS;
+	bool bResizeRequest = false;
 	
 	VkInstance _instance;
 	VkDebugUtilsMessengerEXT _debug_messenger;
@@ -105,7 +106,8 @@ public:
 
 	FrameData _frames[FRAME_OVERLAP];
 
-	VkExtent2D _windowExtent{ 1700 , 900 };
+	VkExtent2D _windowExtent{ DEFAULT_WINDOW_WIDTH , DEFAULT_WINDOW_HEIGHT };
+
 
 	struct SDL_Window* _window{ nullptr };
 
@@ -129,6 +131,7 @@ private:
 
 	//Initialize global image resources - required for offscreen image output 
 	void init_offscreen_images();
+	void destroy_offscreen_images();
 
 	//Renderpass Init
 	void init_offscreen_renderpass();
@@ -136,11 +139,16 @@ private:
 
 	//Frame Buffer Init
 	void init_framebuffers();
+	void destroy_framebuffers();
 	void init_offscreen_framebuffers();
+	void destroy_offscreen_framebuffers();
 
 	void init_sync_structures();
 
 	void init_imgui();
+
+	void resize_swapchain();
+	void destroy_swapchain();
 
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only
 };

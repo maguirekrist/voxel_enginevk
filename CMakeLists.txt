@@ -6,6 +6,7 @@ cmake_minimum_required (VERSION 3.8)
 project ("vulkan_guide")
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED true)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_INSTALL_RPATH "/usr/local/lib")
 

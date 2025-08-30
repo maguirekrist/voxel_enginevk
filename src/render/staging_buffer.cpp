@@ -7,6 +7,8 @@ StagingBuffer::StagingBuffer(VmaAllocator vmaAllocator): m_write_head(nullptr), 
     m_stagingBuffer = vkutil::create_buffer(m_allocator, m_capacity, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                             VMA_MEMORY_USAGE_CPU_ONLY);
     m_uploadHandles.reserve(32);
+
+    std::println("Staging Buffer created with size: {} bytes", m_capacity);
 }
 
 StagingBuffer::~StagingBuffer()
@@ -53,10 +55,15 @@ void StagingBuffer::upload_mesh(std::shared_ptr<Mesh>&& mesh)
     m_i_total_count += 1;
     m_i_total_size += i_size;
 
-    std::println("average v size: {}", m_v_total_size / m_v_total_count);
-    std::println("average i size: {}", m_i_total_size / m_i_total_count);
+    // std::println("average v size: {}", m_v_total_size / m_v_total_count);
+    // std::println("average i size: {}", m_i_total_size / m_i_total_count);
 
+    allocation.indices_size = static_cast<uint32_t>(mesh->_indices.size());
     mesh->_allocation = allocation;
+
+    //Clear out mesh memory
+    mesh->_indices = std::vector<uint32_t>();
+    mesh->_vertices = std::vector<Vertex>();
 
     m_uploadHandles.emplace_back(
         mesh,

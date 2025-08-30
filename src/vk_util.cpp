@@ -73,8 +73,7 @@ bool vkutil::load_shader_module(const std::string& filePath, VkDevice device, Vk
 	std::ifstream file(path, std::ios::ate | std::ios::binary);
 
 	if (!file.is_open()) {
-		std::println("Unable to find file at path: {}", path);
-		return false;
+		throw std::runtime_error(std::format("File {}, does not exist.", filePath));
 	}
 
 
@@ -112,8 +111,7 @@ bool vkutil::load_shader_module(const std::string& filePath, VkDevice device, Vk
 	auto result = vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule);
     if (result != VK_SUCCESS)
     {
-        //fmt::println("Could not create shader module Vulkan Error {}", result);
-        return false;
+		throw std::runtime_error(std::format("Could not create shader module for {}", filePath));
     }
 
 	*outShaderModule = shaderModule;

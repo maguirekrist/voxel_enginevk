@@ -15,6 +15,9 @@ MeshAllocator::MeshAllocator(VmaAllocator allocator) : m_free_list(CAPACITY), m_
     {
         m_free_list[i] = i;
     }
+
+    std::println("Mesh Vertex buffer created with size of: {} bytes", VERTEX_BUFFER_SIZE);
+    std::println("Mesh Index buffer created with size of {} bytes", INDEX_BUFFER_SIZE);
 }
 
 MeshAllocator::~MeshAllocator()
@@ -35,7 +38,7 @@ MeshAllocation MeshAllocator::acquire()
 
     //latest free_index
     auto slot = get_slot(free_index);
-    return MeshAllocation{ .slot = slot, .slot_index = free_index, .gen = 0, .slab_size = VERTEX_SLAB_SIZE, .allocator = this };
+    return MeshAllocation{ .slot = slot, .slot_index = free_index, .slab_size = VERTEX_SLAB_SIZE, .allocator = this };
 }
 
 void MeshAllocator::free(MeshAllocation allocation)

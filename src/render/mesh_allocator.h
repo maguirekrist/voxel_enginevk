@@ -41,7 +41,8 @@ struct MeshAllocation
 {
     MeshSlot slot{};
     int32_t slot_index = -1;
-    uint32_t gen = 0;
+    uint32_t indices_size = 0;
+    //uint32_t gen = 0;
     VkDeviceSize slab_size = 0;
     MeshAllocator* allocator = nullptr;
 };
