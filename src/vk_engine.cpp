@@ -127,6 +127,7 @@ void VulkanEngine::handle_input()
 {	
 	SDL_Event e;
 	const Uint8* state = SDL_GetKeyboardState(NULL);
+
 	//Handle events on queue
 	while (SDL_PollEvent(&e) != 0)
 	{
@@ -141,7 +142,8 @@ void VulkanEngine::handle_input()
 				{
 					//TODO: Handle resize
 					std::println("RESIZED!");
-					throw std::runtime_error("RESIZED!");
+					bResizeRequest = true;
+					//throw std::runtime_error("RESIZED!");
 				}
 				break;
 			case SDL_KEYDOWN:
@@ -196,7 +198,14 @@ uint32_t VulkanEngine::advance_frame()
 	uint32_t swapchainImageIndex;
 	{
 		ZoneScopedN("Request Image");
-		VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex));
+		VkResult e = vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
+		if (e == VK_ERROR_OUT_OF_DATE_KHR) {
+			bResizeRequest = true;
+			return 0;
+		}
+		else {
+			VK_CHECK(e);
+		}
 	}
 
 	{
@@ -283,8 +292,12 @@ void VulkanEngine::submit_queue_present(const VkCommandBuffer pCmd, const uint32
 	presentInfo.waitSemaphoreCount = 1;
 
 	presentInfo.pImageIndices = &swapchainImageIndex;
-
-	VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
+	
+	VkResult e = vkQueuePresentKHR(_graphicsQueue, &presentInfo);
+	if (e == VK_ERROR_OUT_OF_DATE_KHR) {
+		bResizeRequest = true;
+		return;
+	}
 }
 
 void VulkanEngine::run()
@@ -302,6 +315,11 @@ void VulkanEngine::run()
 		handle_input();
 
 		_sceneRenderer.get_current_scene()->update(_deltaTime);
+
+		if (bResizeRequest) {
+			resize_swapchain();
+			continue;
+		}
 
 		draw();
 	}
@@ -437,10 +455,10 @@ void VulkanEngine::init_offscreen_images()
 	VkImageView fullscreenImageView;
 	VK_CHECK(vkCreateImageView(_device, &cview_info, nullptr, &fullscreenImageView));
 
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyImageView(_device, fullscreenImageView, nullptr);
-		vmaDestroyImage(_allocator, fullscreenImage._image, fullscreenImage._allocation);
-	});
+	//_mainDeletionQueue.push_function([=, this]() {
+	//	vkDestroyImageView(_device, fullscreenImageView, nullptr);
+	//	vmaDestroyImage(_allocator, fullscreenImage._image, fullscreenImage._allocation);
+	//});
 
 	_fullscreenImage = {
 		.image = fullscreenImage,
@@ -458,10 +476,10 @@ void VulkanEngine::init_offscreen_images()
 	VkImageView depthImageView;
 	VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &depthImageView));
 
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroyImageView(_device, depthImageView, nullptr);
-		vmaDestroyImage(_allocator, depthImage._image, depthImage._allocation);
-	});
+	//_mainDeletionQueue.push_function([=, this]() {
+	//	vkDestroyImageView(_device, depthImageView, nullptr);
+	//	vmaDestroyImage(_allocator, depthImage._image, depthImage._allocation);
+	//});
 
 	_depthImage = {
 		.image = depthImage,
@@ -472,9 +490,18 @@ void VulkanEngine::init_offscreen_images()
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info();
 	VK_CHECK(vkCreateSampler(_device, &samplerInfo, nullptr, &_sampler));
 
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroySampler(_device, _sampler, nullptr);
-	});
+	//_mainDeletionQueue.push_function([=, this]() {
+	//	vkDestroySampler(_device, _sampler, nullptr);
+	//});
+}
+
+void VulkanEngine::destroy_offscreen_images()
+{
+	vkDestroyImageView(_device, _depthImage.view, nullptr);
+	vmaDestroyImage(_allocator, _depthImage.image._image, _depthImage.image._allocation);
+	vkDestroyImageView(_device, _fullscreenImage.view, nullptr);
+	vmaDestroyImage(_allocator, _fullscreenImage.image._image, _fullscreenImage.image._allocation);
+	vkDestroySampler(_device, _sampler, nullptr);
 }
 
 
@@ -686,10 +713,15 @@ void VulkanEngine::init_offscreen_framebuffers()
 
 	vkCreateFramebuffer(_device, &fb_info, nullptr, &_offscreenFramebuffer);
 
-	_mainDeletionQueue.push_function([=, this]() {
+	/*_mainDeletionQueue.push_function([=, this]() {
 		vkDestroyFramebuffer(_device, _offscreenFramebuffer, nullptr);
-	});
+	});*/
 
+}
+
+void VulkanEngine::destroy_offscreen_framebuffers()
+{
+	vkDestroyFramebuffer(_device, _offscreenFramebuffer, nullptr);
 }
 
 void VulkanEngine::init_framebuffers()
@@ -720,10 +752,18 @@ void VulkanEngine::init_framebuffers()
 		fb_info.attachmentCount = 2;
 		VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, &_framebuffers[i]));
 
-		_mainDeletionQueue.push_function([=, this]() {
-			vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
-			vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
-		});
+		//_mainDeletionQueue.push_function([=, this]() {
+		//	vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
+		//	vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
+		//});
+	}
+}
+
+void VulkanEngine::destroy_framebuffers()
+{
+	for (int i = 0; i < _framebuffers.size(); i++) {
+		vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
+		vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
 	}
 }
 
@@ -783,6 +823,37 @@ void VulkanEngine::init_imgui()
 	init_info.Allocator = nullptr;
 
 	ImGui_ImplVulkan_Init(&init_info);
+}
+
+
+void VulkanEngine::destroy_swapchain()
+{
+	vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+}
+
+
+void VulkanEngine::resize_swapchain()
+{
+	vkDeviceWaitIdle(_device);
+
+	destroy_swapchain();
+	destroy_offscreen_images();
+	destroy_framebuffers();
+	destroy_offscreen_framebuffers();
+
+	int w, h;
+	SDL_GetWindowSize(_window, &w, &h);
+	_windowExtent.width = w;
+	_windowExtent.height = h;
+
+	init_swapchain();
+	init_offscreen_images();
+	init_framebuffers();
+	init_offscreen_framebuffers();
+
+	_sceneRenderer.get_current_scene()->rebuild_pipelines();
+
+	bResizeRequest = false;
 }
 
 

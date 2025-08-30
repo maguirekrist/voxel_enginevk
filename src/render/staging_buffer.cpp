@@ -7,6 +7,8 @@ StagingBuffer::StagingBuffer(VmaAllocator vmaAllocator): m_write_head(nullptr), 
     m_stagingBuffer = vkutil::create_buffer(m_allocator, m_capacity, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                             VMA_MEMORY_USAGE_CPU_ONLY);
     m_uploadHandles.reserve(32);
+
+    std::println("Staging Buffer created with size: {} bytes", m_capacity);
 }
 
 StagingBuffer::~StagingBuffer()

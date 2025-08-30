@@ -23,4 +23,7 @@ constexpr bool USE_VALIDATION_LAYERS = true;
 constexpr bool USE_IMGUI = true;
 constexpr int MAX_COMPONENTS = 1;
 
+constexpr int DEFAULT_WINDOW_WIDTH = 1280;
+constexpr int DEFAULT_WINDOW_HEIGHT = 720;
+
 constexpr unsigned int FRAME_OVERLAP = 1;

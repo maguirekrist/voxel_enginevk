@@ -18,6 +18,9 @@ public:
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
     void draw_imgui() override;
+	void rebuild_pipelines() override;
+    void build_pipelines() override;
+
     void draw_debug_map();
     void draw_debug_cache();
 private:

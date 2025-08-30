@@ -1,8 +1,9 @@
 #include "camera.h"
 
-Camera::Camera(const glm::vec3& position) :
+Camera::Camera(const glm::vec3& position, VkExtent2D windowExtent) :
     GameObject(position),
-    _view(glm::mat4(1.0f))
+    _view(glm::mat4(1.0f)),
+    _projection(glm::perspective(glm::radians(70.f), static_cast<float>(windowExtent.width) / windowExtent.height, 0.1f, 10000.0f))
 {
     _projection[1][1] *= -1;
 }
@@ -77,4 +78,10 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, GameObject& 
 
     // No voxel hit within maxDistance
     return std::nullopt;
+}
+
+void Camera::resize(VkExtent2D windowExtent)
+{
+    _projection = glm::perspective(glm::radians(70.f), static_cast<float>(windowExtent.width) / windowExtent.height, 0.1f, 10000.0f);
+	_projection[1][1] *= -1;
 }

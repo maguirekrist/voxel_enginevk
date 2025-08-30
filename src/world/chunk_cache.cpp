@@ -126,6 +126,9 @@ ChunkCache::ChunkCache(const int view_distance, NeighborBarrier& neighbor_barrie
 
     m_origin_buf_x = m_radius;
     m_origin_buf_z = m_radius;
+
+    std::println("Chunk Cache created with {} chunks, totallying to {}", m_chunks.size(), m_chunks.size() * (sizeof(Chunk) + sizeof(ChunkData)));
+    std::println("Size of chunk blocks {}", sizeof(ChunkBlocks));
 }
 
 ChunkCache::~ChunkCache() = default;

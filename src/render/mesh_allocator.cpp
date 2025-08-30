@@ -15,6 +15,9 @@ MeshAllocator::MeshAllocator(VmaAllocator allocator) : m_free_list(CAPACITY), m_
     {
         m_free_list[i] = i;
     }
+
+    std::println("Mesh Vertex buffer created with size of: {} bytes", VERTEX_BUFFER_SIZE);
+    std::println("Mesh Index buffer created with size of {} bytes", INDEX_BUFFER_SIZE);
 }
 
 MeshAllocator::~MeshAllocator()
