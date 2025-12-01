@@ -1,8 +1,8 @@
 #include "chunk.h"
 #include <world/terrain_gen.h>
 #include <tracy/Tracy.hpp>
-
 #include "vk_engine.h"
+#include "structure.h"
 
 void Chunk::reset(const ChunkCoord chunkCoord)
 {
@@ -64,6 +64,24 @@ void ChunkData::generate()
             }
         }
     }
+
+    //TODO: Add trees...
+    //Pick random block in the x/z plane
+    auto randX = Random::generate(0u, CHUNK_SIZE - 1);
+    auto randZ = Random::generate(0u, CHUNK_SIZE - 1);
+    auto heightIndex = (randZ * CHUNK_SIZE) + randX;
+    auto height = chunkHeightMap[heightIndex];
+
+    if (height > SEA_LEVEL)
+    {
+        //Ok build an anchor
+        auto anchor = Anchor{
+            .type = StructureType::TREE,
+            .position = { randX, static_cast<int>(height) + 1, randZ },
+        };
+        //KEEP GOING!
+    }
+
 }
 
 ChunkMeshData::~ChunkMeshData()
