@@ -73,6 +73,46 @@ std::shared_ptr<Scene> SceneRenderer::get_current_scene() const
 
 void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Material>& computeMaterial)
 {
+	// Ensure images from the offscreen pass are properly visible/layouted for compute on MoltenVK
+	// 1) Color image: offscreen render pass stores to GENERAL; make writes visible to compute shader writes
+	// 2) Depth image: transition from attachment to read-only so compute can sample it
+
+	// Barrier for color image (from color attachment writes to compute shader writes)
+	{
+		auto colorBarrier = vkinit::make_image_barrier({
+			.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+			.newLayout = VK_IMAGE_LAYOUT_GENERAL,
+			.image = VulkanEngine::instance()._fullscreenImage.image._image,
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		});
+		vkinit::cmd_image_barrier(
+			cmd,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			colorBarrier
+		);
+	}
+
+	// Barrier for depth image (from depth attachment writes to shader read)
+	{
+		auto depthBarrier = vkinit::make_image_barrier({
+			.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+			.image = VulkanEngine::instance()._depthImage.image._image,
+			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+		});
+		vkinit::cmd_image_barrier(
+			cmd,
+			VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			depthBarrier
+		);
+	}
+
     // Bind the compute pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, computeMaterial->pipeline);
 
@@ -92,34 +132,25 @@ void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Mater
     uint32_t workGroupSizeX = (VulkanEngine::instance()._windowExtent.width + 15) / 16; // Assuming local size of 16 in shader
     uint32_t workGroupSizeY = (VulkanEngine::instance()._windowExtent.height + 15) / 16;
 
-    vkCmdDispatch(cmd, workGroupSizeX, workGroupSizeY, 1);
+	vkCmdDispatch(cmd, workGroupSizeX, workGroupSizeY, 1);
 
-	// Ensure offscreen color image writes are visible and transition layout for sampling on platforms (MoltenVK) that are stricter.
-	VkImageMemoryBarrier imgBarrier{};
-	imgBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER; // correct structure type
-	imgBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; // compute shader wrote to storage image
-	imgBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;  // fragment shader will sample
-	imgBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;        // after offscreen pass + compute
-	// Keep layout GENERAL to match descriptor sets (storage + sampling) without extra transitions.
-	imgBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-	imgBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	imgBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	imgBarrier.image = VulkanEngine::instance()._fullscreenImage.image._image;
-	imgBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	imgBarrier.subresourceRange.baseMipLevel = 0;
-	imgBarrier.subresourceRange.levelCount = 1;
-	imgBarrier.subresourceRange.baseArrayLayer = 0;
-	imgBarrier.subresourceRange.layerCount = 1;
-
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-		0,
-		0, nullptr,
-		0, nullptr,
-		1, &imgBarrier
-	);
+	// Make compute writes visible to fragment sampling of the fullscreen image
+	{
+		auto imgBarrier = vkinit::make_image_barrier({
+			.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+			.newLayout = VK_IMAGE_LAYOUT_GENERAL,
+			.image = VulkanEngine::instance()._fullscreenImage.image._image,
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		});
+		vkinit::cmd_image_barrier(
+			cmd,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			imgBarrier
+		);
+	}
 }
 
 void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const std::shared_ptr<Material>& presentMaterial)

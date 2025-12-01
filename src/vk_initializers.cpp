@@ -388,3 +388,40 @@ VkCommandBufferInheritanceInfo vkinit::init_inheritance_info(VkRenderPass render
     inheritanceInfo.framebuffer = VK_NULL_HANDLE;
     return inheritanceInfo;
 }
+
+// ---- Convenience helpers to reduce verbose image barrier setup ----
+VkImageMemoryBarrier vkinit::make_image_barrier(const ImageBarrierParams& p)
+{
+    VkImageMemoryBarrier b{};
+    b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    b.srcAccessMask = p.srcAccessMask;
+    b.dstAccessMask = p.dstAccessMask;
+    b.oldLayout = p.oldLayout;
+    b.newLayout = p.newLayout;
+    b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.image = p.image;
+    b.subresourceRange.aspectMask = p.aspectMask;
+    b.subresourceRange.baseMipLevel = p.baseMipLevel;
+    b.subresourceRange.levelCount = p.levelCount;
+    b.subresourceRange.baseArrayLayer = p.baseArrayLayer;
+    b.subresourceRange.layerCount = p.layerCount;
+    return b;
+}
+
+void vkinit::cmd_image_barrier(
+    VkCommandBuffer cmd,
+    VkPipelineStageFlags srcStage,
+    VkPipelineStageFlags dstStage,
+    const VkImageMemoryBarrier& barrier)
+{
+    vkCmdPipelineBarrier(
+        cmd,
+        srcStage,
+        dstStage,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier
+    );
+}

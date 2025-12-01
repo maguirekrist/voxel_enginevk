@@ -24,6 +24,19 @@ constexpr bool operator&(ClearFlags lhs, ClearFlags rhs) {
     return (static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs)) != 0;
 }
 
+struct ImageBarrierParams {
+	VkAccessFlags srcAccessMask;
+	VkAccessFlags dstAccessMask;
+	VkImageLayout oldLayout;
+	VkImageLayout newLayout;
+	VkImage image;
+	VkImageAspectFlags aspectMask;
+	uint32_t baseMipLevel = 0;
+	uint32_t levelCount = 1;
+	uint32_t baseArrayLayer = 0;
+	uint32_t layerCount = 1;
+};
+
 namespace vkinit {
 
 	//vulkan init code goes here
@@ -61,5 +74,13 @@ namespace vkinit {
 
 	VkImageCreateInfo image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
 	VkImageViewCreateInfo imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
-}
+	VkImageMemoryBarrier make_image_barrier(const ImageBarrierParams& p);
 
+	void cmd_image_barrier(
+		VkCommandBuffer cmd,
+		VkPipelineStageFlags srcStage,
+		VkPipelineStageFlags dstStage,
+		const VkImageMemoryBarrier& barrier
+	);
+
+}
