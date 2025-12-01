@@ -67,9 +67,10 @@ void ChunkData::generate()
 
     //TODO: Add trees...
     //Pick random block in the x/z plane
-    auto randX = Random::generate(0u, CHUNK_SIZE);
-    auto randZ = Random::generate(0u, CHUNK_SIZE);
-    auto height = chunkHeightMap[(randZ * CHUNK_SIZE) + randX];
+    auto randX = Random::generate(0u, CHUNK_SIZE - 1);
+    auto randZ = Random::generate(0u, CHUNK_SIZE - 1);
+    auto heightIndex = (randZ * CHUNK_SIZE) + randX;
+    auto height = chunkHeightMap[heightIndex];
 
     if (height > SEA_LEVEL)
     {

@@ -5,7 +5,7 @@
 // Structures are a graph of chunks that are connected to each other.
 // They are used to create buildings, rooms, etc.
 #include <vk_types.h>
-#include <aabb.h>
+#include <physics/aabb.h>
 
 enum class StructureType {
 	TREE
