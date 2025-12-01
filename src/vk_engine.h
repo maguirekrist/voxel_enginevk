@@ -104,6 +104,9 @@ public:
 	VkDescriptorSetLayout _sampledImageSetLayout;
 	VkDescriptorSet _sampledImageSet;
 
+	// Per-swapchain-image render-finished semaphores to avoid reuse hazards
+	std::vector<VkSemaphore> _imageRenderFinishedSemaphores; 
+
 	FrameData _frames[FRAME_OVERLAP];
 
 	VkExtent2D _windowExtent{ DEFAULT_WINDOW_WIDTH , DEFAULT_WINDOW_HEIGHT };

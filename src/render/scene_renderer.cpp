@@ -94,21 +94,32 @@ void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Mater
 
     vkCmdDispatch(cmd, workGroupSizeX, workGroupSizeY, 1);
 
-    // Insert a memory barrier to ensure the compute shader has finished executing
-    VkMemoryBarrier memoryBarrier{};
-    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; // Writes in compute shader
-    memoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT; // Reads and writes in subsequent shaders or pipeline stages
+	// Ensure offscreen color image writes are visible and transition layout for sampling on platforms (MoltenVK) that are stricter.
+	VkImageMemoryBarrier imgBarrier{};
+	imgBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER; // correct structure type
+	imgBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; // compute shader wrote to storage image
+	imgBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;  // fragment shader will sample
+	imgBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;        // after offscreen pass + compute
+	// Keep layout GENERAL to match descriptor sets (storage + sampling) without extra transitions.
+	imgBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+	imgBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	imgBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	imgBarrier.image = VulkanEngine::instance()._fullscreenImage.image._image;
+	imgBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imgBarrier.subresourceRange.baseMipLevel = 0;
+	imgBarrier.subresourceRange.levelCount = 1;
+	imgBarrier.subresourceRange.baseArrayLayer = 0;
+	imgBarrier.subresourceRange.layerCount = 1;
 
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, // Source stage
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, // Destination stages
-        0,
-        1, &memoryBarrier,
-        0, nullptr,
-        0, nullptr
-    );
+	vkCmdPipelineBarrier(
+		cmd,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		0,
+		0, nullptr,
+		0, nullptr,
+		1, &imgBarrier
+	);
 }
 
 void SceneRenderer::draw_fullscreen(const VkCommandBuffer cmd, const std::shared_ptr<Material>& presentMaterial)

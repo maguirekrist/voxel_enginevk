@@ -1,5 +1,5 @@
 ﻿
-#include "vk_engine.h"
+#include "vk_engine.h" // patched test comment
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
@@ -271,7 +271,7 @@ void VulkanEngine::submit_queue_present(const VkCommandBuffer pCmd, const uint32
 	submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
 
 	submit.signalSemaphoreCount = 1;
-	submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
+	submit.pSignalSemaphores = &_imageRenderFinishedSemaphores[swapchainImageIndex];
 
 	submit.commandBufferCount = 1;
 	submit.pCommandBuffers = &pCmd;
@@ -288,7 +288,7 @@ void VulkanEngine::submit_queue_present(const VkCommandBuffer pCmd, const uint32
 	presentInfo.pSwapchains = &_swapchain;
 	presentInfo.swapchainCount = 1;
 
-	presentInfo.pWaitSemaphores = &get_current_frame()._renderSemaphore;
+	presentInfo.pWaitSemaphores = &_imageRenderFinishedSemaphores[swapchainImageIndex];
 	presentInfo.waitSemaphoreCount = 1;
 
 	presentInfo.pImageIndices = &swapchainImageIndex;
@@ -378,6 +378,8 @@ void VulkanEngine::init_vulkan()
 	_gpuProperties = vkbDevice.physical_device.properties;
 
 	std::println("The GPU has a minimum buffer alignment of {}", _gpuProperties.limits.minUniformBufferOffsetAlignment);
+	std::println("Max workgroup size {}", _gpuProperties.limits.maxComputeWorkGroupSize);
+	std::println("Max workgroup invocations: {}", _gpuProperties.limits.maxComputeWorkGroupInvocations);
 	//std::println("The GPU has a nonCoherentAtomSize of {}", _gpuProperties.limits.nonCoherentAtomSize);
 
 	auto queue_families = vkbDevice.queue_families;
@@ -386,8 +388,11 @@ void VulkanEngine::init_vulkan()
 	_device = vkbDevice.device;
 	_chosenGPU = physicalDevice.physical_device;
 
+
 	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 	_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+
+	VkQueueFamilyProperties graphicsQueueProps;
 
 	auto transferQueue = vkbDevice.get_queue(vkb::QueueType::transfer);
 	auto transferQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::transfer);
@@ -400,6 +405,7 @@ void VulkanEngine::init_vulkan()
 		_transferQueue = _graphicsQueue;
 		_transferQueueFamily = _graphicsQueueFamily;
 	}
+
 
 	VmaAllocatorCreateInfo allocatorInfo = {};
     allocatorInfo.physicalDevice = _chosenGPU;
@@ -428,6 +434,13 @@ void VulkanEngine::init_swapchain()
 	_swapchainImages = vkbSwapchain.get_images().value();
 	_swapchainImageViews = vkbSwapchain.get_image_views().value();
 	_swapchainImageFormat = vkbSwapchain.image_format;
+	// Per-image render-finished semaphores to prevent reuse across different images
+	_imageRenderFinishedSemaphores.resize(_swapchainImages.size());
+	VkSemaphoreCreateInfo perImageSemaphoreInfo = vkinit::semaphore_create_info();
+	for(size_t i = 0; i < _imageRenderFinishedSemaphores.size(); ++i) {
+		VK_CHECK(vkCreateSemaphore(_device, &perImageSemaphoreInfo, nullptr, &_imageRenderFinishedSemaphores[i]));
+		_mainDeletionQueue.push_function([=, this]() { vkDestroySemaphore(_device, _imageRenderFinishedSemaphores[i], nullptr); });
+	}
 
 	_mainDeletionQueue.push_function([=, this]() {
 		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
