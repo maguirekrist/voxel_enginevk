@@ -4,6 +4,7 @@
 
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H
+#include <atomic>
 #include <functional>
 #include <thread>
 #include <vector>
@@ -13,7 +14,7 @@
 
 class ThreadPool {
 
-    bool _is_running = true;
+    std::atomic_bool _is_running{true};
     const int _thread_count;
     std::vector<std::thread> _threads;
     moodycamel::BlockingConcurrentQueue<std::function<void()>> _queue;

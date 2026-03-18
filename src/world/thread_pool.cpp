@@ -10,13 +10,22 @@ ThreadPool::ThreadPool(const int thread_count) : _thread_count(thread_count)
     {
         _threads.emplace_back([this]()
         {
-            while (this->_is_running)
+            while (true)
             {
                 std::function<void()> job;
-                if (_queue.try_dequeue(job))
+                _queue.wait_dequeue(job);
+
+                if (!job)
                 {
-                    job();
+                    if (!_is_running.load(std::memory_order_acquire))
+                    {
+                        break;
+                    }
+
+                    continue;
                 }
+
+                job();
             }
         });
     }
@@ -29,14 +38,31 @@ ThreadPool::~ThreadPool()
 
 void ThreadPool::stop()
 {
-    _is_running = false;
+    if (!_is_running.exchange(false, std::memory_order_acq_rel))
+    {
+        return;
+    }
+
+    for (int i = 0; i < _thread_count; ++i)
+    {
+        _queue.enqueue({});
+    }
+
     for (auto& thread : _threads)
     {
-        thread.join();
+        if (thread.joinable())
+        {
+            thread.join();
+        }
     }
 }
 
 void ThreadPool::post(const std::function<void()>&& task)
 {
+    if (!_is_running.load(std::memory_order_acquire))
+    {
+        return;
+    }
+
     _queue.enqueue(task);
 }
