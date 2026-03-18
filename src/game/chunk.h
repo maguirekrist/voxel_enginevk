@@ -3,11 +3,7 @@
 #include <constants.h>
 #include <format>
 #include "block.h"
-#include "collections/spare_set.h"
 #include "render/mesh.h"
-
-
-struct RenderObject;
 
 struct ChunkCoord {
     int x, z;
@@ -102,8 +98,6 @@ public:
     std::shared_ptr<ChunkData> _data;
     std::shared_ptr<ChunkMeshData> _meshData;
 
-    dev_collections::sparse_set<RenderObject>::Handle _opaqueHandle;
-    dev_collections::sparse_set<RenderObject>::Handle _transparentHandle;
     std::atomic_uint32_t _gen;
     std::atomic<ChunkState> _state = ChunkState::Uninitialized;
 

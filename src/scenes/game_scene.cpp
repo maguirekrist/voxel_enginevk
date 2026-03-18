@@ -37,11 +37,18 @@ GameScene::GameScene(): _player(nullptr), _game(*this), _camera(nullptr)
 
 GameScene::~GameScene()
 {
+	_chunkRenderRegistry.clear(VulkanEngine::instance()._opaqueSet, VulkanEngine::instance()._transparentSet);
 	std::println("GameScene::~GameScene");
 }
 
 void GameScene::update_buffers() {
 	ZoneScopedN("Draw Chunks & Objects");
+	_chunkRenderRegistry.sync(
+		_game._chunkManager,
+		VulkanEngine::instance()._meshManager,
+		VulkanEngine::instance()._materialManager,
+		VulkanEngine::instance()._opaqueSet,
+		VulkanEngine::instance()._transparentSet);
 	update_uniform_buffer();
 	update_fog_ubo();
 }
@@ -367,4 +374,3 @@ void GameScene::create_camera()
 	_gameObjects.emplace_back(std::move(camera));
 	_camera = dynamic_cast<Camera*>(_gameObjects.back().get());
 }
-

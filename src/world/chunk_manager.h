@@ -38,6 +38,20 @@ struct MapRange
 
 class ChunkManager {
 public:
+    struct ChunkRenderResetEvent
+    {
+        Chunk* chunk{};
+        uint32_t generation{};
+    };
+
+    struct ChunkRenderReadyEvent
+    {
+        Chunk* chunk{};
+        uint32_t generation{};
+        std::shared_ptr<ChunkData> data;
+        std::shared_ptr<ChunkMeshData> meshData;
+    };
+
     std::unique_ptr<ChunkCache> m_chunkCache;
 
     ChunkManager();
@@ -47,6 +61,8 @@ public:
     void update_player_position(const glm::vec3& position);
     Chunk* get_chunk(ChunkCoord coord) const;
     std::optional<std::array<std::shared_ptr<const ChunkData>, 8>> get_chunk_neighbors(ChunkCoord coord) const;
+    bool try_dequeue_render_reset(ChunkRenderResetEvent& event);
+    bool try_dequeue_render_ready(ChunkRenderReadyEvent& event);
 
 private:
     void initialize_map(MapRange mapRange);
@@ -59,7 +75,8 @@ private:
     ChunkCoord _lastPlayerChunk = {0, 0};
     MapRange _mapRange{};
 
-    moodycamel::BlockingConcurrentQueue<Chunk*> _readyChunks;
+    moodycamel::BlockingConcurrentQueue<ChunkRenderResetEvent> _renderResetEvents;
+    moodycamel::BlockingConcurrentQueue<ChunkRenderReadyEvent> _renderReadyEvents;
 
     ThreadPool _threadPool{4};
     NeighborBarrier _neighborBarrier;

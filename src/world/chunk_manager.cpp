@@ -6,8 +6,6 @@
 #include "tracy/Tracy.hpp"
 #include <memory>
 
-#include "../vk_engine.h"
-
 ChunkManager::ChunkManager() : m_chunkCache(nullptr)
 {
 }
@@ -16,22 +14,6 @@ ChunkManager::~ChunkManager() = default;
 
 void ChunkManager::update()
 {
-    Chunk* chunk = nullptr;
-    while (_readyChunks.try_dequeue(chunk))
-    {
-        chunk->_opaqueHandle = VulkanEngine::instance()._opaqueSet.insert(RenderObject{
-                            .mesh = chunk->_meshData->mesh,
-                            .material = VulkanEngine::instance()._materialManager.get_material("defaultmesh"),
-                            .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
-                            .layer = RenderLayer::Opaque
-                        });
-        chunk->_transparentHandle = VulkanEngine::instance()._transparentSet.insert(RenderObject{
-            .mesh = chunk->_meshData->waterMesh,
-            .material = VulkanEngine::instance()._materialManager.get_material("watermesh"),
-            .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
-            .layer = RenderLayer::Transparent
-        });
-    }
 }
 
 void ChunkManager::update_player_position(const glm::vec3& position)
@@ -58,6 +40,10 @@ void ChunkManager::update_player_position(const glm::vec3& position)
 
     for (const auto& chunk : new_chunks)
     {
+        _renderResetEvents.enqueue(ChunkRenderResetEvent{
+            .chunk = chunk,
+            .generation = chunk->_gen.load(std::memory_order::acquire)
+        });
         schedule_generate(chunk, chunk->_gen.load(std::memory_order::acquire));
     }
 
@@ -141,13 +127,23 @@ void ChunkManager::schedule_mesh(Chunk* const chunk, const uint32_t gen)
 
         chunk->_meshData = std::move(meshData);
         chunk->_state.store(ChunkState::Rendered, std::memory_order_release);
-        _readyChunks.enqueue(chunk);
-
-        // Uploads can be posted to a dedicated thread if needed
-        VulkanEngine::instance()._meshManager.UploadQueue.enqueue(chunk->_meshData->mesh);
-        if (!chunk->_meshData->waterMesh->_vertices.empty())
-            VulkanEngine::instance()._meshManager.UploadQueue.enqueue(chunk->_meshData->waterMesh);
+        _renderReadyEvents.enqueue(ChunkRenderReadyEvent{
+            .chunk = chunk,
+            .generation = gen,
+            .data = chunk->_data,
+            .meshData = chunk->_meshData
+        });
     });
+}
+
+bool ChunkManager::try_dequeue_render_reset(ChunkRenderResetEvent& event)
+{
+    return _renderResetEvents.try_dequeue(event);
+}
+
+bool ChunkManager::try_dequeue_render_ready(ChunkRenderReadyEvent& event)
+{
+    return _renderReadyEvents.try_dequeue(event);
 }
 
 std::optional<std::array<std::shared_ptr<const ChunkData>, 8>> ChunkManager::get_chunk_neighbors(const ChunkCoord coord) const

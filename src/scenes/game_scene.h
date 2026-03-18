@@ -2,6 +2,7 @@
 
 #include "camera.h"
 #include "scene.h"
+#include "render/chunk_render_registry.h"
 #include "render/resource.h"
 #include "game/cube_engine.h"
 
@@ -49,8 +50,9 @@ private:
     void update_fog_ubo() const;
     void update_uniform_buffer() const;
 
-	std::shared_ptr<Resource> _fogResource;
+    std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Resource> _cameraUboResource;
+    ChunkRenderRegistry _chunkRenderRegistry;
 
     CubeEngine _game;
     Camera* _camera;

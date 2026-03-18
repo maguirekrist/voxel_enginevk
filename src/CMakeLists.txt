@@ -72,6 +72,8 @@ add_executable(vulkan_guide
         render/material.h
         render/mesh.cpp
         render/mesh.h
+        render/chunk_render_registry.cpp
+        render/chunk_render_registry.h
 )
 
 
