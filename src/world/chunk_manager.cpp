@@ -1,6 +1,7 @@
 
 #include "chunk_manager.h"
 #include "../game/chunk.h"
+#include "../game/world.h"
 #include "chunk_mesher.h"
 #include "tracy/Tracy.hpp"
 #include <memory>
@@ -33,9 +34,9 @@ void ChunkManager::update()
     }
 }
 
-void ChunkManager::update_player_position(const int x, const int z)
+void ChunkManager::update_player_position(const glm::vec3& position)
 {
-    const ChunkCoord playerChunk = {x / static_cast<int>(CHUNK_SIZE), z / static_cast<int>(CHUNK_SIZE)};
+    const ChunkCoord playerChunk = World::get_chunk_coordinates(position);
 
     if (playerChunk == _lastPlayerChunk && !_initialLoad) return;
 

@@ -4,6 +4,25 @@
 #include "block.h"
 #include "../world/chunk_manager.h"
 
+namespace
+{
+    [[nodiscard]] int floor_to_int(const float value)
+    {
+        return static_cast<int>(std::floor(value));
+    }
+
+    [[nodiscard]] int chunk_axis_from_world(const float value)
+    {
+        return floor_to_int(value / static_cast<float>(CHUNK_SIZE));
+    }
+
+    [[nodiscard]] int wrap_to_chunk_axis(const int value, const int axisSize)
+    {
+        const int mod = value % axisSize;
+        return mod < 0 ? mod + axisSize : mod;
+    }
+}
+
 Block* World::get_block(const glm::vec3& worldPos) const
 {
     auto localPos = get_local_coordinates(worldPos);
@@ -34,8 +53,8 @@ Chunk* World::get_chunk(const glm::vec3 worldPos) const
 ChunkCoord World::get_chunk_coordinates(const glm::vec3 &worldPos)
 {
     return {
-        static_cast<int>(worldPos.x) / static_cast<int>(CHUNK_SIZE),
-        static_cast<int>(worldPos.z) / static_cast<int>(CHUNK_SIZE)
+        chunk_axis_from_world(worldPos.x),
+        chunk_axis_from_world(worldPos.z)
     };
 }
 
@@ -51,8 +70,8 @@ glm::ivec2 World::get_chunk_origin(const glm::vec3 &worldPos)
 glm::ivec3 World::get_local_coordinates(const glm::vec3 &worldPos)
 {
     return {
-        static_cast<int>(std::floor(worldPos.x)) & (CHUNK_SIZE - 1),
-        static_cast<int>(std::floor(worldPos.y)) & (CHUNK_HEIGHT - 1),
-        static_cast<int>(std::floor(worldPos.z)) & (CHUNK_SIZE - 1)
+        wrap_to_chunk_axis(floor_to_int(worldPos.x), CHUNK_SIZE),
+        wrap_to_chunk_axis(floor_to_int(worldPos.y), CHUNK_HEIGHT),
+        wrap_to_chunk_axis(floor_to_int(worldPos.z), CHUNK_SIZE)
     };
 }

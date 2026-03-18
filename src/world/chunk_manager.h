@@ -44,7 +44,7 @@ public:
     ~ChunkManager();
 
     void update();
-    void update_player_position(int x, int z);
+    void update_player_position(const glm::vec3& position);
     Chunk* get_chunk(ChunkCoord coord) const;
     std::optional<std::array<std::shared_ptr<const ChunkData>, 8>> get_chunk_neighbors(ChunkCoord coord) const;
 
