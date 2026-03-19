@@ -7,13 +7,12 @@ void ChunkRenderRegistry::sync(
     ChunkManager& chunkManager,
     MeshManager& meshManager,
     MaterialManager& materialManager,
-    dev_collections::sparse_set<RenderObject>& opaqueSet,
-    dev_collections::sparse_set<RenderObject>& transparentSet)
+    SceneRenderState& renderState)
 {
     ChunkManager::ChunkRenderResetEvent resetEvent;
     while (chunkManager.try_dequeue_render_reset(resetEvent))
     {
-        remove_chunk(resetEvent.chunk, opaqueSet, transparentSet);
+        remove_chunk(resetEvent.chunk, renderState);
     }
 
     ChunkManager::ChunkRenderReadyEvent readyEvent;
@@ -35,10 +34,10 @@ void ChunkRenderRegistry::sync(
             meshManager.UploadQueue.enqueue(readyEvent.meshData->waterMesh);
         }
 
-        remove_chunk(readyEvent.chunk, opaqueSet, transparentSet);
+        remove_chunk(readyEvent.chunk, renderState);
 
         ChunkRenderHandles handles{};
-        handles.opaque = opaqueSet.insert(RenderObject{
+        handles.opaque = renderState.opaqueObjects.insert(RenderObject{
             .mesh = readyEvent.meshData->mesh,
             .material = materialManager.get_material("defaultmesh"),
             .xzPos = glm::ivec2(readyEvent.data->position.x, readyEvent.data->position.y),
@@ -46,7 +45,7 @@ void ChunkRenderRegistry::sync(
         });
         handles.hasOpaque = true;
 
-        handles.transparent = transparentSet.insert(RenderObject{
+        handles.transparent = renderState.transparentObjects.insert(RenderObject{
             .mesh = readyEvent.meshData->waterMesh,
             .material = materialManager.get_material("watermesh"),
             .xzPos = glm::ivec2(readyEvent.data->position.x, readyEvent.data->position.y),
@@ -58,9 +57,7 @@ void ChunkRenderRegistry::sync(
     }
 }
 
-void ChunkRenderRegistry::clear(
-    dev_collections::sparse_set<RenderObject>& opaqueSet,
-    dev_collections::sparse_set<RenderObject>& transparentSet)
+void ChunkRenderRegistry::clear(SceneRenderState& renderState)
 {
     std::vector<Chunk*> chunks;
     chunks.reserve(_handlesByChunk.size());
@@ -71,16 +68,13 @@ void ChunkRenderRegistry::clear(
 
     for (Chunk* chunk : chunks)
     {
-        remove_chunk(chunk, opaqueSet, transparentSet);
+        remove_chunk(chunk, renderState);
     }
 
     _handlesByChunk.clear();
 }
 
-void ChunkRenderRegistry::remove_chunk(
-    Chunk* chunk,
-    dev_collections::sparse_set<RenderObject>& opaqueSet,
-    dev_collections::sparse_set<RenderObject>& transparentSet)
+void ChunkRenderRegistry::remove_chunk(Chunk* chunk, SceneRenderState& renderState)
 {
     if (chunk == nullptr)
     {
@@ -95,12 +89,12 @@ void ChunkRenderRegistry::remove_chunk(
 
     if (it->second.hasOpaque)
     {
-        opaqueSet.remove(it->second.opaque);
+        renderState.opaqueObjects.remove(it->second.opaque);
     }
 
     if (it->second.hasTransparent)
     {
-        transparentSet.remove(it->second.transparent);
+        renderState.transparentObjects.remove(it->second.transparent);
     }
 
     _handlesByChunk.erase(it);

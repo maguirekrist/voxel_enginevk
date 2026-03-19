@@ -1,5 +1,6 @@
 #pragma once
 #include <scenes/scene.h>
+#include <render/scene_render_state.h>
 #include <vk_types.h>
 #include <render/render_primitives.h>
 

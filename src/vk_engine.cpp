@@ -96,8 +96,6 @@ void VulkanEngine::cleanup()
 		VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
 
 		_sceneRenderer.cleanup();
-		_opaqueSet.clear();
-		_transparentSet.clear();
 		_meshManager.cleanup();
 		_materialManager.cleanup();
 

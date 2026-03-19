@@ -2,6 +2,8 @@
 
 #include "SDL_events.h"
 
+struct SceneRenderState;
+
 class Scene {
 public:
     virtual void update_buffers() = 0;
@@ -11,6 +13,7 @@ public:
     virtual void draw_imgui() = 0;
     virtual void build_pipelines() = 0;
     virtual void rebuild_pipelines() = 0;
+    virtual SceneRenderState& get_render_state() = 0;
 
     virtual ~Scene() = default;
 };

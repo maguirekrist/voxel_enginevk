@@ -37,7 +37,7 @@ GameScene::GameScene(): _player(nullptr), _game(*this), _camera(nullptr)
 
 GameScene::~GameScene()
 {
-	_chunkRenderRegistry.clear(VulkanEngine::instance()._opaqueSet, VulkanEngine::instance()._transparentSet);
+	_chunkRenderRegistry.clear(_renderState);
 	std::println("GameScene::~GameScene");
 }
 
@@ -47,10 +47,14 @@ void GameScene::update_buffers() {
 		_game._chunkManager,
 		VulkanEngine::instance()._meshManager,
 		VulkanEngine::instance()._materialManager,
-		VulkanEngine::instance()._opaqueSet,
-		VulkanEngine::instance()._transparentSet);
+		_renderState);
 	update_uniform_buffer();
 	update_fog_ubo();
+}
+
+SceneRenderState& GameScene::get_render_state()
+{
+	return _renderState;
 }
 
 void GameScene::update(const float deltaTime)

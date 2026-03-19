@@ -24,6 +24,7 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, const uint32_t swapchainIm
 	ZoneScopedN("Render Scene");
 	m_last_allocator = nullptr;
     _currentScene->update_buffers();
+    SceneRenderState& renderState = _currentScene->get_render_state();
 
 	if (USE_IMGUI)
 	{
@@ -38,7 +39,7 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, const uint32_t swapchainIm
         2);
 
     vkCmdBeginRenderPass(cmd, &rpOffscreenInfo, VK_SUBPASS_CONTENTS_INLINE);
-    draw_objects(cmd, VulkanEngine::instance()._opaqueSet.data());
+    draw_objects(cmd, renderState.opaqueObjects.data());
 
     vkCmdEndRenderPass(cmd);
 
@@ -56,7 +57,7 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, const uint32_t swapchainIm
     draw_fullscreen(cmd, VulkanEngine::instance()._materialManager.get_material("present"));
 
     //Draw transparent
-    draw_objects(cmd, VulkanEngine::instance()._transparentSet.data());
+    draw_objects(cmd, renderState.transparentObjects.data());
 
 	if (USE_IMGUI)
 	{

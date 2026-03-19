@@ -4,6 +4,7 @@
 #include "scene.h"
 #include "render/chunk_render_registry.h"
 #include "render/resource.h"
+#include "render/scene_render_state.h"
 #include "game/cube_engine.h"
 
 
@@ -21,6 +22,7 @@ public:
     void draw_imgui() override;
 	void rebuild_pipelines() override;
     void build_pipelines() override;
+    SceneRenderState& get_render_state() override;
 
     void draw_debug_map();
     void draw_debug_cache();
@@ -53,6 +55,7 @@ private:
     std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Resource> _cameraUboResource;
     ChunkRenderRegistry _chunkRenderRegistry;
+    SceneRenderState _renderState;
 
     CubeEngine _game;
     Camera* _camera;

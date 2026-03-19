@@ -5,6 +5,7 @@
 #include "collections/spare_set.h"
 #include "game/chunk.h"
 #include "render_primitives.h"
+#include "scene_render_state.h"
 #include "world/chunk_manager.h"
 
 class MaterialManager;
@@ -17,12 +18,9 @@ public:
         ChunkManager& chunkManager,
         MeshManager& meshManager,
         MaterialManager& materialManager,
-        dev_collections::sparse_set<RenderObject>& opaqueSet,
-        dev_collections::sparse_set<RenderObject>& transparentSet);
+        SceneRenderState& renderState);
 
-    void clear(
-        dev_collections::sparse_set<RenderObject>& opaqueSet,
-        dev_collections::sparse_set<RenderObject>& transparentSet);
+    void clear(SceneRenderState& renderState);
 
 private:
     struct ChunkRenderHandles
@@ -35,8 +33,5 @@ private:
 
     std::unordered_map<Chunk*, ChunkRenderHandles> _handlesByChunk;
 
-    void remove_chunk(
-        Chunk* chunk,
-        dev_collections::sparse_set<RenderObject>& opaqueSet,
-        dev_collections::sparse_set<RenderObject>& transparentSet);
+    void remove_chunk(Chunk* chunk, SceneRenderState& renderState);
 };

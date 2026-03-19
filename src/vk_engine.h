@@ -74,8 +74,6 @@ public:
 	std::vector<VkFramebuffer> _framebuffers;
 
 	SceneRenderer _sceneRenderer{};
-	dev_collections::sparse_set<RenderObject> _opaqueSet{};
-	dev_collections::sparse_set<RenderObject> _transparentSet{};
 
 	float _deltaTime;
 	TimePoint _lastFrameTime;
