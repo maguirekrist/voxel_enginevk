@@ -57,7 +57,6 @@ public:
     ChunkManager();
     ~ChunkManager();
 
-    void update();
     void update_player_position(const glm::vec3& position);
     Chunk* get_chunk(ChunkCoord coord) const;
     std::optional<std::array<std::shared_ptr<const ChunkData>, 8>> get_chunk_neighbors(ChunkCoord coord) const;
@@ -71,9 +70,7 @@ private:
 
     bool _initialLoad{true};
     int _viewDistance{GameConfig::DEFAULT_VIEW_DISTANCE};
-    size_t _maxChunks{GameConfig::MAXIMUM_CHUNKS};
     ChunkCoord _lastPlayerChunk = {0, 0};
-    MapRange _mapRange{};
 
     moodycamel::BlockingConcurrentQueue<ChunkRenderResetEvent> _renderResetEvents;
     moodycamel::BlockingConcurrentQueue<ChunkRenderReadyEvent> _renderReadyEvents;

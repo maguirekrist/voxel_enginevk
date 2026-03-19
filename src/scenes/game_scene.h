@@ -2,6 +2,7 @@
 
 #include "camera.h"
 #include "scene.h"
+#include "scene_services.h"
 #include "render/chunk_render_registry.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
@@ -12,7 +13,7 @@ class GameScene final : public Scene {
 public:
     GameObject* _player;
 
-    GameScene();
+    explicit GameScene(const SceneServices& services);
     ~GameScene() override;
     void update_buffers() override;
 
@@ -25,7 +26,6 @@ public:
     SceneRenderState& get_render_state() override;
 
     void draw_debug_map();
-    void draw_debug_cache();
 private:
     struct CameraUBO {
         glm::mat4 projection;
@@ -56,6 +56,7 @@ private:
     std::shared_ptr<Resource> _cameraUboResource;
     ChunkRenderRegistry _chunkRenderRegistry;
     SceneRenderState _renderState;
+    SceneServices _services;
 
     CubeEngine _game;
     Camera* _camera;

@@ -1,5 +1,5 @@
 ﻿
-#include "vk_engine.h" // patched test comment
+#include "vk_engine.h"
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
@@ -83,7 +83,12 @@ void VulkanEngine::init()
 
 	_meshManager.init(_device, _allocator, { ._queue = _transferQueue, ._queueFamily = _transferQueueFamily });
 
-	_sceneRenderer.init();
+	_sceneRenderer.init(SceneServices{
+		.allocator = _allocator,
+		.windowExtent = &_windowExtent,
+		.meshManager = &_meshManager,
+		.materialManager = &_materialManager
+	});
 
 	_isInitialized = true;
 }
@@ -242,7 +247,20 @@ void VulkanEngine::draw()
 	_meshManager.handle_transfers();
 	VkCommandBuffer cmd = begin_recording();
 
-	_sceneRenderer.render_scene(cmd, swapchainImageIndex);
+	_sceneRenderer.render_scene(cmd, FrameRenderContext{
+		.windowExtent = _windowExtent,
+		.offscreenPass = _offscreenPass,
+		.offscreenFramebuffer = _offscreenFramebuffer,
+		.offscreenClearValues = _clearColorAndDepth.data(),
+		.offscreenClearValueCount = static_cast<uint32_t>(_clearColorAndDepth.size()),
+		.presentPass = _renderPass,
+		.presentFramebuffer = _framebuffers[swapchainImageIndex],
+		.presentClearValues = _clearColorOnly.data(),
+		.presentClearValueCount = static_cast<uint32_t>(_clearColorOnly.size()),
+		.fullscreenImage = _fullscreenImage,
+		.depthImage = _depthImage,
+		.materialManager = &_materialManager
+	});
 
 	VK_CHECK(vkEndCommandBuffer(cmd));
 	submit_queue_present(cmd, swapchainImageIndex);
@@ -389,9 +407,6 @@ void VulkanEngine::init_vulkan()
 
 	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 	_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
-
-	VkQueueFamilyProperties graphicsQueueProps;
-
 	auto transferQueue = vkbDevice.get_queue(vkb::QueueType::transfer);
 	auto transferQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::transfer);
 
@@ -413,6 +428,17 @@ void VulkanEngine::init_vulkan()
 
 	_descriptorAllocator.init(_device);
 	_descriptorLayoutCache.init(_device);
+	_materialManager.init(MaterialBackendContext{
+		.device = _device,
+		.windowExtent = &_windowExtent,
+		.renderPass = &_renderPass,
+		.offscreenPass = &_offscreenPass,
+		.sampler = &_sampler,
+		.fullscreenImage = &_fullscreenImage,
+		.depthImage = &_depthImage,
+		.descriptorAllocator = &_descriptorAllocator,
+		.descriptorLayoutCache = &_descriptorLayoutCache
+	});
 }
 
 void VulkanEngine::init_swapchain()

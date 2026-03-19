@@ -1,5 +1,6 @@
 #include "scene_renderer.h"
-#include <vk_engine.h>
+#include "material.h"
+#include "material_manager.h"
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
 #include <scenes/game_scene.h>
@@ -7,9 +8,9 @@
 #include "imgui.h"
 #include "backends/imgui_impl_vulkan.h"
 
-void SceneRenderer::init()
+void SceneRenderer::init(const SceneServices& sceneServices)
 {
-	_scenes["game"] = std::make_shared<GameScene>();
+	_scenes["game"] = std::make_shared<GameScene>(sceneServices);
 	_currentScene = _scenes["game"];
 }
 
@@ -19,7 +20,7 @@ void SceneRenderer::cleanup()
 	_currentScene = nullptr;
 }
 
-void SceneRenderer::render_scene(VkCommandBuffer cmd, const uint32_t swapchainImageIndex)
+void SceneRenderer::render_scene(VkCommandBuffer cmd, const FrameRenderContext& frameContext)
 {
 	ZoneScopedN("Render Scene");
 	m_last_allocator = nullptr;
@@ -32,29 +33,29 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, const uint32_t swapchainIm
 	}
 
     VkRenderPassBeginInfo rpOffscreenInfo = vkinit::render_pass_begin_info(
-        VulkanEngine::instance()._offscreenPass, 
-        VulkanEngine::instance()._windowExtent, 
-        VulkanEngine::instance()._offscreenFramebuffer, 
-        VulkanEngine::instance()._clearColorAndDepth.data(),
-        2);
+        frameContext.offscreenPass,
+        frameContext.windowExtent,
+        frameContext.offscreenFramebuffer,
+        frameContext.offscreenClearValues,
+        frameContext.offscreenClearValueCount);
 
     vkCmdBeginRenderPass(cmd, &rpOffscreenInfo, VK_SUBPASS_CONTENTS_INLINE);
     draw_objects(cmd, renderState.opaqueObjects.data());
 
     vkCmdEndRenderPass(cmd);
 
-    run_compute(cmd, VulkanEngine::instance()._materialManager.get_material("compute"));
+    run_compute(cmd, frameContext, frameContext.materialManager->get_material("compute"));
 
 	VkRenderPassBeginInfo rpInfo = vkinit::render_pass_begin_info(
-        VulkanEngine::instance()._renderPass,
-        VulkanEngine::instance()._windowExtent, 
-        VulkanEngine::instance()._framebuffers[swapchainImageIndex], 
-        VulkanEngine::instance()._clearColorOnly.data(), 
-        1);
+        frameContext.presentPass,
+        frameContext.windowExtent,
+        frameContext.presentFramebuffer,
+        frameContext.presentClearValues,
+        frameContext.presentClearValueCount);
 
 	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    draw_fullscreen(cmd, VulkanEngine::instance()._materialManager.get_material("present"));
+    draw_fullscreen(cmd, frameContext.materialManager->get_material("present"));
 
     //Draw transparent
     draw_objects(cmd, renderState.transparentObjects.data());
@@ -72,7 +73,7 @@ std::shared_ptr<Scene> SceneRenderer::get_current_scene() const
 	return _currentScene;
 }
 
-void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Material>& computeMaterial)
+void SceneRenderer::run_compute(VkCommandBuffer cmd, const FrameRenderContext& frameContext, const std::shared_ptr<Material>& computeMaterial)
 {
 	// Ensure images from the offscreen pass are properly visible/layouted for compute on MoltenVK
 	// 1) Color image: offscreen render pass stores to GENERAL; make writes visible to compute shader writes
@@ -85,7 +86,7 @@ void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Mater
 			.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
 			.oldLayout = VK_IMAGE_LAYOUT_GENERAL,
 			.newLayout = VK_IMAGE_LAYOUT_GENERAL,
-			.image = VulkanEngine::instance()._fullscreenImage.image._image,
+			.image = frameContext.fullscreenImage.image._image,
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		});
 		vkinit::cmd_image_barrier(
@@ -103,7 +104,7 @@ void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Mater
 			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
 			.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 			.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-			.image = VulkanEngine::instance()._depthImage.image._image,
+			.image = frameContext.depthImage.image._image,
 			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
 		});
 		vkinit::cmd_image_barrier(
@@ -130,8 +131,8 @@ void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Mater
 
     // Dispatch the compute shader (assuming a full-screen image size)
     // Adjust the work group size based on your compute shader's `local_size_x` and `local_size_y`
-    uint32_t workGroupSizeX = (VulkanEngine::instance()._windowExtent.width + 15) / 16; // Assuming local size of 16 in shader
-    uint32_t workGroupSizeY = (VulkanEngine::instance()._windowExtent.height + 15) / 16;
+    uint32_t workGroupSizeX = (frameContext.windowExtent.width + 15) / 16; // Assuming local size of 16 in shader
+    uint32_t workGroupSizeY = (frameContext.windowExtent.height + 15) / 16;
 
 	vkCmdDispatch(cmd, workGroupSizeX, workGroupSizeY, 1);
 
@@ -142,7 +143,7 @@ void SceneRenderer::run_compute(VkCommandBuffer cmd, const std::shared_ptr<Mater
 			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
 			.oldLayout = VK_IMAGE_LAYOUT_GENERAL,
 			.newLayout = VK_IMAGE_LAYOUT_GENERAL,
-			.image = VulkanEngine::instance()._fullscreenImage.image._image,
+			.image = frameContext.fullscreenImage.image._image,
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		});
 		vkinit::cmd_image_barrier(

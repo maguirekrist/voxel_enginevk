@@ -1,5 +1,6 @@
 #pragma once
 #include "material.h"
+#include "vk_util.h"
 
 
 struct PipelineMetadata {
@@ -10,8 +11,22 @@ struct PipelineMetadata {
 	VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 };
 
+struct MaterialBackendContext
+{
+	VkDevice device{};
+	VkExtent2D* windowExtent{};
+	VkRenderPass* renderPass{};
+	VkRenderPass* offscreenPass{};
+	VkSampler* sampler{};
+	ImageResource* fullscreenImage{};
+	ImageResource* depthImage{};
+	vkutil::DescriptorAllocator* descriptorAllocator{};
+	vkutil::DescriptorLayoutCache* descriptorLayoutCache{};
+};
+
 class MaterialManager {
 public:
+	void init(const MaterialBackendContext& context);
 	std::shared_ptr<Material> get_material(const std::string& name);
 
 	void cleanup();
@@ -29,6 +44,9 @@ public:
 	
 private:
     std::unordered_map<std::string, std::shared_ptr<Material>> m_materials;
+	MaterialBackendContext _context{};
+	VkDescriptorSetLayout _sampledImageSetLayout{VK_NULL_HANDLE};
+	VkDescriptorSet _sampledImageSet{VK_NULL_HANDLE};
 
 	void add_material(const std::string& name, Material&& material);
 };

@@ -4,10 +4,13 @@
 #include <vk_util.h>
 #include <vk_initializers.h>
 #include <vk_pipeline_builder.h>
-#include <vk_engine.h>
 
 #include <scenes/blueprint_builder_scene.h>
 
+void MaterialManager::init(const MaterialBackendContext& context)
+{
+	_context = context;
+}
 
 
 std::shared_ptr<Material> MaterialManager::get_material(const std::string &name)
@@ -24,8 +27,8 @@ void MaterialManager::cleanup()
 {
 	for(auto it = m_materials.begin(); it != m_materials.end();) {
 		auto& material = *it->second;
-		vkDestroyPipeline(VulkanEngine::instance()._device, material.pipeline, nullptr);
-		vkDestroyPipelineLayout(VulkanEngine::instance()._device, material.pipelineLayout, nullptr);
+		vkDestroyPipeline(_context.device, material.pipeline, nullptr);
+		vkDestroyPipelineLayout(_context.device, material.pipelineLayout, nullptr);
 
 		it = m_materials.erase(it);
 	}
@@ -41,10 +44,10 @@ void MaterialManager::build_graphics_pipeline(
 	const std::string& name)
 {
 	VkShaderModule vertexShader;
-	vkutil::load_shader_module(vertex_shader, VulkanEngine::instance()._device, &vertexShader);
+	vkutil::load_shader_module(vertex_shader, _context.device, &vertexShader);
 
 	VkShaderModule fragmentShader;
-	vkutil::load_shader_module(fragment_shader, VulkanEngine::instance()._device, &fragmentShader);
+	vkutil::load_shader_module(fragment_shader, _context.device, &fragmentShader);
 
 	std::vector<VkDescriptorSet> descriptorSets;
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
@@ -58,7 +61,7 @@ void MaterialManager::build_graphics_pipeline(
 				.imageView = resource->value.image.view,
 				.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 			};
-			vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+			vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
 				.bind_image(0, &imageInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
 				.build(imageSet, imageSetLayout);
 			descriptorSets.push_back(imageSet);
@@ -73,7 +76,7 @@ void MaterialManager::build_graphics_pipeline(
 				.offset = 0,
 				.range = resource->value.buffer._size
 			};
-			vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+			vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
 				.bind_buffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build(bufferSet, bufferSetLayout);
 			descriptorSets.push_back(bufferSet);
@@ -97,7 +100,7 @@ void MaterialManager::build_graphics_pipeline(
 	pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
 	VkPipelineLayout pipelineLayout;
-	VK_CHECK(vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+	VK_CHECK(vkCreatePipelineLayout(_context.device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
 	PipelineBuilder pipelineBuilder;
 
@@ -111,14 +114,14 @@ void MaterialManager::build_graphics_pipeline(
 	//build viewport and scissor from the swapchain extents
 	pipelineBuilder._viewport.x = 0.0f;
 	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = static_cast<float>(VulkanEngine::instance()._windowExtent.width);
-	pipelineBuilder._viewport.height = static_cast<float>(VulkanEngine::instance()._windowExtent.height);
+	pipelineBuilder._viewport.width = static_cast<float>(_context.windowExtent->width);
+	pipelineBuilder._viewport.height = static_cast<float>(_context.windowExtent->height);
 	pipelineBuilder._viewport.minDepth = 0.0f;
 	pipelineBuilder._viewport.maxDepth = 1.0f;
 
 
 	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = VulkanEngine::instance()._windowExtent;
+	pipelineBuilder._scissor.extent = *_context.windowExtent;
 
 	//configure the rasterizer to draw filled triangles
 	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
@@ -156,8 +159,8 @@ void MaterialManager::build_graphics_pipeline(
 		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
 
 	//finally build the pipeline
-	VkRenderPass render_pass = metadata.enableBlending ? VulkanEngine::instance()._renderPass : VulkanEngine::instance()._offscreenPass;
-	VkPipeline meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device, render_pass);
+	VkRenderPass render_pass = metadata.enableBlending ? *_context.renderPass : *_context.offscreenPass;
+	VkPipeline meshPipeline = pipelineBuilder.build_pipeline(_context.device, render_pass);
 
 
 	auto new_material = Material{
@@ -171,35 +174,35 @@ void MaterialManager::build_graphics_pipeline(
 
 	add_material(name, std::move(new_material));
 
-	vkDestroyShaderModule(VulkanEngine::instance()._device, fragmentShader, nullptr);
-	vkDestroyShaderModule(VulkanEngine::instance()._device, vertexShader, nullptr);
+	vkDestroyShaderModule(_context.device, fragmentShader, nullptr);
+	vkDestroyShaderModule(_context.device, vertexShader, nullptr);
 
 }
 
 void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUboBuffer)
 {
 	VkShaderModule computeShaderModule;
-	vkutil::load_shader_module("fog.comp.spv", VulkanEngine::instance()._device, &computeShaderModule);
+	vkutil::load_shader_module("fog.comp.spv", _context.device, &computeShaderModule);
 
 	VkDescriptorSet colorImageSet;
 	VkDescriptorSetLayout colorImageSetLayout;
 	VkDescriptorImageInfo colorImageInfo{
 		.sampler = VK_NULL_HANDLE,
-		.imageView = VulkanEngine::instance()._fullscreenImage.view,
+		.imageView = _context.fullscreenImage->view,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 	};
-	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+	vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
 		.bind_image(0, &colorImageInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.build(colorImageSet, colorImageSetLayout);
 
 	VkDescriptorSet depthImageSet;
 	VkDescriptorSetLayout depthImageSetLayout;
 	VkDescriptorImageInfo depthImageInfo{
-		.sampler = VulkanEngine::instance()._sampler,
-		.imageView = VulkanEngine::instance()._depthImage.view,
+		.sampler = *_context.sampler,
+		.imageView = _context.depthImage->view,
 		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
 	};
-	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+	vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
 		.bind_image(0, &depthImageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
 		.build(depthImageSet, depthImageSetLayout);
 
@@ -210,7 +213,7 @@ void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUb
 		.offset = 0,
 		.range = fogUboBuffer->value.buffer._size
 	};
-	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+	vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
 		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
 		.build(fogSet, fogSetLayout);
 
@@ -228,7 +231,7 @@ void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUb
 
 	VkPipelineLayout computePipelineLayout;
 
-	if (vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
+	if (vkCreatePipelineLayout(_context.device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create compute pipeline layout!");
 	}
 
@@ -240,7 +243,7 @@ void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUb
 
 	VkPipeline computePipeline;
 
-	if (vkCreateComputePipelines(VulkanEngine::instance()._device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+	if (vkCreateComputePipelines(_context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create compute pipeline!");
 	}
 
@@ -254,34 +257,34 @@ void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUb
 	/*m_materials.emplace("compute", std::make_shared<Material>());*/
 	add_material("compute", std::move(new_material));
 
-	vkDestroyShaderModule(VulkanEngine::instance()._device, computeShaderModule, nullptr);
+	vkDestroyShaderModule(_context.device, computeShaderModule, nullptr);
 }
 
 void MaterialManager::build_present_pipeline()
 {
 	VkShaderModule fragShader;
-	vkutil::load_shader_module("present_full.frag.spv", VulkanEngine::instance()._device, &fragShader);
+	vkutil::load_shader_module("present_full.frag.spv", _context.device, &fragShader);
 
 	VkShaderModule vertexShader;
-	vkutil::load_shader_module("present_full.vert.spv", VulkanEngine::instance()._device, &vertexShader);
+	vkutil::load_shader_module("present_full.vert.spv", _context.device, &vertexShader);
 
 	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
 	VkDescriptorImageInfo sampleImageInfo{
-		.sampler = VulkanEngine::instance()._sampler,
-		.imageView = VulkanEngine::instance()._fullscreenImage.view,
+		.sampler = *_context.sampler,
+		.imageView = _context.fullscreenImage->view,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 	};
-	vkutil::DescriptorBuilder::begin(&VulkanEngine::instance()._descriptorLayoutCache, &VulkanEngine::instance()._descriptorAllocator)
+	vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
 		.bind_image(0, &sampleImageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(VulkanEngine::instance()._sampledImageSet, VulkanEngine::instance()._sampledImageSetLayout);
+		.build(_sampledImageSet, _sampledImageSetLayout);
 
 	pipeline_layout_info.setLayoutCount = 1;
-	pipeline_layout_info.pSetLayouts = &VulkanEngine::instance()._sampledImageSetLayout;
+	pipeline_layout_info.pSetLayouts = &_sampledImageSetLayout;
 
 	VkPipelineLayout meshPipelineLayout;
 
-	VK_CHECK(vkCreatePipelineLayout(VulkanEngine::instance()._device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
+	VK_CHECK(vkCreatePipelineLayout(_context.device, &pipeline_layout_info, nullptr, &meshPipelineLayout));
 
 	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
 	PipelineBuilder pipelineBuilder;
@@ -296,14 +299,14 @@ void MaterialManager::build_present_pipeline()
 	//build viewport and scissor from the swapchain extents
 	pipelineBuilder._viewport.x = 0.0f;
 	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)VulkanEngine::instance()._windowExtent.width;
-	pipelineBuilder._viewport.height = (float)VulkanEngine::instance()._windowExtent.height;
+	pipelineBuilder._viewport.width = (float)_context.windowExtent->width;
+	pipelineBuilder._viewport.height = (float)_context.windowExtent->height;
 	pipelineBuilder._viewport.minDepth = 0.0f;
 	pipelineBuilder._viewport.maxDepth = 1.0f;
 
 
 	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = VulkanEngine::instance()._windowExtent;
+	pipelineBuilder._scissor.extent = *_context.windowExtent;
 
 	//configure the rasterizer to draw filled triangles
 	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
@@ -342,24 +345,21 @@ void MaterialManager::build_present_pipeline()
 		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragShader));
 
 	//finally build the pipeline
-	const VkPipeline meshPipeline = pipelineBuilder.build_pipeline(VulkanEngine::instance()._device,
-	                                                         VulkanEngine::instance()._renderPass);
+	const VkPipeline meshPipeline = pipelineBuilder.build_pipeline(_context.device, *_context.renderPass);
 
 
 
 	//create_material(meshPipeline, meshPipelineLayout, "present");
-	VkDescriptorSet descriptors[] = { VulkanEngine::instance()._sampledImageSet };
-
 	auto new_material = Material{
 		.key = "present",
 		.pipeline = meshPipeline,
 		.pipelineLayout = meshPipelineLayout,
-		.descriptorSets = { VulkanEngine::instance()._sampledImageSet },
+		.descriptorSets = { _sampledImageSet },
 		.resources = {} };
 	add_material("present", std::move(new_material));
 
-	vkDestroyShaderModule(VulkanEngine::instance()._device, fragShader, nullptr);
-	vkDestroyShaderModule(VulkanEngine::instance()._device, vertexShader, nullptr);
+	vkDestroyShaderModule(_context.device, fragShader, nullptr);
+	vkDestroyShaderModule(_context.device, vertexShader, nullptr);
 }
 
 void MaterialManager::add_material(const std::string& name, Material&& material)
@@ -367,12 +367,11 @@ void MaterialManager::add_material(const std::string& name, Material&& material)
 	if (m_materials.contains(name))
 	{
 		auto& map = m_materials[name];
-		vkDestroyPipeline(VulkanEngine::instance()._device, map->pipeline, nullptr);
-		vkDestroyPipelineLayout(VulkanEngine::instance()._device, map->pipelineLayout, nullptr);
+		vkDestroyPipeline(_context.device, map->pipeline, nullptr);
+		vkDestroyPipelineLayout(_context.device, map->pipelineLayout, nullptr);
 		std::swap(*map, material);
 	}
 	else {
 		m_materials.emplace(name, std::make_shared<Material>(material));
 	}
 }
-

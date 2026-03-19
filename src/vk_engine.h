@@ -99,9 +99,6 @@ public:
 	vkutil::DescriptorAllocator _descriptorAllocator;
 	vkutil::DescriptorLayoutCache _descriptorLayoutCache;
 
-	VkDescriptorSetLayout _sampledImageSetLayout;
-	VkDescriptorSet _sampledImageSet;
-
 	// Per-swapchain-image render-finished semaphores to avoid reuse hazards
 	std::vector<VkSemaphore> _imageRenderFinishedSemaphores; 
 

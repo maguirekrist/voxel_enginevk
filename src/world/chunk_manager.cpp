@@ -12,10 +12,6 @@ ChunkManager::ChunkManager() : m_chunkCache(nullptr)
 
 ChunkManager::~ChunkManager() = default;
 
-void ChunkManager::update()
-{
-}
-
 void ChunkManager::update_player_position(const glm::vec3& position)
 {
     const ChunkCoord playerChunk = World::get_chunk_coordinates(position);
@@ -28,7 +24,6 @@ void ChunkManager::update_player_position(const glm::vec3& position)
     std::println("Player position: x {},  z {}", playerChunk.x, playerChunk.z);
     _lastPlayerChunk = playerChunk;
     const MapRange mapRange(playerChunk, _viewDistance);
-    _mapRange = mapRange;
 
     if (_initialLoad)
     {
@@ -47,7 +42,6 @@ void ChunkManager::update_player_position(const glm::vec3& position)
         schedule_generate(chunk, chunk->_gen.load(std::memory_order::acquire));
     }
 
-    // std::println("Work Queue: {}", _chunkWorkQueue.size_approx());
     std::println("Active chunks: {}", m_chunkCache->m_chunks.size());
 }
 
@@ -110,7 +104,6 @@ void ChunkManager::schedule_mesh(Chunk* const chunk, const uint32_t gen)
         if (neighbors.has_value() == false)
         {
             std::println("Scheduled mesh with no neighbors: {}", chunk->_data->coord);
-            //throw std::runtime_error("No neighbors");
             return;
         }
 

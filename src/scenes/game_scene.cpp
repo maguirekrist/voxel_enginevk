@@ -7,22 +7,11 @@
 #include "components/player_input_component.h"
 
 
-//Example on how to render objects from obj files.
-//VulkanEngine::instance()._materialManager.build_material_default(_cameraUboResource, translate);
-//
-// //Load all the objects from the obj folder
-// for (const auto& file : std::filesystem::directory_iterator("models")) {
-// 	auto mesh = VulkanEngine::instance()._meshManager.queue_from_obj(file.path().string());
-// 	_gameObjects.push_back(std::make_shared<RenderObject>(RenderObject{std::make_shared<SharedResource<Mesh>>(mesh), VulkanEngine::instance()._materialManager.get_material("defaultobj"), glm::vec2(0, 0), RenderLayer::Opaque }));
-// 	fmt::println("Loaded object: {}", file.path().string());
-// }
-
-
-GameScene::GameScene(): _player(nullptr), _game(*this), _camera(nullptr)
+GameScene::GameScene(const SceneServices& services): _player(nullptr), _services(services), _game(*this), _camera(nullptr)
 {
-	auto fogUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(FogUBO),
+	auto fogUboBuffer = vkutil::create_buffer(_services.allocator, sizeof(FogUBO),
 	                                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-	auto cameraUboBuffer = vkutil::create_buffer(VulkanEngine::instance()._allocator, sizeof(CameraUBO),
+	auto cameraUboBuffer = vkutil::create_buffer(_services.allocator, sizeof(CameraUBO),
 	                                             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	_cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
 	_fogResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(fogUboBuffer));
@@ -45,8 +34,8 @@ void GameScene::update_buffers() {
 	ZoneScopedN("Draw Chunks & Objects");
 	_chunkRenderRegistry.sync(
 		_game._chunkManager,
-		VulkanEngine::instance()._meshManager,
-		VulkanEngine::instance()._materialManager,
+		*_services.meshManager,
+		*_services.materialManager,
 		_renderState);
 	update_uniform_buffer();
 	update_fog_ubo();
@@ -130,9 +119,6 @@ void GameScene::draw_imgui()
 	{
 		draw_debug_map();
 	}
-	{
-		//draw_debug_cache();
-	}
 
 	ImGuiIO& io = ImGui::GetIO();
 	ImGui::Render();
@@ -140,8 +126,7 @@ void GameScene::draw_imgui()
 
 void GameScene::rebuild_pipelines()
 {
-	//VulkanEngine::instance()._materialManager.cleanup();
-	_camera->resize(VulkanEngine::instance()._windowExtent);
+	_camera->resize(_services.current_window_extent());
 	build_pipelines();
 }
 
@@ -157,7 +142,7 @@ void GameScene::build_pipelines()
 			return push;
 		}
 	};
-	VulkanEngine::instance()._materialManager.build_graphics_pipeline(
+	_services.materialManager->build_graphics_pipeline(
 		{ _cameraUboResource },
 		{ translate },
 		{},
@@ -166,7 +151,7 @@ void GameScene::build_pipelines()
 		"defaultmesh"
 	);
 
-	VulkanEngine::instance()._materialManager.build_graphics_pipeline(
+	_services.materialManager->build_graphics_pipeline(
 		{ _cameraUboResource, _fogResource }, // Order Matters here
 		{ translate },
 		{ .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = true },
@@ -175,15 +160,16 @@ void GameScene::build_pipelines()
 		"watermesh"
 	);
 
-	VulkanEngine::instance()._materialManager.build_postprocess_pipeline(_fogResource);
-	VulkanEngine::instance()._materialManager.build_present_pipeline();
+	_services.materialManager->build_postprocess_pipeline(_fogResource);
+	_services.materialManager->build_present_pipeline();
 }
 
 void GameScene::draw_debug_map()
 {
 	ImGui::Begin("Chunk Debug");
 
-	ImGui::Text("Window size: %d x %d", VulkanEngine::instance()._windowExtent.width, VulkanEngine::instance()._windowExtent.height);
+	const VkExtent2D windowExtent = _services.current_window_extent();
+	ImGui::Text("Window size: %d x %d", windowExtent.width, windowExtent.height);
 
 	ChunkCoord playerChunk = World::get_chunk_coordinates(_player->_position);
 	if (_game._current_chunk != nullptr)
@@ -199,15 +185,6 @@ void GameScene::draw_debug_map()
 		auto local_pos = World::get_local_coordinates(_player->_position);
 		ImGui::Text("Player Local Position: x: %d, z: %d, y: %d", local_pos.x, local_pos.z, local_pos.y);
 	}
-
-	// const auto& render_set = VulkanEngine::instance()._opaqueSet.data();
-	// auto active_set = render_set | std::views::filter([](const auto& renderObj)
-	// {
-	// 	return renderObj.mesh->_isActive.load(std::memory_order::acquire) == true;
-	// });
-	// const auto active_count = std::ranges::distance(active_set);
-	//
-	// ImGui::Text("Active Renderables: %d", static_cast<int>(active_count));
 
 	const int max_chunks = (GameConfig::DEFAULT_VIEW_DISTANCE * 2) + 1;
 	if (ImGui::BeginTable("MyGrid", max_chunks)) {
@@ -254,65 +231,6 @@ void GameScene::draw_debug_map()
 	ImGui::End();
 }
 
-// void GameScene::draw_debug_cache()
-// {
-// 	ImGui::Begin("Chunk Cache Debug");
-//
-// 	ImGui::Text("Origin: %d,%d", m_chunkCache.m_origin.x, m_chunkCache.m_origin.z);
-//
-// 	if (ImGui::Button("Move North"))
-// 	{
-// 		m_chunkCache.slide({ 1, 0 });
-// 	}
-//
-// 	if (ImGui::Button("Move South"))
-// 	{
-// 		m_chunkCache.slide({ -1, 0 });
-// 	}
-//
-// 	if (ImGui::Button("Move East"))
-// 	{
-// 		m_chunkCache.slide({ 0, 1 });
-// 	}
-//
-// 	if (ImGui::Button("Move West"))
-// 	{
-// 		m_chunkCache.slide({ 0, -1 });
-// 	}
-//
-// 	const int width = (GameConfig::DEFAULT_VIEW_DISTANCE * 2) + 1;
-// 	if (ImGui::BeginTable("MyGrid", width))
-// 	{
-// 		for (int row = 0; row < width; ++row)
-// 		{
-// 			ImGui::TableNextRow();
-// 			for (int col = 0; col < width; ++col)
-// 			{
-// 				ImGui::TableSetColumnIndex(col);
-// 				auto chunk = m_chunkCache.m_chunks[col + (row * width)].get();
-// 				if (chunk != nullptr)
-// 				{
-// 					if (chunk->_chunkCoord == m_chunkCache.m_origin)
-// 					{
-// 						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
-// 						ImGui::Text("[%d,%d]", chunk->_chunkCoord.x, chunk->_chunkCoord.z);
-// 						ImGui::PopStyleColor();
-// 					} else
-// 					{
-// 						ImGui::Text("[%d,%d]", chunk->_chunkCoord.x, chunk->_chunkCoord.z);
-// 					}
-// 				} else
-// 				{
-// 					ImGui::Text("[%d,%d]", -1, -1);
-// 				}
-// 			}
-// 		}
-// 		ImGui::EndTable();
-// 	}
-//
-// 	ImGui::End();
-// }
-
 void GameScene::update_fog_ubo() const
 {
 	FogUBO fogUBO{};
@@ -321,13 +239,14 @@ void GameScene::update_fog_ubo() const
 
 	fogUBO.fogCenter = _player->_position;
 	fogUBO.fogRadius = (CHUNK_SIZE * GameConfig::DEFAULT_VIEW_DISTANCE) - 60.0f;
-	fogUBO.screenSize = glm::ivec2(VulkanEngine::instance()._windowExtent.width, VulkanEngine::instance()._windowExtent.height);
+	const VkExtent2D windowExtent = _services.current_window_extent();
+	fogUBO.screenSize = glm::ivec2(windowExtent.width, windowExtent.height);
 	fogUBO.invViewProject = glm::inverse(_camera->_projection * _camera->_view);
 
 	void* data;
-	vmaMapMemory(VulkanEngine::instance()._allocator, _fogResource->value.buffer._allocation, &data);
+	vmaMapMemory(_services.allocator, _fogResource->value.buffer._allocation, &data);
 	memcpy(data, &fogUBO, sizeof(FogUBO));
-	vmaUnmapMemory(VulkanEngine::instance()._allocator, _fogResource->value.buffer._allocation);
+	vmaUnmapMemory(_services.allocator, _fogResource->value.buffer._allocation);
 }
 
 void GameScene::update_uniform_buffer() const
@@ -338,9 +257,9 @@ void GameScene::update_uniform_buffer() const
 	cameraUBO.viewproject = _camera->_projection * _camera->_view;
 
 	void* data;
-	vmaMapMemory(VulkanEngine::instance()._allocator, _cameraUboResource->value.buffer._allocation, &data);
+	vmaMapMemory(_services.allocator, _cameraUboResource->value.buffer._allocation, &data);
 	memcpy(data, &cameraUBO, sizeof(CameraUBO));
-	vmaUnmapMemory(VulkanEngine::instance()._allocator, _cameraUboResource->value.buffer._allocation);
+	vmaUnmapMemory(_services.allocator, _cameraUboResource->value.buffer._allocation);
 }
 
 
@@ -364,7 +283,7 @@ void GameScene::create_player()
 
 void GameScene::create_camera()
 {
-	auto camera = std::make_unique<Camera>(GameConfig::DEFAULT_POSITION, VulkanEngine::instance()._windowExtent);
+	auto camera = std::make_unique<Camera>(GameConfig::DEFAULT_POSITION, _services.current_window_extent());
 	auto& ref = *camera;
 	ref.Add<PlayerInputComponent>([this](const glm::vec3& pos) -> bool
 	{

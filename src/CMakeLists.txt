@@ -42,6 +42,7 @@ add_executable(vulkan_guide
     render/material_manager.h
     render/material_manager.cpp
     scenes/scene.h
+    scenes/scene_services.h
     scenes/game_scene.h
     scenes/game_scene.cpp
     scenes/blueprint_builder_scene.h
@@ -49,6 +50,7 @@ add_executable(vulkan_guide
     render/scene_renderer.h
     render/scene_renderer.cpp
         render/render_primitives.h
+        render/frame_render_context.h
         render/resource.cpp
     render/resource.h
         world/chunk_cache.cpp
