@@ -146,6 +146,8 @@ private:
 	void init_imgui();
 
 	void resize_swapchain();
+	void destroy_image_render_finished_semaphores();
+	void destroy_swapchain_resources();
 	void destroy_swapchain();
 
 	void submit_queue_present(VkCommandBuffer pCmd, uint32_t swapchainImageIndex); //takes in a primary command buffer only

@@ -97,8 +97,7 @@ void VulkanEngine::cleanup()
 {
 	std::println("VulkanEngine::cleanup");
 	if (_isInitialized) {
-
-		VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
+		VK_CHECK(vkDeviceWaitIdle(_device));
 
 		_sceneRenderer.cleanup();
 		_meshManager.cleanup();
@@ -112,6 +111,7 @@ void VulkanEngine::cleanup()
 			ImGui::DestroyContext();
 		}
 
+		destroy_swapchain_resources();
 		_mainDeletionQueue.flush();
 		_descriptorLayoutCache.cleanup();
 		_descriptorAllocator.cleanup();
@@ -123,6 +123,8 @@ void VulkanEngine::cleanup()
 		vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
 		vkDestroyInstance(_instance, nullptr);
 		SDL_DestroyWindow(_window);
+		SDL_Quit();
+		_isInitialized = false;
 	}
 }
 
@@ -463,13 +465,7 @@ void VulkanEngine::init_swapchain()
 	VkSemaphoreCreateInfo perImageSemaphoreInfo = vkinit::semaphore_create_info();
 	for(size_t i = 0; i < _imageRenderFinishedSemaphores.size(); ++i) {
 		VK_CHECK(vkCreateSemaphore(_device, &perImageSemaphoreInfo, nullptr, &_imageRenderFinishedSemaphores[i]));
-		_mainDeletionQueue.push_function([=, this]() { vkDestroySemaphore(_device, _imageRenderFinishedSemaphores[i], nullptr); });
 	}
-
-	_mainDeletionQueue.push_function([=, this]() {
-		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
-	});
-
 }
 
 void VulkanEngine::init_offscreen_images()
@@ -534,11 +530,31 @@ void VulkanEngine::init_offscreen_images()
 
 void VulkanEngine::destroy_offscreen_images()
 {
-	vkDestroyImageView(_device, _depthImage.view, nullptr);
-	vmaDestroyImage(_allocator, _depthImage.image._image, _depthImage.image._allocation);
-	vkDestroyImageView(_device, _fullscreenImage.view, nullptr);
-	vmaDestroyImage(_allocator, _fullscreenImage.image._image, _fullscreenImage.image._allocation);
-	vkDestroySampler(_device, _sampler, nullptr);
+	if (_depthImage.view != VK_NULL_HANDLE)
+	{
+		vkDestroyImageView(_device, _depthImage.view, nullptr);
+		_depthImage.view = VK_NULL_HANDLE;
+	}
+	if (_depthImage.image._image != VK_NULL_HANDLE)
+	{
+		vmaDestroyImage(_allocator, _depthImage.image._image, _depthImage.image._allocation);
+		_depthImage.image = {};
+	}
+	if (_fullscreenImage.view != VK_NULL_HANDLE)
+	{
+		vkDestroyImageView(_device, _fullscreenImage.view, nullptr);
+		_fullscreenImage.view = VK_NULL_HANDLE;
+	}
+	if (_fullscreenImage.image._image != VK_NULL_HANDLE)
+	{
+		vmaDestroyImage(_allocator, _fullscreenImage.image._image, _fullscreenImage.image._allocation);
+		_fullscreenImage.image = {};
+	}
+	if (_sampler != VK_NULL_HANDLE)
+	{
+		vkDestroySampler(_device, _sampler, nullptr);
+		_sampler = VK_NULL_HANDLE;
+	}
 }
 
 
@@ -758,7 +774,11 @@ void VulkanEngine::init_offscreen_framebuffers()
 
 void VulkanEngine::destroy_offscreen_framebuffers()
 {
-	vkDestroyFramebuffer(_device, _offscreenFramebuffer, nullptr);
+	if (_offscreenFramebuffer != VK_NULL_HANDLE)
+	{
+		vkDestroyFramebuffer(_device, _offscreenFramebuffer, nullptr);
+		_offscreenFramebuffer = VK_NULL_HANDLE;
+	}
 }
 
 void VulkanEngine::init_framebuffers()
@@ -802,6 +822,9 @@ void VulkanEngine::destroy_framebuffers()
 		vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
 		vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
 	}
+	_framebuffers.clear();
+	_swapchainImageViews.clear();
+	_swapchainImages.clear();
 }
 
 void VulkanEngine::init_sync_structures()
@@ -865,18 +888,41 @@ void VulkanEngine::init_imgui()
 
 void VulkanEngine::destroy_swapchain()
 {
-	vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+	if (_swapchain != VK_NULL_HANDLE)
+	{
+		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+		_swapchain = VK_NULL_HANDLE;
+	}
 }
 
+void VulkanEngine::destroy_image_render_finished_semaphores()
+{
+	for (VkSemaphore& semaphore : _imageRenderFinishedSemaphores)
+	{
+		if (semaphore != VK_NULL_HANDLE)
+		{
+			vkDestroySemaphore(_device, semaphore, nullptr);
+			semaphore = VK_NULL_HANDLE;
+		}
+	}
+
+	_imageRenderFinishedSemaphores.clear();
+}
+
+void VulkanEngine::destroy_swapchain_resources()
+{
+	destroy_offscreen_framebuffers();
+	destroy_framebuffers();
+	destroy_offscreen_images();
+	destroy_image_render_finished_semaphores();
+	destroy_swapchain();
+}
 
 void VulkanEngine::resize_swapchain()
 {
 	vkDeviceWaitIdle(_device);
 
-	destroy_swapchain();
-	destroy_offscreen_images();
-	destroy_framebuffers();
-	destroy_offscreen_framebuffers();
+	destroy_swapchain_resources();
 
 	int w, h;
 	SDL_GetWindowSize(_window, &w, &h);
