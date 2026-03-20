@@ -115,7 +115,7 @@ void GameScene::build_pipelines()
 		}
 	};
 	_services.materialManager->build_graphics_pipeline(
-		{ _cameraUboResource },
+		{ MaterialBinding::from_resource(0, 0, _cameraUboResource) },
 		{ translate },
 		{},
 		"tri_mesh.vert.spv",
@@ -124,7 +124,10 @@ void GameScene::build_pipelines()
 	);
 
 	_services.materialManager->build_graphics_pipeline(
-		{ _cameraUboResource, _fogResource }, // Order Matters here
+		{
+            MaterialBinding::from_resource(0, 0, _cameraUboResource),
+            MaterialBinding::from_resource(1, 0, _fogResource)
+        },
 		{ translate },
 		{ .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = true },
 		"water_mesh.vert.spv",

@@ -6,11 +6,8 @@ namespace vkutil {
 
     //Transitions a written image to a image ready to be procesed by a compute shader
     void transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout targetLayout);
-    bool load_shader_module(const std::string& filePath, VkDevice device, VkShaderModule* outShaderModule);
     AllocatedBuffer create_buffer(VmaAllocator allocator, size_t size, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage);
     AllocatedImage create_image(VmaAllocator allocator, VkExtent3D extent, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage memUsage);
-
-    void reflect_shader(const std::string& filePath);
 
     class DescriptorAllocator {
     public:
@@ -74,23 +71,5 @@ namespace vkutil {
 
         std::unordered_map<DescriptorLayoutInfo, VkDescriptorSetLayout, DescriptorLayoutHash> layoutCache;
         VkDevice device = nullptr;
-    };
-
-    class DescriptorBuilder {
-    public:
-        static DescriptorBuilder begin(DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator );
-
-        DescriptorBuilder& bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags);
-        DescriptorBuilder& bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags);
-
-        bool build(VkDescriptorSet& set, VkDescriptorSetLayout& layout);
-        bool build(VkDescriptorSet& set);
-    private:
-
-        std::vector<VkWriteDescriptorSet> writes;
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-
-        DescriptorLayoutCache* cache = nullptr;
-        DescriptorAllocator* alloc = nullptr;
     };
 };

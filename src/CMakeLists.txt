@@ -14,6 +14,10 @@ add_executable(vulkan_guide
         vk_vertex.cpp
     camera.h
     camera.cpp
+    window_system.h
+    window_system.cpp
+    frame_clock.h
+    frame_clock.cpp
         game/world.h
         game/world.cpp
     random.h

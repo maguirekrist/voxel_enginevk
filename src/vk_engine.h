@@ -9,6 +9,8 @@
 #include <render/mesh_manager.h>
 #include <render/material_manager.h>
 #include <render/scene_renderer.h>
+#include <window_system.h>
+#include <frame_clock.h>
 
 class FunctionQueue {
 public:
@@ -41,7 +43,6 @@ public:
 	bool _isInitialized{ false };
 	int _frameNumber {0};
 
-	bool bFocused = false;
 	bool bQuit = false;
 	bool bUseValidationLayers = USE_VALIDATION_LAYERS;
 	bool bResizeRequest = false;
@@ -74,11 +75,10 @@ public:
 	std::vector<VkFramebuffer> _framebuffers;
 
 	SceneRenderer _sceneRenderer{};
+    WindowSystem _windowSystem{};
+    FrameClock _frameClock{};
 
-	float _deltaTime;
-	TimePoint _lastFrameTime;
-	TimePoint _lastFpsTime;
-	float _fps;
+	float _deltaTime{0.0f};
 	
 	VkSampler _sampler;
 	ImageResource _depthImage;
@@ -107,11 +107,7 @@ public:
 	VkExtent2D _windowExtent{ DEFAULT_WINDOW_WIDTH , DEFAULT_WINDOW_HEIGHT };
 
 
-	struct SDL_Window* _window{ nullptr };
-
-
 	FrameData& get_current_frame();
-	void calculate_fps();
 	void init();
 	void cleanup();
 	void handle_input();

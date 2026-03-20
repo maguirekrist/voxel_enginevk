@@ -8,14 +8,50 @@
 #include "render_primitives.h"
 #include "resource.h"
 
+struct MaterialBinding {
+    uint32_t set{0};
+    uint32_t binding{0};
+    std::shared_ptr<Resource> resource{};
+    std::optional<VkDescriptorBufferInfo> bufferInfo{};
+    std::optional<VkDescriptorImageInfo> imageInfo{};
+
+    [[nodiscard]] static MaterialBinding from_resource(const uint32_t set, const uint32_t binding, const std::shared_ptr<Resource>& resource)
+    {
+        return MaterialBinding{
+            .set = set,
+            .binding = binding,
+            .resource = resource
+        };
+    }
+
+    [[nodiscard]] static MaterialBinding from_buffer_info(const uint32_t set, const uint32_t binding, const VkDescriptorBufferInfo& bufferInfo)
+    {
+        return MaterialBinding{
+            .set = set,
+            .binding = binding,
+            .bufferInfo = bufferInfo
+        };
+    }
+
+    [[nodiscard]] static MaterialBinding from_image_info(const uint32_t set, const uint32_t binding, const VkDescriptorImageInfo& imageInfo)
+    {
+        return MaterialBinding{
+            .set = set,
+            .binding = binding,
+            .imageInfo = imageInfo
+        };
+    }
+};
+
+using MaterialBindings = std::vector<MaterialBinding>;
+
 struct Material {
     std::string key;
     VkPipeline pipeline;
     VkPipelineLayout pipelineLayout;
 
-    //TODO: Have a Material own its own resources like descriptor sets, etc.
     std::vector<VkDescriptorSet> descriptorSets;
-    std::vector<std::shared_ptr<Resource>> resources;
+    MaterialBindings bindings;
 
     std::vector<PushConstant> pushConstants;
 

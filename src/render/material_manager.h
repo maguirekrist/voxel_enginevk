@@ -32,7 +32,7 @@ public:
 	void cleanup();
 	
 	void build_graphics_pipeline(
-		const std::vector<std::shared_ptr<Resource>>& resources,
+		const MaterialBindings& bindings,
 		const std::vector<PushConstant>& pConstants,
 		const PipelineMetadata&& metadata,
 		const std::string& vertex_shader,

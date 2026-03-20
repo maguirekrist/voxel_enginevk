@@ -28,35 +28,9 @@ VulkanEngine::VulkanEngine()
 {
 }
 
-void VulkanEngine::calculate_fps()
-{
-	std::chrono::duration<float> elapsedTime = Clock::now() - _lastFpsTime;
-
-	if(elapsedTime.count() >= 1.0f)
-	{
-		_fps = _frameNumber / elapsedTime.count();
-		std::println("FPS: {}", _fps);
-
-		_frameNumber = 0;
-		_lastFpsTime = Clock::now();
-	}
-}
-
 void VulkanEngine::init()
 {
-	// We initialize SDL and create a window with it. 
-	SDL_Init(SDL_INIT_VIDEO);
-
-	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-	
-	_window = SDL_CreateWindow(
-		"Vulkan Engine",
-		SDL_WINDOWPOS_UNDEFINED,
-		SDL_WINDOWPOS_UNDEFINED,
-		_windowExtent.width,
-		_windowExtent.height,
-		window_flags
-	);
+	_windowSystem.init("Vulkan Engine", _windowExtent);
 
 	init_vulkan();
 
@@ -123,72 +97,21 @@ void VulkanEngine::cleanup()
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
 		vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
 		vkDestroyInstance(_instance, nullptr);
-		SDL_DestroyWindow(_window);
-		SDL_Quit();
+		_windowSystem.cleanup();
 		_isInitialized = false;
 	}
 }
 
 void VulkanEngine::handle_input()
 {	
-	SDL_Event e;
-	const Uint8* state = SDL_GetKeyboardState(NULL);
+    const WindowEventState eventState = _windowSystem.poll_events([this](const SDL_Event& event)
+    {
+        _sceneRenderer.get_current_scene()->handle_input(event);
+    });
 
-	//Handle events on queue
-	while (SDL_PollEvent(&e) != 0)
-	{
-		if (USE_IMGUI)
-		{
-			ImGui_ImplSDL2_ProcessEvent(&e);
-		}
-
-		switch(e.type) {
-			case SDL_WINDOWEVENT:
-				if(e.window.event == SDL_WINDOWEVENT_RESIZED)
-				{
-					//TODO: Handle resize
-					std::println("RESIZED!");
-					bResizeRequest = true;
-					//throw std::runtime_error("RESIZED!");
-				}
-				break;
-			case SDL_KEYDOWN:
-				switch(e.key.keysym.sym)
-				{
-					case SDLK_ESCAPE:
-						bFocused = false;
-						SDL_SetWindowGrab(_window, SDL_FALSE);
-						SDL_SetRelativeMouseMode(SDL_FALSE);
-						SDL_ShowCursor(SDL_TRUE);
-						break;
-					default:
-						//no-op
-						break;
-				}
-				break;
-			case SDL_MOUSEBUTTONDOWN:
-				if(bFocused == false)
-				{
-					bFocused = true;
-					SDL_SetWindowGrab(_window, SDL_TRUE);
-					SDL_SetRelativeMouseMode(SDL_TRUE);
-					SDL_ShowCursor(SDL_FALSE);
-				}
-				break;
-			case SDL_QUIT:
-				bQuit = true;
-				break;
-			default:
-				//no-op
-				break;
-		}
-
-		if(bFocused) {
-			_sceneRenderer.get_current_scene()->handle_input(e);
-		}
-	}
-
-	_sceneRenderer.get_current_scene()->handle_keystate(state);
+    bQuit = bQuit || eventState.quitRequested;
+    bResizeRequest = bResizeRequest || eventState.resizeRequested;
+	_sceneRenderer.get_current_scene()->handle_keystate(_windowSystem.keyboard_state());
 }
 
 //returns the swapChainImageIndex
@@ -269,6 +192,7 @@ void VulkanEngine::draw()
 	submit_queue_present(cmd, swapchainImageIndex);
 	//increase the number of frames drawn
 	_frameNumber++;
+    _frameClock.report_frame_rendered();
 }
 
 void VulkanEngine::submit_queue_present(const VkCommandBuffer pCmd, const uint32_t swapchainImageIndex)
@@ -326,10 +250,7 @@ void VulkanEngine::run()
 	while (!bQuit)
 	{
 		ZoneScopedN("Main Loop");
-		TimePoint now = std::chrono::steady_clock::now();
-		std::chrono::duration<float> test = now - _lastFrameTime;
-		_deltaTime = test.count();
-		_lastFrameTime = now;
+		_deltaTime = _frameClock.tick_frame();
 
 		handle_input();
 
@@ -359,7 +280,7 @@ void VulkanEngine::init_vulkan()
 	_instance = vkb_inst.instance;
 	_debug_messenger = vkb_inst.debug_messenger;
 
-	SDL_Vulkan_CreateSurface(_window, _instance, &_surface);
+	SDL_Vulkan_CreateSurface(_windowSystem.handle(), _instance, &_surface);
 
 
 	// //vulkan 1.3 features
@@ -857,7 +778,7 @@ void VulkanEngine::init_imgui()
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO();
-	ImGui_ImplSDL2_InitForVulkan(_window);
+	ImGui_ImplSDL2_InitForVulkan(_windowSystem.handle());
 
 	//Optionally enable docking, etc.
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -926,7 +847,7 @@ void VulkanEngine::resize_swapchain()
 	destroy_swapchain_resources();
 
 	int w, h;
-	SDL_GetWindowSize(_window, &w, &h);
+	SDL_GetWindowSize(_windowSystem.handle(), &w, &h);
 	_windowExtent.width = w;
 	_windowExtent.height = h;
 
