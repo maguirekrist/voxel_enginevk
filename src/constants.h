@@ -17,6 +17,10 @@ namespace GameConfig
     constexpr float DEFAULT_MOVE_SPEED = 40.0f;
     constexpr float DEFAULT_ROTATION_SPEED = 180.0f;
     constexpr float BLOCK_INTERACTION_DISTANCE = 8.0f;
+    constexpr float AO_FULL_LIGHT = 1.0f;
+    constexpr float AO_LIGHT = 0.88f;
+    constexpr float AO_MEDIUM = 0.76f;
+    constexpr float AO_HEAVY = 0.66f;
     constexpr auto DEFAULT_POSITION = glm::vec3(0.0f, 120.0f, 0.0f);
 }
 

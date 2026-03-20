@@ -80,37 +80,33 @@ bool ChunkMesher::is_face_visible_water(int x, int y, int z, FaceDirection face)
 //Face cube position of the 
 float ChunkMesher::calculate_vertex_ao(const glm::ivec3 cubePos, const FaceDirection face, const int vertex)
 {
-    bool corner = false;
-    bool edge1 = false;
-    bool edge2 = false;
-
     glm::ivec3 cornerPos = cubePos + CornerOffsets[face][vertex];
     glm::ivec3 edge1Pos = cubePos + Side1Offsets[face][vertex];
     glm::ivec3 edge2Pos = cubePos + Side2Offsets[face][vertex];
 
-    corner = is_position_solid(cornerPos);
-    edge1 = is_position_solid(edge1Pos);
-    edge2 = is_position_solid(edge2Pos);
+    const bool corner = is_position_solid(cornerPos);
+    const bool edge1 = is_position_solid(edge1Pos);
+    const bool edge2 = is_position_solid(edge2Pos);
 
-    if (corner && edge1 && edge2)
+    // Classic voxel AO uses 4 levels based on two side blockers and one corner blocker.
+    // The previous weights were much harsher and crushed corners too aggressively.
+    if (edge1 && edge2)
     {
-        return 0.15f;
-    }
-    else if (corner && (edge1 || edge2))
-    {
-        return 0.35f;
-    }
-    else if (edge1 && edge2)
-    {
-        return 0.35f;
-    }
-    else if (corner || edge1 || edge2)
-    {
-        return 0.35f;
+        return GameConfig::AO_HEAVY;
     }
 
-    return 1.0f;
-
+    const int occlusion = static_cast<int>(edge1) + static_cast<int>(edge2) + static_cast<int>(corner);
+    switch (occlusion)
+    {
+    case 0:
+        return GameConfig::AO_FULL_LIGHT;
+    case 1:
+        return GameConfig::AO_LIGHT;
+    case 2:
+        return GameConfig::AO_MEDIUM;
+    default:
+        return GameConfig::AO_HEAVY;
+    }
 }
 
 void ChunkMesher::propagate_sunlight()
