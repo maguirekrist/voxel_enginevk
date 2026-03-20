@@ -49,6 +49,11 @@ const Block* CubeEngine::get_block(const glm::vec3& worldPos) const
     return _world.get_block(worldPos);
 }
 
+void CubeEngine::apply_block_edit(const BlockEdit& edit)
+{
+    _chunkManager.enqueue_block_edit(edit);
+}
+
 ChunkManager& CubeEngine::chunk_manager()
 {
     return _chunkManager;

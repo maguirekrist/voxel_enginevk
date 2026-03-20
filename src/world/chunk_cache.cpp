@@ -38,7 +38,6 @@ std::vector<Chunk*> ChunkCache::slide_east()
     {
         auto chunkIndex = wrapped_index_col + (i * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        m_neighborBarrier.cancel(chunk->_data->coord);
         chunk->reset(ChunkCoord{chunk->_data->coord.x, m_origin.z + m_radius + 1});
         chunks.push_back(chunk);
     }
@@ -57,7 +56,6 @@ std::vector<Chunk*> ChunkCache::slide_west()
     {
         auto chunkIndex = wrapped_index_col + (i * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        m_neighborBarrier.cancel(chunk->_data->coord);
         chunk->reset(ChunkCoord{chunk->_data->coord.x, m_origin.z - m_radius - 1});
         chunks.push_back(chunk);
     }
@@ -77,7 +75,6 @@ std::vector<Chunk*> ChunkCache::slide_north()
     {
         auto chunkIndex = i + (wrapped_index_row * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        m_neighborBarrier.cancel(chunk->_data->coord);
         chunk->reset(ChunkCoord{m_origin.x + m_radius + 1, chunk->_data->coord.z});
         chunks.push_back(chunk);
     }
@@ -97,7 +94,6 @@ std::vector<Chunk*> ChunkCache::slide_south()
     {
         auto chunkIndex = i + (wrapped_index_row * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        m_neighborBarrier.cancel(chunk->_data->coord);
         chunk->reset(ChunkCoord{m_origin.x - m_radius - 1, chunk->_data->coord.z});
         chunks.push_back(chunk);
     }
@@ -106,8 +102,8 @@ std::vector<Chunk*> ChunkCache::slide_south()
     return chunks;
 }
 
-ChunkCache::ChunkCache(const int view_distance, NeighborBarrier& neighbor_barrier) : m_radius(view_distance),
-    m_width(view_distance * 2 + 1), m_neighborBarrier(neighbor_barrier), m_chunks(m_width * m_width)
+ChunkCache::ChunkCache(const int view_distance) : m_radius(view_distance),
+    m_width(view_distance * 2 + 1), m_chunks(m_width * m_width)
 {
     if (view_distance == 0)
     {

@@ -163,6 +163,33 @@ void GameScene::build_pipelines()
 
 void GameScene::draw_debug_map()
 {
+    auto data_state_label = [](const DataState state) -> const char*
+    {
+        switch (state)
+        {
+        case DataState::Empty: return "E";
+        case DataState::GenerateQueued: return "GQ";
+        case DataState::Generating: return "GG";
+        case DataState::Ready: return "R";
+        case DataState::Dirty: return "D";
+        }
+        return "?";
+    };
+
+    auto mesh_state_label = [](const MeshState state) -> const char*
+    {
+        switch (state)
+        {
+        case MeshState::Missing: return "M";
+        case MeshState::MeshQueued: return "MQ";
+        case MeshState::Meshing: return "MS";
+        case MeshState::MeshReady: return "MR";
+        case MeshState::Uploaded: return "U";
+        case MeshState::Stale: return "S";
+        }
+        return "?";
+    };
+
 	ImGui::Begin("Chunk Debug");
     ImGui::Checkbox("Show Chunk Boundaries (G)", &_showChunkBoundaries);
 
@@ -193,15 +220,20 @@ void GameScene::draw_debug_map()
 				ImGui::TableSetColumnIndex(col);
 				const ChunkCoord chunkCoord = {playerChunk.x + (row - GameConfig::DEFAULT_VIEW_DISTANCE), playerChunk.z + (col - GameConfig::DEFAULT_VIEW_DISTANCE)};
 				const auto chunk = _game.get_chunk(chunkCoord);
+                const auto debugState = _game.chunk_manager().debug_state(chunkCoord);
 				if (chunk)
 				{
 					switch (chunk->_state.load(std::memory_order::acquire))
 					{
-					// case ChunkState::Border:
-					// 	ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
-					// 	break;
 					case ChunkState::Generated:
-						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 255, 255));
+                        if (debugState.has_value() && debugState->meshState == MeshState::Stale)
+                        {
+						    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 180, 0, 255));
+                        }
+                        else
+                        {
+						    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 255, 255, 255));
+                        }
 						break;
 					case ChunkState::Rendered:
 						if (chunk->_meshData->mesh->_isActive.load(std::memory_order::acquire) == true)
@@ -220,7 +252,14 @@ void GameScene::draw_debug_map()
 				{
 					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
 				}
-				ImGui::Text("[%d,%d,%d]", chunkCoord.x, chunkCoord.z, chunk != nullptr ? chunk->_gen.load(std::memory_order::acquire) : -1);
+                if (debugState.has_value())
+                {
+				    ImGui::Text("[%d,%d g%u d%u %s/%s]", chunkCoord.x, chunkCoord.z, debugState->generationId, debugState->dataVersion, data_state_label(debugState->dataState), mesh_state_label(debugState->meshState));
+                }
+                else
+                {
+				    ImGui::Text("[%d,%d,%d]", chunkCoord.x, chunkCoord.z, chunk != nullptr ? chunk->_gen.load(std::memory_order::acquire) : -1);
+                }
 				ImGui::PopStyleColor();
 			}
 		}

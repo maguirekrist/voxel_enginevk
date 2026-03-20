@@ -112,3 +112,36 @@ glm::ivec3 Chunk::get_world_pos(const glm::ivec3& localPos) const
 {
     return { localPos.x + _data->position.x, localPos.y, localPos.z + _data->position.y };
 }
+
+std::optional<Direction> Chunk::get_chunk_direction(const glm::ivec3& localPos)
+{
+    const auto x = localPos.x >= CHUNK_SIZE ? 1 : (localPos.x < 0 ? -1 : 0);
+    const auto z = localPos.z >= CHUNK_SIZE ? 1 : (localPos.z < 0 ? -1 : 0);
+
+    if (x == 0 && z == 1) {
+        return NORTH;
+    }
+    if (x == 0 && z == -1) {
+        return SOUTH;
+    }
+    if (x == -1 && z == 0) {
+        return EAST;
+    }
+    if (x == 1 && z == 0) {
+        return WEST;
+    }
+    if (x == -1 && z == 1) {
+        return NORTH_EAST;
+    }
+    if (x == 1 && z == 1) {
+        return NORTH_WEST;
+    }
+    if (x == -1 && z == -1) {
+        return SOUTH_EAST;
+    }
+    if (x == 1 && z == -1) {
+        return SOUTH_WEST;
+    }
+
+    return std::nullopt;
+}

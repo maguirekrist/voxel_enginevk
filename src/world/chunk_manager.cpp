@@ -16,115 +16,390 @@ void ChunkManager::update_player_position(const glm::vec3& position)
 {
     const ChunkCoord playerChunk = World::get_chunk_coordinates(position);
 
-    if (playerChunk == _lastPlayerChunk && !_initialLoad) return;
-
-    const auto changeX = playerChunk.x - _lastPlayerChunk.x;
-    const auto changeZ = playerChunk.z - _lastPlayerChunk.z;
-    std::println("Player changed chunks, delta: x {},  z {}", changeX, changeZ);
-    std::println("Player position: x {},  z {}", playerChunk.x, playerChunk.z);
-    _lastPlayerChunk = playerChunk;
-    const MapRange mapRange(playerChunk, _viewDistance);
-
-    if (_initialLoad)
+    if (playerChunk != _lastPlayerChunk || _initialLoad)
     {
-        _initialLoad = false;
-        return initialize_map(mapRange);
-    }
-    //calculate old chunks and remove.
-    auto new_chunks = m_chunkCache->slide({ changeX, changeZ });
+        const auto changeX = playerChunk.x - _lastPlayerChunk.x;
+        const auto changeZ = playerChunk.z - _lastPlayerChunk.z;
+        std::println("Player changed chunks, delta: x {},  z {}", changeX, changeZ);
+        std::println("Player position: x {},  z {}", playerChunk.x, playerChunk.z);
+        _lastPlayerChunk = playerChunk;
+        const MapRange mapRange(playerChunk, _viewDistance);
 
-    for (const auto& chunk : new_chunks)
-    {
-        _renderResetEvents.enqueue(ChunkRenderResetEvent{
-            .chunk = chunk,
-            .generation = chunk->_gen.load(std::memory_order::acquire)
-        });
-        schedule_generate(chunk, chunk->_gen.load(std::memory_order::acquire));
+        if (_initialLoad)
+        {
+            _initialLoad = false;
+            initialize_map(mapRange);
+        }
+        else
+        {
+            auto new_chunks = m_chunkCache->slide({ changeX, changeZ });
+
+            for (Chunk* const chunk : new_chunks)
+            {
+                reset_chunk_runtime(chunk);
+                _renderResetEvents.enqueue(ChunkRenderResetEvent{
+                    .chunk = chunk,
+                    .generation = chunk->_gen.load(std::memory_order::acquire)
+                });
+            }
+
+            std::println("Active chunks: {}", m_chunkCache->m_chunks.size());
+        }
     }
 
-    std::println("Active chunks: {}", m_chunkCache->m_chunks.size());
+    drain_generate_results();
+    apply_pending_world_edits();
+    drain_mesh_results();
+    run_scheduler();
 }
 
 Chunk* ChunkManager::get_chunk(const ChunkCoord coord) const
 {
+    if (m_chunkCache == nullptr)
+    {
+        return nullptr;
+    }
     return m_chunkCache->get_chunk(coord);
+}
+
+std::optional<ChunkManager::ChunkDebugState> ChunkManager::debug_state(const ChunkCoord coord) const
+{
+    const Chunk* const chunk = get_chunk(coord);
+    const ChunkRuntime* const runtime = runtime_for(chunk);
+    if (runtime == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    const ChunkRecord& record = runtime->record;
+    return ChunkDebugState{
+        .resident = record.residency == ChunkResidencyState::Resident,
+        .generationId = record.chunkGenerationId,
+        .dataVersion = record.dataVersion,
+        .meshedAgainstSignature = record.meshedAgainstSignature,
+        .uploadedSignature = record.uploadedSignature,
+        .dataState = record.dataState,
+        .meshState = record.meshState,
+        .generationJobInFlight = record.generationJobInFlight,
+        .meshJobInFlight = record.meshJobInFlight,
+        .uploadPending = record.uploadPending
+    };
 }
 
 void ChunkManager::initialize_map(const MapRange mapRange)
 {
-    m_chunkCache = std::make_unique<ChunkCache>(GameConfig::DEFAULT_VIEW_DISTANCE, _neighborBarrier);
+    m_chunkCache = std::make_unique<ChunkCache>(GameConfig::DEFAULT_VIEW_DISTANCE);
+    _runtimeByChunk.clear();
 
     for (auto& chunk : m_chunkCache->m_chunks)
     {
-        schedule_generate(chunk.get(), chunk->_gen.load(std::memory_order::acquire));
+        reset_chunk_runtime(chunk.get());
     }
 }
 
-void ChunkManager::schedule_generate(Chunk* const chunk, const uint32_t gen)
+void ChunkManager::enqueue_block_edit(const BlockEdit& edit)
 {
-    //the expected value needs to be calculated.
-    const ChunkCoord cc = chunk->_data->coord;
-    std::array<ChunkCoord, 8> required = neighbors_of(cc);
-    _neighborBarrier.init(cc, required.begin(), required.end());
+    _worldEditQueue.enqueue(edit);
+}
 
-    _threadPool.post([cc, gen, chunk, this]() noexcept
+void ChunkManager::notify_chunk_uploaded(Chunk* chunk, const uint32_t generationId, const uint64_t neighborhoodSignature)
+{
+    if (chunk == nullptr)
     {
-        if (chunk->_gen.load(std::memory_order::acquire) != gen) return;
-        chunk->_data->generate();
-        chunk->_state.store(ChunkState::Generated, std::memory_order::release);
+        return;
+    }
 
-        _neighborBarrier.mark_present(cc);
+    if (chunk->_gen.load(std::memory_order::acquire) != generationId)
+    {
+        return;
+    }
 
-        //signals neighbors.
-        for (const ChunkCoord c : neighbors_of(cc))
+    if (ChunkRuntime* const runtime = runtime_for(chunk))
+    {
+        ChunkRecord& record = runtime->record;
+        if (record.meshedAgainstSignature != neighborhoodSignature)
         {
-            if (_neighborBarrier.signal(c))
+            return;
+        }
+
+        record.uploadedSignature = neighborhoodSignature;
+        record.meshState = MeshState::Uploaded;
+        record.uploadPending = false;
+        chunk->_state.store(ChunkState::Rendered, std::memory_order::release);
+    }
+}
+
+void ChunkManager::drain_generate_results()
+{
+    ChunkGenerateResult result;
+    while (_generateResults.try_dequeue(result))
+    {
+        if (result.chunk == nullptr || result.chunk->_gen.load(std::memory_order::acquire) != result.generationId)
+        {
+            continue;
+        }
+
+        ChunkRuntime* const runtime = runtime_for(result.chunk);
+        if (runtime == nullptr)
+        {
+            continue;
+        }
+
+        ChunkRecord& record = runtime->record;
+        record.generationJobInFlight = false;
+        record.data = std::move(result.data);
+        result.chunk->_data = record.data;
+        record.dataState = DataState::Ready;
+        record.dataVersion += 1;
+        record.meshState = MeshState::Missing;
+        record.meshedAgainstSignature = 0;
+        record.uploadedSignature = 0;
+        record.uploadPending = false;
+        result.chunk->_state.store(ChunkState::Generated, std::memory_order::release);
+    }
+}
+
+void ChunkManager::drain_mesh_results()
+{
+    ChunkMeshBuildResult result;
+    while (_meshResults.try_dequeue(result))
+    {
+        if (result.chunk == nullptr || result.chunk->_gen.load(std::memory_order::acquire) != result.generationId)
+        {
+            continue;
+        }
+
+        ChunkRuntime* const runtime = runtime_for(result.chunk);
+        if (runtime == nullptr)
+        {
+            continue;
+        }
+
+        ChunkRecord& record = runtime->record;
+        record.meshJobInFlight = false;
+
+        ChunkNeighborhood neighborhood{};
+        uint64_t currentSignature = 0;
+        if (!required_neighbors_have_data(record.coord, currentSignature, neighborhood))
+        {
+            record.meshState = MeshState::Stale;
+            continue;
+        }
+
+        if (record.dataVersion != result.dataVersion || currentSignature != result.neighborhoodSignature)
+        {
+            record.meshState = MeshState::Stale;
+            continue;
+        }
+
+        record.mesh = std::move(result.meshData);
+        result.chunk->_meshData = record.mesh;
+        record.meshedAgainstSignature = result.neighborhoodSignature;
+        record.meshState = MeshState::MeshReady;
+    }
+}
+
+void ChunkManager::apply_pending_world_edits()
+{
+    while (const std::optional<BlockEdit> edit = _worldEditQueue.try_dequeue())
+    {
+        Chunk* const ownerChunk = get_chunk(World::get_chunk_coordinates(edit->worldPos));
+        if (ownerChunk == nullptr)
+        {
+            continue;
+        }
+
+        ChunkRuntime* const ownerRuntime = runtime_for(ownerChunk);
+        if (ownerRuntime == nullptr)
+        {
+            continue;
+        }
+
+        ChunkRecord& ownerRecord = ownerRuntime->record;
+        if (ownerRecord.data == nullptr || (ownerRecord.dataState != DataState::Ready && ownerRecord.dataState != DataState::Dirty))
+        {
+            continue;
+        }
+
+        const glm::ivec3 localPos = ownerRecord.data->to_local_position(edit->worldPos);
+        if (Chunk::is_outside_chunk(localPos))
+        {
+            continue;
+        }
+
+        ownerRecord.data->blocks[localPos.x][localPos.y][localPos.z] = edit->newBlock;
+
+        for (const DirtyChunkMark& mark : _dirtyTracker.affected_chunks(ownerRecord.coord, localPos))
+        {
+            if (Chunk* const dirtyChunk = get_chunk(mark.coord))
             {
-                if (auto* neighbor = m_chunkCache->get_chunk(c))
-                {
-                    schedule_mesh(neighbor, neighbor->_gen);
-                }
+                mark_chunk_dirty(dirtyChunk, dirtyChunk == ownerChunk);
             }
         }
+    }
+}
 
-        //signals itself.
-        if (_neighborBarrier.try_consume_ready(cc))
+void ChunkManager::run_scheduler()
+{
+    if (m_chunkCache == nullptr)
+    {
+        return;
+    }
+
+    for (const auto& chunkPtr : m_chunkCache->m_chunks)
+    {
+        Chunk* const chunk = chunkPtr.get();
+        ChunkRuntime* const runtime = runtime_for(chunk);
+        if (runtime == nullptr)
         {
-            schedule_mesh(chunk, gen);
+            continue;
         }
+
+        ChunkRecord& record = runtime->record;
+        if (_scheduler.should_generate(record))
+        {
+            queue_generate(chunk);
+            continue;
+        }
+
+        ChunkNeighborhood neighborhood{};
+        uint64_t signature = 0;
+        const bool neighborsReady = required_neighbors_have_data(record.coord, signature, neighborhood);
+
+        if ((record.meshState == MeshState::Uploaded || record.meshState == MeshState::MeshReady) &&
+            neighborsReady &&
+            record.meshedAgainstSignature != 0 &&
+            record.meshedAgainstSignature != signature)
+        {
+            record.meshState = MeshState::Stale;
+        }
+
+        if (_scheduler.should_mesh(record, neighborsReady, signature))
+        {
+            queue_mesh(chunk, signature, neighborhood);
+            continue;
+        }
+
+        if (_scheduler.should_upload(record))
+        {
+            record.uploadPending = true;
+            record.meshState = MeshState::MeshReady;
+            chunk->_state.store(ChunkState::Generated, std::memory_order::release);
+            _renderReadyEvents.enqueue(ChunkRenderReadyEvent{
+                .chunk = chunk,
+                .generationId = record.chunkGenerationId,
+                .neighborhoodSignature = record.meshedAgainstSignature,
+                .data = record.data,
+                .meshData = record.mesh
+            });
+        }
+    }
+}
+
+void ChunkManager::reset_chunk_runtime(Chunk* chunk)
+{
+    if (chunk == nullptr)
+    {
+        return;
+    }
+
+    ChunkRuntime& runtime = _runtimeByChunk[chunk];
+    runtime.record = ChunkRecord{
+        .coord = chunk->_data->coord,
+        .data = chunk->_data,
+        .mesh = chunk->_meshData,
+        .chunkGenerationId = chunk->_gen.load(std::memory_order::acquire),
+        .dataVersion = 0,
+        .meshedAgainstSignature = 0,
+        .uploadedSignature = 0,
+        .residency = ChunkResidencyState::Resident,
+        .dataState = DataState::Empty,
+        .meshState = MeshState::Missing,
+        .generationJobInFlight = false,
+        .meshJobInFlight = false,
+        .uploadPending = false
+    };
+    chunk->_state.store(ChunkState::Uninitialized, std::memory_order::release);
+}
+
+void ChunkManager::mark_chunk_dirty(Chunk* chunk, const bool dataChanged)
+{
+    ChunkRuntime* const runtime = runtime_for(chunk);
+    if (runtime == nullptr)
+    {
+        return;
+    }
+
+    ChunkRecord& record = runtime->record;
+    if (record.data == nullptr || (record.dataState != DataState::Ready && record.dataState != DataState::Dirty))
+    {
+        return;
+    }
+
+    if (dataChanged)
+    {
+        record.dataVersion += 1;
+    }
+    record.dataState = DataState::Dirty;
+    record.meshState = MeshState::Stale;
+    record.uploadPending = false;
+    chunk->_state.store(ChunkState::Generated, std::memory_order::release);
+}
+
+void ChunkManager::queue_generate(Chunk* const chunk)
+{
+    ChunkRuntime* const runtime = runtime_for(chunk);
+    if (runtime == nullptr)
+    {
+        return;
+    }
+
+    ChunkRecord& record = runtime->record;
+    record.generationJobInFlight = true;
+    record.dataState = DataState::Generating;
+    const uint32_t generationId = record.chunkGenerationId;
+    const ChunkCoord coord = record.coord;
+    const glm::ivec2 position = record.data != nullptr ? record.data->position : glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE);
+
+    _threadPool.post([this, chunk, generationId, coord, position]() noexcept
+    {
+        auto generated = std::make_shared<ChunkData>(coord, position);
+        generated->generate();
+
+        _generateResults.enqueue(ChunkGenerateResult{
+            .chunk = chunk,
+            .generationId = generationId,
+            .data = generated
+        });
     });
 }
 
-void ChunkManager::schedule_mesh(Chunk* const chunk, const uint32_t gen)
+void ChunkManager::queue_mesh(Chunk* const chunk, const uint64_t neighborhoodSignature, const ChunkNeighborhood& neighborhood)
 {
-    _threadPool.post([=, this]() noexcept {
-        if (chunk->_gen.load(std::memory_order_acquire) != gen) return;
+    ChunkRuntime* const runtime = runtime_for(chunk);
+    if (runtime == nullptr)
+    {
+        return;
+    }
 
-        auto neighbors = get_chunk_neighbors(chunk->_data->coord);
-        if (neighbors.has_value() == false)
-        {
-            std::println("Scheduled mesh with no neighbors: {}", chunk->_data->coord);
-            return;
-        }
+    ChunkRecord& record = runtime->record;
+    record.meshJobInFlight = true;
+    record.meshState = MeshState::Meshing;
+    const uint32_t generationId = record.chunkGenerationId;
+    const uint32_t dataVersion = record.dataVersion;
 
-        ChunkMesher mesher{chunk->_data, neighbors};
+    _threadPool.post([this, chunk, generationId, dataVersion, neighborhoodSignature, neighborhood]() noexcept
+    {
+        ChunkMesher mesher{ neighborhood };
         auto meshData = mesher.generate_mesh();
 
-        if (chunk->_gen.load(std::memory_order_acquire) != gen) return;
-
-        if (meshData->mesh->_vertices.empty()) {
-            // log instead of throw from worker
-            std::println("Chunk mesh empty at {}", chunk->_data->coord);
-            return;
-        }
-
-        chunk->_meshData = std::move(meshData);
-        chunk->_state.store(ChunkState::Rendered, std::memory_order_release);
-        _renderReadyEvents.enqueue(ChunkRenderReadyEvent{
+        _meshResults.enqueue(ChunkMeshBuildResult{
             .chunk = chunk,
-            .generation = gen,
-            .data = chunk->_data,
-            .meshData = chunk->_meshData
+            .coord = neighborhood.center != nullptr ? neighborhood.center->coord : ChunkCoord{},
+            .generationId = generationId,
+            .dataVersion = dataVersion,
+            .neighborhoodSignature = neighborhoodSignature,
+            .meshData = std::move(meshData)
         });
     });
 }
@@ -139,11 +414,28 @@ bool ChunkManager::try_dequeue_render_ready(ChunkRenderReadyEvent& event)
     return _renderReadyEvents.try_dequeue(event);
 }
 
-std::optional<std::array<std::shared_ptr<const ChunkData>, 8>> ChunkManager::get_chunk_neighbors(const ChunkCoord coord) const
+std::optional<ChunkNeighborhood> ChunkManager::build_neighborhood(const ChunkCoord coord) const
 {
-    ZoneScopedN("Get Chunk Neighbors");
-    std::array<std::shared_ptr<const ChunkData>, 8> chunks{};
-    int count = 0;
+    if (m_chunkCache == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    Chunk* const centerChunk = m_chunkCache->get_chunk(coord);
+    if (centerChunk == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    const ChunkRuntime* const centerRuntime = runtime_for(centerChunk);
+    if (centerRuntime == nullptr || centerRuntime->record.data == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    ChunkNeighborhood neighborhood{};
+    neighborhood.center = centerRuntime->record.data;
+
     for (const auto direction : directionList)
     {
         const auto offsetX = directionOffsetX[direction];
@@ -153,25 +445,105 @@ std::optional<std::array<std::shared_ptr<const ChunkData>, 8>> ChunkManager::get
         const auto neighbor_chunk = m_chunkCache->get_chunk(offset_coord);
         if (neighbor_chunk == nullptr)
         {
-            std::println("{} Neighbor does not exist: {}", coord, offset_coord);
             return std::nullopt;
         }
 
-        if (neighbor_chunk->_state.load(std::memory_order::acquire) == ChunkState::Uninitialized)
+        const ChunkRuntime* const neighborRuntime = runtime_for(neighbor_chunk);
+        if (neighborRuntime == nullptr ||
+            neighborRuntime->record.data == nullptr ||
+            (neighborRuntime->record.dataState != DataState::Ready && neighborRuntime->record.dataState != DataState::Dirty))
         {
-            // const auto& init_expected = _neighborBarrier[coord];
-            // std::println("Chunk expected {} neighbors", init_expected._initial);
-            std::println("{} Neighbor is uninitialized: {}", coord, offset_coord);
             return std::nullopt;
         }
-        chunks[direction] = neighbor_chunk->_data;
-        count++;
+        switch (direction)
+        {
+        case NORTH:
+            neighborhood.north = neighborRuntime->record.data;
+            break;
+        case SOUTH:
+            neighborhood.south = neighborRuntime->record.data;
+            break;
+        case EAST:
+            neighborhood.east = neighborRuntime->record.data;
+            break;
+        case WEST:
+            neighborhood.west = neighborRuntime->record.data;
+            break;
+        case NORTH_EAST:
+            neighborhood.northEast = neighborRuntime->record.data;
+            break;
+        case NORTH_WEST:
+            neighborhood.northWest = neighborRuntime->record.data;
+            break;
+        case SOUTH_EAST:
+            neighborhood.southEast = neighborRuntime->record.data;
+            break;
+        case SOUTH_WEST:
+            neighborhood.southWest = neighborRuntime->record.data;
+            break;
+        }
     }
 
-    if(count == 8)
+    return neighborhood;
+}
+
+ChunkManager::ChunkRuntime* ChunkManager::runtime_for(const Chunk* chunk)
+{
+    const auto it = _runtimeByChunk.find(const_cast<Chunk*>(chunk));
+    return it != _runtimeByChunk.end() ? &it->second : nullptr;
+}
+
+const ChunkManager::ChunkRuntime* ChunkManager::runtime_for(const Chunk* chunk) const
+{
+    const auto it = _runtimeByChunk.find(const_cast<Chunk*>(chunk));
+    return it != _runtimeByChunk.end() ? &it->second : nullptr;
+}
+
+uint64_t ChunkManager::compute_neighborhood_signature(const ChunkNeighborhood& neighborhood) const
+{
+    auto mix = [](const uint64_t seed, const uint64_t value)
     {
-        return chunks;
-    } else {
-        return std::nullopt;
+        return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
+    };
+
+    uint64_t signature = 0;
+    if (const Chunk* const centerChunk = get_chunk(neighborhood.center->coord))
+    {
+        if (const ChunkRuntime* const centerRuntime = runtime_for(centerChunk))
+        {
+            signature = mix(signature, centerRuntime->record.dataVersion);
+        }
     }
+
+    for (const auto direction : directionList)
+    {
+        const ChunkData* const neighbor = neighborhood.get_by_offset(directionOffsetX[direction], directionOffsetZ[direction]);
+        if (neighbor == nullptr)
+        {
+            return 0;
+        }
+
+        if (const Chunk* const chunk = get_chunk(neighbor->coord))
+        {
+            if (const ChunkRuntime* const runtime = runtime_for(chunk))
+            {
+                signature = mix(signature, runtime->record.dataVersion);
+            }
+        }
+    }
+
+    return signature;
+}
+
+bool ChunkManager::required_neighbors_have_data(const ChunkCoord coord, uint64_t& signature, ChunkNeighborhood& neighborhood) const
+{
+    const auto builtNeighborhood = build_neighborhood(coord);
+    if (!builtNeighborhood.has_value())
+    {
+        return false;
+    }
+
+    neighborhood = builtNeighborhood.value();
+    signature = compute_neighborhood_signature(neighborhood);
+    return signature != 0;
 }

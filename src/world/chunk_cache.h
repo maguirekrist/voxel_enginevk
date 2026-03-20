@@ -4,7 +4,6 @@
 
 #ifndef CHUNK_CACHE_H
 #define CHUNK_CACHE_H
-#include "neighbor_barrier.h"
 #include "game/chunk.h"
 
 
@@ -31,10 +30,9 @@ public:
     ChunkCoord m_origin{0, 0};
     int m_origin_buf_x{0};
     int m_origin_buf_z{0};
-    NeighborBarrier& m_neighborBarrier;
     std::vector<std::unique_ptr<Chunk>> m_chunks{};
 
-    explicit ChunkCache(int view_distance, NeighborBarrier& neighborBarrier);
+    explicit ChunkCache(int view_distance);
     ~ChunkCache();
 
     ChunkCache(ChunkCache&&) noexcept = delete;

@@ -31,6 +31,15 @@ add_executable(vulkan_guide
         world/chunk_mesher.cpp
         world/chunk_manager.h
         world/chunk_manager.cpp
+        world/chunk_record.h
+        world/chunk_scheduler.h
+        world/chunk_scheduler.cpp
+        world/chunk_neighborhood.h
+        world/chunk_neighborhood.cpp
+        world/chunk_dirty_tracker.h
+        world/chunk_dirty_tracker.cpp
+        world/world_edit_queue.h
+        world/world_edit_queue.cpp
         game/cube_engine.h
         game/cube_engine.cpp
         world/terrain_gen.h

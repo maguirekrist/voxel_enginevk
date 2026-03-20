@@ -42,6 +42,7 @@ public:
     [[nodiscard]] const GameSnapshot& snapshot() const;
     [[nodiscard]] const Chunk* get_chunk(ChunkCoord coord) const;
     [[nodiscard]] const Block* get_block(const glm::vec3& worldPos) const;
+    void apply_block_edit(const BlockEdit& edit);
     [[nodiscard]] ChunkManager& chunk_manager();
     [[nodiscard]] const ChunkManager& chunk_manager() const;
 

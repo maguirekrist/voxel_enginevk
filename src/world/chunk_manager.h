@@ -1,8 +1,14 @@
 #pragma once
 
+#include <unordered_map>
+
 #include "chunk_cache.h"
-#include "neighbor_barrier.h"
+#include "chunk_dirty_tracker.h"
+#include "chunk_neighborhood.h"
+#include "chunk_record.h"
+#include "chunk_scheduler.h"
 #include "thread_pool.h"
+#include "world_edit_queue.h"
 
 
 struct MapRange
@@ -47,9 +53,24 @@ public:
     struct ChunkRenderReadyEvent
     {
         Chunk* chunk{};
-        uint32_t generation{};
+        uint32_t generationId{};
+        uint64_t neighborhoodSignature{};
         std::shared_ptr<ChunkData> data;
         std::shared_ptr<ChunkMeshData> meshData;
+    };
+
+    struct ChunkDebugState
+    {
+        bool resident{false};
+        uint32_t generationId{0};
+        uint32_t dataVersion{0};
+        uint64_t meshedAgainstSignature{0};
+        uint64_t uploadedSignature{0};
+        DataState dataState{DataState::Empty};
+        MeshState meshState{MeshState::Missing};
+        bool generationJobInFlight{false};
+        bool meshJobInFlight{false};
+        bool uploadPending{false};
     };
 
     std::unique_ptr<ChunkCache> m_chunkCache;
@@ -58,23 +79,63 @@ public:
     ~ChunkManager();
 
     void update_player_position(const glm::vec3& position);
+    void enqueue_block_edit(const BlockEdit& edit);
+    void notify_chunk_uploaded(Chunk* chunk, uint32_t generationId, uint64_t neighborhoodSignature);
     Chunk* get_chunk(ChunkCoord coord) const;
-    std::optional<std::array<std::shared_ptr<const ChunkData>, 8>> get_chunk_neighbors(ChunkCoord coord) const;
+    std::optional<ChunkDebugState> debug_state(ChunkCoord coord) const;
+    std::optional<ChunkNeighborhood> build_neighborhood(ChunkCoord coord) const;
     bool try_dequeue_render_reset(ChunkRenderResetEvent& event);
     bool try_dequeue_render_ready(ChunkRenderReadyEvent& event);
 
 private:
+    struct ChunkGenerateResult
+    {
+        Chunk* chunk{};
+        uint32_t generationId{};
+        std::shared_ptr<ChunkData> data{};
+    };
+
+    struct ChunkMeshBuildResult
+    {
+        Chunk* chunk{};
+        ChunkCoord coord{};
+        uint32_t generationId{};
+        uint32_t dataVersion{};
+        uint64_t neighborhoodSignature{};
+        std::shared_ptr<ChunkMeshData> meshData{};
+    };
+
+    struct ChunkRuntime
+    {
+        ChunkRecord record{};
+    };
+
     void initialize_map(MapRange mapRange);
-    void schedule_generate(Chunk* chunk, uint32_t gen);
-    void schedule_mesh(Chunk* chunk, uint32_t gen);
+    void drain_generate_results();
+    void drain_mesh_results();
+    void apply_pending_world_edits();
+    void run_scheduler();
+    void reset_chunk_runtime(Chunk* chunk);
+    void mark_chunk_dirty(Chunk* chunk, bool dataChanged);
+    void queue_generate(Chunk* chunk);
+    void queue_mesh(Chunk* chunk, uint64_t neighborhoodSignature, const ChunkNeighborhood& neighborhood);
+    [[nodiscard]] ChunkRuntime* runtime_for(const Chunk* chunk);
+    [[nodiscard]] const ChunkRuntime* runtime_for(const Chunk* chunk) const;
+    [[nodiscard]] uint64_t compute_neighborhood_signature(const ChunkNeighborhood& neighborhood) const;
+    [[nodiscard]] bool required_neighbors_have_data(ChunkCoord coord, uint64_t& signature, ChunkNeighborhood& neighborhood) const;
 
     bool _initialLoad{true};
     int _viewDistance{GameConfig::DEFAULT_VIEW_DISTANCE};
     ChunkCoord _lastPlayerChunk = {0, 0};
 
+    std::unordered_map<Chunk*, ChunkRuntime> _runtimeByChunk;
     moodycamel::BlockingConcurrentQueue<ChunkRenderResetEvent> _renderResetEvents;
     moodycamel::BlockingConcurrentQueue<ChunkRenderReadyEvent> _renderReadyEvents;
+    moodycamel::BlockingConcurrentQueue<ChunkGenerateResult> _generateResults;
+    moodycamel::BlockingConcurrentQueue<ChunkMeshBuildResult> _meshResults;
 
     ThreadPool _threadPool{4};
-    NeighborBarrier _neighborBarrier;
+    ChunkScheduler _scheduler{};
+    ChunkDirtyTracker _dirtyTracker{};
+    WorldEditQueue _worldEditQueue{};
 };

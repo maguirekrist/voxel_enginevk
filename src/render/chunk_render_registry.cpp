@@ -23,7 +23,7 @@ void ChunkRenderRegistry::sync(
             continue;
         }
 
-        if (readyEvent.chunk->_gen.load(std::memory_order::acquire) != readyEvent.generation)
+        if (readyEvent.chunk->_gen.load(std::memory_order::acquire) != readyEvent.generationId)
         {
             continue;
         }
@@ -54,6 +54,7 @@ void ChunkRenderRegistry::sync(
         handles.hasTransparent = true;
 
         _handlesByChunk[readyEvent.chunk] = handles;
+        chunkManager.notify_chunk_uploaded(readyEvent.chunk, readyEvent.generationId, readyEvent.neighborhoodSignature);
     }
 }
 

@@ -112,6 +112,7 @@ public:
 
     glm::ivec3 get_world_pos(const glm::ivec3& localPos) const;
     void reset(ChunkCoord chunkCoord);
+    static std::optional<Direction> get_chunk_direction(const glm::ivec3& localPos);
 
     // static ChunkView to_view(const Chunk& chunk) noexcept
     // {
