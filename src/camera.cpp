@@ -15,7 +15,7 @@ void Camera::update(const float dt)
 }
 
 
-std::optional<RaycastResult> Camera::get_target_block(World& world, GameObject& player)
+std::optional<RaycastResult> Camera::get_target_block(World& world, GameObject& player, const float maxDistance)
 {
     glm::vec3 rayStart = player._position;
     glm::vec3 rayDir = glm::normalize(player._front);
@@ -31,7 +31,7 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, GameObject& 
     glm::ivec3 faceNormal(0);
     float distance = 0.0f;
 
-    while (distance < CHUNK_SIZE)
+    while (distance < maxDistance)
     {
         //Get the current chunk we're in
         //voxel pos is worldPos

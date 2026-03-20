@@ -31,7 +31,22 @@ private:
         bool hasTransparent{false};
     };
 
+    struct PendingChunkRender
+    {
+        Chunk* chunk{};
+        uint32_t generationId{};
+        uint64_t neighborhoodSignature{};
+        std::shared_ptr<ChunkData> data{};
+        std::shared_ptr<ChunkMeshData> meshData{};
+        bool hasTransparentMesh{false};
+    };
+
     std::unordered_map<Chunk*, ChunkRenderHandles> _handlesByChunk;
+    std::unordered_map<Chunk*, PendingChunkRender> _pendingByChunk;
 
     void remove_chunk(Chunk* chunk, SceneRenderState& renderState);
+    void finalize_pending_renders(
+        ChunkManager& chunkManager,
+        MaterialManager& materialManager,
+        SceneRenderState& renderState);
 };

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <optional>
+
+#include "camera.h"
 #include "world.h"
 #include <components/game_object.h>
 #include <components/player_input_component.h>
@@ -42,6 +45,7 @@ public:
     [[nodiscard]] const GameSnapshot& snapshot() const;
     [[nodiscard]] const Chunk* get_chunk(ChunkCoord coord) const;
     [[nodiscard]] const Block* get_block(const glm::vec3& worldPos) const;
+    [[nodiscard]] std::optional<RaycastResult> raycast_target_block(float maxDistance);
     void apply_block_edit(const BlockEdit& edit);
     [[nodiscard]] ChunkManager& chunk_manager();
     [[nodiscard]] const ChunkManager& chunk_manager() const;

@@ -1,6 +1,7 @@
 
 #include "cube_engine.h"
 #include "tracy/Tracy.hpp"
+#include "camera.h"
 
 CubeEngine::CubeEngine()
 {
@@ -47,6 +48,16 @@ const Chunk* CubeEngine::get_chunk(const ChunkCoord coord) const
 const Block* CubeEngine::get_block(const glm::vec3& worldPos) const
 {
     return _world.get_block(worldPos);
+}
+
+std::optional<RaycastResult> CubeEngine::raycast_target_block(const float maxDistance)
+{
+    if (_player == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return Camera::get_target_block(_world, *_player, maxDistance);
 }
 
 void CubeEngine::apply_block_edit(const BlockEdit& edit)

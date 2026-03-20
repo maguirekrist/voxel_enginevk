@@ -100,3 +100,45 @@ std::shared_ptr<Mesh> Mesh::create_chunk_boundary_mesh()
 
     return debugMesh;
 }
+
+std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinCorner)
+{
+    auto debugMesh = std::make_shared<Mesh>();
+    constexpr float epsilon = 0.0025f;
+    const glm::vec3 color = glm::vec3(1.0f);
+
+    const auto add_line = [&debugMesh, &color](const glm::vec3& start, const glm::vec3& end)
+    {
+        const uint32_t baseIndex = static_cast<uint32_t>(debugMesh->_vertices.size());
+        debugMesh->_vertices.push_back(Vertex{ start, glm::vec3(0.0f), color });
+        debugMesh->_vertices.push_back(Vertex{ end, glm::vec3(0.0f), color });
+        debugMesh->_indices.push_back(baseIndex);
+        debugMesh->_indices.push_back(baseIndex + 1);
+    };
+
+    const glm::vec3 p000 = blockMinCorner + glm::vec3{-epsilon, -epsilon, -epsilon};
+    const glm::vec3 p100 = blockMinCorner + glm::vec3{1.0f + epsilon, -epsilon, -epsilon};
+    const glm::vec3 p010 = blockMinCorner + glm::vec3{-epsilon, 1.0f + epsilon, -epsilon};
+    const glm::vec3 p110 = blockMinCorner + glm::vec3{1.0f + epsilon, 1.0f + epsilon, -epsilon};
+    const glm::vec3 p001 = blockMinCorner + glm::vec3{-epsilon, -epsilon, 1.0f + epsilon};
+    const glm::vec3 p101 = blockMinCorner + glm::vec3{1.0f + epsilon, -epsilon, 1.0f + epsilon};
+    const glm::vec3 p011 = blockMinCorner + glm::vec3{-epsilon, 1.0f + epsilon, 1.0f + epsilon};
+    const glm::vec3 p111 = blockMinCorner + glm::vec3{1.0f + epsilon, 1.0f + epsilon, 1.0f + epsilon};
+
+    add_line(p000, p100);
+    add_line(p001, p101);
+    add_line(p010, p110);
+    add_line(p011, p111);
+
+    add_line(p000, p001);
+    add_line(p100, p101);
+    add_line(p010, p011);
+    add_line(p110, p111);
+
+    add_line(p000, p010);
+    add_line(p100, p110);
+    add_line(p001, p011);
+    add_line(p101, p111);
+
+    return debugMesh;
+}

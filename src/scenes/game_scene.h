@@ -54,20 +54,26 @@ private:
     std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Resource> _cameraUboResource;
     std::shared_ptr<Mesh> _chunkBoundaryMesh;
+    std::shared_ptr<Mesh> _targetBlockOutlineMesh;
     ChunkRenderRegistry _chunkRenderRegistry;
     SceneRenderState _renderState;
     SceneServices _services;
     PlayerInputState _playerInput{};
     std::vector<dev_collections::sparse_set<RenderObject>::Handle> _chunkBoundaryHandles{};
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _targetBlockOutlineHandle{};
     bool _showChunkBoundaries{false};
 
     CubeEngine _game;
     std::unique_ptr<Camera> _camera;
 
     std::optional<RaycastResult> _targetBlock;
+    std::optional<glm::ivec3> _outlinedBlockWorldPos;
 
     void create_camera();
     void sync_camera_to_game(float deltaTime);
+    void sync_target_block();
+    void sync_target_block_outline();
     void sync_chunk_boundary_debug();
+    void clear_target_block_outline();
     void clear_chunk_boundary_debug();
 };

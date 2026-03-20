@@ -1,5 +1,7 @@
 #include "chunk_render_registry.h"
 
+#include <vector>
+
 #include "material_manager.h"
 #include "mesh_manager.h"
 
@@ -12,6 +14,7 @@ void ChunkRenderRegistry::sync(
     ChunkManager::ChunkRenderResetEvent resetEvent;
     while (chunkManager.try_dequeue_render_reset(resetEvent))
     {
+        _pendingByChunk.erase(resetEvent.chunk);
         remove_chunk(resetEvent.chunk, renderState);
     }
 
@@ -34,32 +37,92 @@ void ChunkRenderRegistry::sync(
             meshManager.UploadQueue.enqueue(readyEvent.meshData->waterMesh);
         }
 
-        remove_chunk(readyEvent.chunk, renderState);
+        _pendingByChunk[readyEvent.chunk] = PendingChunkRender{
+            .chunk = readyEvent.chunk,
+            .generationId = readyEvent.generationId,
+            .neighborhoodSignature = readyEvent.neighborhoodSignature,
+            .data = readyEvent.data,
+            .meshData = readyEvent.meshData,
+            .hasTransparentMesh = readyEvent.meshData != nullptr &&
+                readyEvent.meshData->waterMesh != nullptr &&
+                !readyEvent.meshData->waterMesh->_vertices.empty()
+        };
+    }
+
+    finalize_pending_renders(chunkManager, materialManager, renderState);
+}
+
+void ChunkRenderRegistry::finalize_pending_renders(
+    ChunkManager& chunkManager,
+    MaterialManager& materialManager,
+    SceneRenderState& renderState)
+{
+    std::vector<Chunk*> completedChunks{};
+    completedChunks.reserve(_pendingByChunk.size());
+
+    for (const auto& [chunk, pending] : _pendingByChunk)
+    {
+        if (chunk == nullptr)
+        {
+            completedChunks.push_back(chunk);
+            continue;
+        }
+
+        if (chunk->_gen.load(std::memory_order::acquire) != pending.generationId)
+        {
+            completedChunks.push_back(chunk);
+            continue;
+        }
+
+        const bool opaqueReady = pending.meshData != nullptr &&
+            pending.meshData->mesh != nullptr &&
+            pending.meshData->mesh->_isActive.load(std::memory_order::acquire);
+        const bool transparentExpected = pending.hasTransparentMesh;
+        const bool transparentReady = !transparentExpected ||
+            pending.meshData->waterMesh->_isActive.load(std::memory_order::acquire);
+
+        if (!opaqueReady || !transparentReady)
+        {
+            continue;
+        }
+
+        remove_chunk(chunk, renderState);
 
         ChunkRenderHandles handles{};
         handles.opaque = renderState.opaqueObjects.insert(RenderObject{
-            .mesh = readyEvent.meshData->mesh,
+            .mesh = pending.meshData->mesh,
             .material = materialManager.get_material("defaultmesh"),
-            .xzPos = glm::ivec2(readyEvent.data->position.x, readyEvent.data->position.y),
+            .xzPos = glm::ivec2(pending.data->position.x, pending.data->position.y),
             .layer = RenderLayer::Opaque
         });
         handles.hasOpaque = true;
 
-        handles.transparent = renderState.transparentObjects.insert(RenderObject{
-            .mesh = readyEvent.meshData->waterMesh,
-            .material = materialManager.get_material("watermesh"),
-            .xzPos = glm::ivec2(readyEvent.data->position.x, readyEvent.data->position.y),
-            .layer = RenderLayer::Transparent
-        });
-        handles.hasTransparent = true;
+        if (transparentExpected)
+        {
+            handles.transparent = renderState.transparentObjects.insert(RenderObject{
+                .mesh = pending.meshData->waterMesh,
+                .material = materialManager.get_material("watermesh"),
+                .xzPos = glm::ivec2(pending.data->position.x, pending.data->position.y),
+                .layer = RenderLayer::Transparent
+            });
+            handles.hasTransparent = true;
+        }
 
-        _handlesByChunk[readyEvent.chunk] = handles;
-        chunkManager.notify_chunk_uploaded(readyEvent.chunk, readyEvent.generationId, readyEvent.neighborhoodSignature);
+        _handlesByChunk[chunk] = handles;
+        chunkManager.notify_chunk_uploaded(chunk, pending.generationId, pending.neighborhoodSignature);
+        completedChunks.push_back(chunk);
+    }
+
+    for (Chunk* chunk : completedChunks)
+    {
+        _pendingByChunk.erase(chunk);
     }
 }
 
 void ChunkRenderRegistry::clear(SceneRenderState& renderState)
 {
+    _pendingByChunk.clear();
+
     std::vector<Chunk*> chunks;
     chunks.reserve(_handlesByChunk.size());
     for (const auto& [chunk, _] : _handlesByChunk)

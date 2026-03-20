@@ -43,11 +43,30 @@ void MeshManager::cleanup()
 void MeshManager::unload_garbage()
 {
 	ZoneScopedN("Handle Unload Meshes");
+    std::vector<std::shared_ptr<Mesh>> deferredReleases{};
 	std::shared_ptr<Mesh> unloadMesh;
 	while(render::try_dequeue_mesh_release(unloadMesh))
 	{
+        if (unloadMesh == nullptr)
+        {
+            continue;
+        }
+
+        // The release queue itself owns one reference. If other references still exist,
+        // the mesh is still live in render state and must not be freed yet.
+        if (unloadMesh.use_count() > 1)
+        {
+            deferredReleases.push_back(std::move(unloadMesh));
+            continue;
+        }
+
 		unload_mesh(std::move(unloadMesh));
 	}
+
+    for (auto& mesh : deferredReleases)
+    {
+        render::enqueue_mesh_release(std::move(mesh));
+    }
 }
 
 // void MeshManager::upload_mesh(std::shared_ptr<Mesh>&& mesh) const

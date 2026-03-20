@@ -30,11 +30,16 @@ GameScene::GameScene(const SceneServices& services): _services(services)
 
 GameScene::~GameScene()
 {
+    clear_target_block_outline();
     clear_chunk_boundary_debug();
 	_chunkRenderRegistry.clear(_renderState);
     if (_chunkBoundaryMesh != nullptr)
     {
         render::enqueue_mesh_release(std::move(_chunkBoundaryMesh));
+    }
+    if (_targetBlockOutlineMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_targetBlockOutlineMesh));
     }
 	std::println("GameScene::~GameScene");
 }
@@ -46,6 +51,7 @@ void GameScene::update_buffers() {
 		*_services.meshManager,
 		*_services.materialManager,
 		_renderState);
+    sync_target_block_outline();
     sync_chunk_boundary_debug();
 	update_uniform_buffer();
 	update_fog_ubo();
@@ -63,6 +69,7 @@ void GameScene::update(const float deltaTime)
     _playerInput.lookDeltaY = 0.0f;
 	_game.update(deltaTime);
     sync_camera_to_game(deltaTime);
+    sync_target_block();
 }
 
 void GameScene::handle_input(const SDL_Event& event)
@@ -75,6 +82,21 @@ void GameScene::handle_input(const SDL_Event& event)
             }
             break;
 		case SDL_MOUSEBUTTONDOWN:
+            if (event.button.button == SDL_BUTTON_LEFT && _targetBlock.has_value())
+            {
+                if (_targetBlock->_distance <= GameConfig::BLOCK_INTERACTION_DISTANCE)
+                {
+                    _game.apply_block_edit(BlockEdit{
+                        .worldPos = _targetBlock->_worldPos,
+                        .newBlock = Block{
+                            ._solid = false,
+                            ._sunlight = MAX_LIGHT_LEVEL,
+                            ._type = BlockType::AIR
+                        },
+                        .source = EditSource::LocalPlayer
+                    });
+                }
+            }
 			break;
 		case SDL_MOUSEMOTION:
             _playerInput.lookDeltaX += static_cast<float>(event.motion.xrel);
@@ -315,6 +337,47 @@ void GameScene::sync_camera_to_game(const float deltaTime)
     _camera->update(deltaTime);
 }
 
+void GameScene::sync_target_block()
+{
+    _targetBlock = _game.raycast_target_block(GameConfig::BLOCK_INTERACTION_DISTANCE);
+}
+
+void GameScene::sync_target_block_outline()
+{
+    if (!_targetBlock.has_value())
+    {
+        clear_target_block_outline();
+        _outlinedBlockWorldPos.reset();
+        return;
+    }
+
+    const glm::ivec3 worldPos = _targetBlock->_worldPos;
+    if (_outlinedBlockWorldPos.has_value() && _outlinedBlockWorldPos.value() == worldPos)
+    {
+        return;
+    }
+
+    clear_target_block_outline();
+    const glm::ivec2 chunkOrigin = World::get_chunk_origin(glm::vec3(worldPos));
+    const glm::ivec3 localPos = World::get_local_coordinates(glm::vec3(worldPos));
+
+    if (_targetBlockOutlineMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_targetBlockOutlineMesh));
+    }
+
+    _targetBlockOutlineMesh = Mesh::create_block_outline_mesh(glm::vec3(localPos));
+    _services.meshManager->UploadQueue.enqueue(_targetBlockOutlineMesh);
+    _outlinedBlockWorldPos = worldPos;
+
+    _targetBlockOutlineHandle = _renderState.opaqueObjects.insert(RenderObject{
+        .mesh = _targetBlockOutlineMesh,
+        .material = _services.materialManager->get_material("chunkboundary"),
+        .xzPos = chunkOrigin,
+        .layer = RenderLayer::Opaque
+    });
+}
+
 void GameScene::sync_chunk_boundary_debug()
 {
     clear_chunk_boundary_debug();
@@ -347,11 +410,11 @@ void GameScene::sync_chunk_boundary_debug()
             }
 
             _chunkBoundaryHandles.push_back(_renderState.opaqueObjects.insert(RenderObject{
-                .mesh = _chunkBoundaryMesh,
-                .material = debugMaterial,
-                .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
-                .layer = RenderLayer::Opaque
-            }));
+            .mesh = _chunkBoundaryMesh,
+            .material = debugMaterial,
+            .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
+            .layer = RenderLayer::Opaque
+        }));
         }
     }
 }
@@ -364,4 +427,13 @@ void GameScene::clear_chunk_boundary_debug()
     }
 
     _chunkBoundaryHandles.clear();
+}
+
+void GameScene::clear_target_block_outline()
+{
+    if (_targetBlockOutlineHandle.has_value())
+    {
+        _renderState.opaqueObjects.remove(_targetBlockOutlineHandle.value());
+        _targetBlockOutlineHandle.reset();
+    }
 }

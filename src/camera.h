@@ -20,6 +20,6 @@ public:
 
     explicit Camera(const glm::vec3& position, VkExtent2D windowExtent);
     void update(float dt) override;
-    static std::optional<RaycastResult> get_target_block(World& world, GameObject& player);
+    static std::optional<RaycastResult> get_target_block(World& world, GameObject& player, float maxDistance);
     void resize(VkExtent2D windowExtent);
 };
