@@ -30,16 +30,25 @@ void ChunkData::generate()
                     block._solid = true;
                     block._type = BlockType::GROUND;
                     block._sunlight = 0;
+                    block._localLightR = 0;
+                    block._localLightG = 0;
+                    block._localLightB = 0;
                 }
                 else if(y <= SEA_LEVEL) {
                     block._solid = false;
                     block._type = BlockType::WATER;
                     block._sunlight = 0;
+                    block._localLightR = 0;
+                    block._localLightG = 0;
+                    block._localLightB = 0;
                 }
                 else {
                     block._solid = false;
                     block._type = BlockType::AIR;
                     block._sunlight = 0;
+                    block._localLightR = 0;
+                    block._localLightG = 0;
+                    block._localLightB = 0;
                 }
             }
         }

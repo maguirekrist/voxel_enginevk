@@ -17,7 +17,10 @@ namespace
         return Block{
             ._solid = solid,
             ._sunlight = sunlight,
-            ._type = static_cast<uint8_t>(type)
+            ._type = static_cast<uint8_t>(type),
+            ._localLightR = 0,
+            ._localLightG = 0,
+            ._localLightB = 0
         };
     }
 

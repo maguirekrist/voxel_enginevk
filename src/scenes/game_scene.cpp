@@ -101,7 +101,32 @@ void GameScene::handle_input(const SDL_Event& event)
                         .newBlock = Block{
                             ._solid = false,
                             ._sunlight = 0,
-                            ._type = BlockType::AIR
+                            ._type = BlockType::AIR,
+                            ._localLightR = 0,
+                            ._localLightG = 0,
+                            ._localLightB = 0
+                        },
+                        .source = EditSource::LocalPlayer
+                    });
+                }
+            }
+            else if (event.button.button == SDL_BUTTON_RIGHT && _targetBlock.has_value())
+            {
+                if (_targetBlock->_distance <= GameConfig::BLOCK_INTERACTION_DISTANCE)
+                {
+                    const glm::ivec3 placePos = _targetBlock->_worldPos + glm::ivec3(
+                        faceOffsetX[_targetBlock->_blockFace],
+                        faceOffsetY[_targetBlock->_blockFace],
+                        faceOffsetZ[_targetBlock->_blockFace]);
+                    _game.apply_block_edit(BlockEdit{
+                        .worldPos = placePos,
+                        .newBlock = Block{
+                            ._solid = true,
+                            ._sunlight = 0,
+                            ._type = BlockType::LAMP,
+                            ._localLightR = 0,
+                            ._localLightG = 0,
+                            ._localLightB = 0
                         },
                         .source = EditSource::LocalPlayer
                     });
@@ -351,6 +376,7 @@ void GameScene::draw_debug_map()
             ImGui::SliderFloat("Cycle Seconds", &_lightingTuning.cycleDurationSeconds, 10.0f, 600.0f);
             ImGui::SliderFloat("Shadow Floor", &_lightingTuning.shadowFloor, 0.0f, 1.2f);
             ImGui::SliderFloat("Skylight Shadow Strength", &_lightingTuning.shadowStrength, 0.2f, 3.0f);
+            ImGui::SliderFloat("Local Light Strength", &_lightingTuning.localLightStrength, 0.0f, 2.5f);
             ImGui::SliderFloat("Hemi Strength", &_lightingTuning.hemiStrength, 0.0f, 1.0f);
             ImGui::SliderFloat("Skylight Strength", &_lightingTuning.skylightStrength, 0.0f, 1.5f);
             ImGui::SliderFloat("AO Strength", &_lightingTuning.aoStrength, 0.0f, 0.5f);
@@ -424,7 +450,7 @@ void GameScene::update_lighting_ubo() const
     lighting.waterDeepColor = glm::vec4(glm::mix(_lightingTuning.nightWaterDeep, _lightingTuning.dayWaterDeep, dayFactor), 1.0f);
     lighting.params1 = glm::vec4(_timeOfDay, sunHeight, dayFactor, _ambientOcclusionEnabled ? _lightingTuning.aoStrength : 0.0f);
     lighting.params2 = glm::vec4(_lightingTuning.shadowFloor, _lightingTuning.hemiStrength, _lightingTuning.skylightStrength, _lightingTuning.waterFogStrength);
-    lighting.params3 = glm::vec4(_lightingTuning.shadowStrength, 0.0f, 0.0f, 0.0f);
+    lighting.params3 = glm::vec4(_lightingTuning.shadowStrength, _lightingTuning.localLightStrength, 0.0f, 0.0f);
 
     void* data;
     vmaMapMemory(_services.allocator, _lightingResource->value.buffer._allocation, &data);

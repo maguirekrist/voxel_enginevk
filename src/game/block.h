@@ -161,20 +161,53 @@ enum BlockType {
     WATER = 2,
     STONE = 3,
     WOOD = 4,
-    LEAVES = 5
+    LEAVES = 5,
+    LAMP = 6
 };
 
-constexpr Color blockColor[6] = {
+constexpr Color blockColor[7] = {
     Colors::black,
     Colors::lightGreen,
     Colors::blue,
     Color{110, 110, 110},
     Color{110, 72, 35},
-    Color{65, 160, 55}
+    Color{65, 160, 55},
+    Color{255, 214, 120}
 };
+
+struct BlockEmissionDef
+{
+    bool emits{false};
+    uint8_t intensity{0};
+    glm::u8vec3 color{0, 0, 0};
+    bool hasGlow{false};
+    float glowRadius{0.0f};
+    float glowIntensity{0.0f};
+};
+
+[[nodiscard]] constexpr BlockEmissionDef get_block_emission(const uint8_t blockType)
+{
+    switch (static_cast<BlockType>(blockType))
+    {
+    case BlockType::LAMP:
+        return BlockEmissionDef{
+            .emits = true,
+            .intensity = 14,
+            .color = glm::u8vec3{255, 214, 140},
+            .hasGlow = true,
+            .glowRadius = 1.8f,
+            .glowIntensity = 1.0f
+        };
+    default:
+        return {};
+    }
+}
 
 struct Block {
     bool _solid;
     uint8_t _sunlight;
     uint8_t _type;
+    uint8_t _localLightR;
+    uint8_t _localLightG;
+    uint8_t _localLightB;
 };

@@ -41,10 +41,18 @@ VertexInputDescription Vertex::get_vertex_description()
 	lightingAttribute.format = VK_FORMAT_R32G32_SFLOAT;
 	lightingAttribute.offset = offsetof(Vertex, lighting);
 
+	// Local light RGB will be stored at Location 4
+	VkVertexInputAttributeDescription localLightAttribute = {};
+	localLightAttribute.binding = 0;
+	localLightAttribute.location = 4;
+	localLightAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+	localLightAttribute.offset = offsetof(Vertex, localLight);
+
 	description.attributes.push_back(positionAttribute);
 	description.attributes.push_back(normalAttribute);
 	description.attributes.push_back(colorAttribute);
 	description.attributes.push_back(lightingAttribute);
+	description.attributes.push_back(localLightAttribute);
 	return description;
 }
 

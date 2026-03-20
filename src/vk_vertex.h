@@ -14,6 +14,7 @@ struct Vertex {
     glm::vec3 normal;
     glm::vec3 color;
     glm::vec2 lighting;
+    glm::vec3 localLight;
 
     static VertexInputDescription get_vertex_description();
 };

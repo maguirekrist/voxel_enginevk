@@ -142,6 +142,32 @@ float ChunkMesher::calculate_vertex_skylight(const glm::ivec3 cubePos, const Fac
     return averageLight / static_cast<float>(MAX_LIGHT_LEVEL);
 }
 
+glm::vec3 ChunkMesher::calculate_vertex_local_light(const glm::ivec3 cubePos, const FaceDirection face, const int vertex) const
+{
+    const glm::ivec3 facePos = cubePos + glm::ivec3(faceOffsetX[face], faceOffsetY[face], faceOffsetZ[face]);
+    const glm::ivec3 edge1Pos = cubePos + Side1Offsets[face][vertex];
+    const glm::ivec3 edge2Pos = cubePos + Side2Offsets[face][vertex];
+    const glm::ivec3 cornerPos = cubePos + CornerOffsets[face][vertex];
+
+    const bool edge1Solid = is_position_solid(edge1Pos);
+    const bool edge2Solid = is_position_solid(edge2Pos);
+    const glm::vec3 faceLight = sample_local_light(facePos);
+    const glm::vec3 edge1Light = sample_local_light(edge1Pos);
+    const glm::vec3 edge2Light = sample_local_light(edge2Pos);
+
+    glm::vec3 cornerLight{0.0f};
+    if (edge1Solid && edge2Solid)
+    {
+        cornerLight = glm::min(edge1Light, edge2Light);
+    }
+    else
+    {
+        cornerLight = sample_local_light(cornerPos);
+    }
+
+    return (faceLight + edge1Light + edge2Light + cornerLight) * 0.25f;
+}
+
 bool ChunkMesher::is_position_solid(const glm::ivec3& localPos) const
 {
     const auto sample = sample_block(_neighborhood, localPos.x, localPos.y, localPos.z);
@@ -164,9 +190,18 @@ uint8_t ChunkMesher::sample_sunlight(const glm::ivec3& localPos) const
     return sample->block._sunlight;
 }
 
-void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
+glm::vec3 ChunkMesher::sample_local_light(const glm::ivec3& localPos) const
 {
-    throw std::runtime_error("Not implemented.");
+    const auto sample = sample_block(_neighborhood, localPos.x, localPos.y, localPos.z);
+    if (!sample.has_value() || sample->block._solid)
+    {
+        return glm::vec3(0.0f);
+    }
+
+    return glm::vec3(
+        static_cast<float>(sample->block._localLightR),
+        static_cast<float>(sample->block._localLightG),
+        static_cast<float>(sample->block._localLightB)) / static_cast<float>(MAX_LIGHT_LEVEL);
 }
 
 //note: a block's position is the back-bottom-right of the cube.
@@ -186,9 +221,10 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
         glm::ivec3 position = blockPos + faceVertices[face][i];
         const float ao = _ambientOcclusionEnabled ? calculate_vertex_ao(blockPos, face, i) : 1.0f;
         const float sunLight = calculate_vertex_skylight(blockPos, face, i);
+        const glm::vec3 localLight = calculate_vertex_local_light(blockPos, face, i);
 
         const auto normal = faceNormals[face];
-        mesh->_vertices.push_back({ position, normal, color, glm::vec2(sunLight, ao) });
+        mesh->_vertices.push_back({ position, normal, color, glm::vec2(sunLight, ao), localLight });
     }
 
     // Add indices for the face (two triangles)
@@ -210,8 +246,9 @@ void ChunkMesher::add_face_to_water_mesh(const int x, const int y, const int z, 
     for (int i = 0; i < 4; ++i) {
         glm::ivec3 position = blockPos + faceVertices[face][i];
         const float skylight = calculate_vertex_skylight(blockPos, face, i);
+        const glm::vec3 localLight = calculate_vertex_local_light(blockPos, face, i);
 
-        mesh->_vertices.push_back({ position, normal, baseColor, glm::vec2(skylight, 1.0f) });
+        mesh->_vertices.push_back({ position, normal, baseColor, glm::vec2(skylight, 1.0f), localLight });
     }
 
     uint32_t index = mesh->_vertices.size() - 4;

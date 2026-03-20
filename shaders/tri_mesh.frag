@@ -4,6 +4,7 @@ layout(location = 0) in vec3 inColor;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec3 inWorldPosition;
 layout(location = 3) in vec2 inLighting;
+layout(location = 4) in vec3 inLocalLight;
 
 layout(set = 1, binding = 0) uniform LightingUBO {
     vec4 skyZenithColor;
@@ -32,6 +33,7 @@ void main()
     float hemiStrength = lighting.params2.y;
     float skylightStrength = lighting.params2.z;
     float shadowStrength = lighting.params3.x;
+    float localLightStrength = lighting.params3.y;
 
     float curvedSky = pow(skylight, max(0.05, shadowStrength));
     float softSky = curvedSky * curvedSky * (3.0 - (2.0 * curvedSky));
@@ -42,6 +44,8 @@ void main()
     vec3 lightTint = mix(lighting.shadowColor.rgb, lighting.sunColor.rgb, clamp(softSky * max(dayFactor, 0.2), 0.0, 1.0));
     float contactShadow = mix(1.0, ao, aoStrength);
 
-    vec3 color = inColor * ambient * hemiTint * lightTint * contactShadow;
+    vec3 ambientColor = inColor * ambient * hemiTint * lightTint * contactShadow;
+    vec3 emissiveColor = inColor * inLocalLight * localLightStrength;
+    vec3 color = ambientColor + emissiveColor;
     outFragColor = vec4(clamp(color, 0.0, 1.0), 1.0f);
 }

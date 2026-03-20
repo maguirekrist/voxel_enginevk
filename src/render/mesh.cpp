@@ -16,7 +16,7 @@ std::shared_ptr<Mesh> Mesh::create_cube_mesh()
         //4 vertices per face
         for (int i = 0; i < 4; i++)
         {
-            cubeMesh->_vertices.push_back({ faceVertices[face][i], glm::vec3(0.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec2(1.0f, 1.0f) });
+            cubeMesh->_vertices.push_back({ faceVertices[face][i], glm::vec3(0.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec2(1.0f, 1.0f), glm::vec3(0.0f) });
         }
     }
 
@@ -40,10 +40,10 @@ std::shared_ptr<Mesh> Mesh::create_quad_mesh()
     // Define the four vertices of the quad in normalized coordinates
     // You can adjust the position values to scale the quad if needed.
     quadMesh->_vertices = {
-        { glm::vec3(-0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) }, // Bottom-left
-        { glm::vec3(0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) },  // Bottom-right
-        { glm::vec3(0.5f, 0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) },   // Top-right
-        { glm::vec3(-0.5f, 0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f) }   // Top-left
+        { glm::vec3(-0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec2(1.0f, 1.0f), glm::vec3(0.0f) }, // Bottom-left
+        { glm::vec3(0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec2(1.0f, 1.0f), glm::vec3(0.0f) },  // Bottom-right
+        { glm::vec3(0.5f, 0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec2(1.0f, 1.0f), glm::vec3(0.0f) },   // Top-right
+        { glm::vec3(-0.5f, 0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec2(1.0f, 1.0f), glm::vec3(0.0f) }   // Top-left
     };
 
     // Define the indices for the quad (two triangles)
@@ -64,8 +64,8 @@ std::shared_ptr<Mesh> Mesh::create_chunk_boundary_mesh()
     const auto add_line = [&debugMesh](const glm::vec3& start, const glm::vec3& end, const glm::vec3& color)
     {
         const uint32_t baseIndex = static_cast<uint32_t>(debugMesh->_vertices.size());
-        debugMesh->_vertices.push_back(Vertex{ start, glm::vec3(0.0f), color, glm::vec2(1.0f, 1.0f) });
-        debugMesh->_vertices.push_back(Vertex{ end, glm::vec3(0.0f), color, glm::vec2(1.0f, 1.0f) });
+        debugMesh->_vertices.push_back(Vertex{ start, glm::vec3(0.0f), color, glm::vec2(1.0f, 1.0f), glm::vec3(0.0f) });
+        debugMesh->_vertices.push_back(Vertex{ end, glm::vec3(0.0f), color, glm::vec2(1.0f, 1.0f), glm::vec3(0.0f) });
         debugMesh->_indices.push_back(baseIndex);
         debugMesh->_indices.push_back(baseIndex + 1);
     };
@@ -110,8 +110,8 @@ std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinC
     const auto add_line = [&debugMesh, &color](const glm::vec3& start, const glm::vec3& end)
     {
         const uint32_t baseIndex = static_cast<uint32_t>(debugMesh->_vertices.size());
-        debugMesh->_vertices.push_back(Vertex{ start, glm::vec3(0.0f), color, glm::vec2(1.0f, 1.0f) });
-        debugMesh->_vertices.push_back(Vertex{ end, glm::vec3(0.0f), color, glm::vec2(1.0f, 1.0f) });
+        debugMesh->_vertices.push_back(Vertex{ start, glm::vec3(0.0f), color, glm::vec2(1.0f, 1.0f), glm::vec3(0.0f) });
+        debugMesh->_vertices.push_back(Vertex{ end, glm::vec3(0.0f), color, glm::vec2(1.0f, 1.0f), glm::vec3(0.0f) });
         debugMesh->_indices.push_back(baseIndex);
         debugMesh->_indices.push_back(baseIndex + 1);
     };

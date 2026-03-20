@@ -44,7 +44,7 @@ private:
         glm::vec4 waterDeepColor;
         glm::vec4 params1; // x=timeOfDay, y=sunHeight, z=dayFactor, w=aoStrength
         glm::vec4 params2; // x=shadowFloor, y=hemiStrength, z=skylightStrength, w=waterFogStrength
-        glm::vec4 params3; // x=shadowStrength
+        glm::vec4 params3; // x=shadowStrength, y=localLightStrength
     };
 
     struct LightingTuning
@@ -76,6 +76,7 @@ private:
         float hemiStrength{0.50f};
         float skylightStrength{1.0f};
         float shadowStrength{1.0f};
+        float localLightStrength{1.1f};
         float waterFogStrength{0.35f};
         float cycleDurationSeconds{180.0f};
     };

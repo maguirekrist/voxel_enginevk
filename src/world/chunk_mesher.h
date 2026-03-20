@@ -22,7 +22,8 @@ private:
     void add_face_to_water_mesh(int x, int y, int z, FaceDirection face, const std::shared_ptr<Mesh>& mesh) const;
     float calculate_vertex_ao(glm::ivec3 cubePos, FaceDirection face, int vertex);
     float calculate_vertex_skylight(glm::ivec3 cubePos, FaceDirection face, int vertex) const;
+    glm::vec3 calculate_vertex_local_light(glm::ivec3 cubePos, FaceDirection face, int vertex) const;
     bool is_position_solid(const glm::ivec3& localPos) const;
     uint8_t sample_sunlight(const glm::ivec3& localPos) const;
-    void propagate_pointlight(glm::vec3 lightPos, int lightLevel);
+    glm::vec3 sample_local_light(const glm::ivec3& localPos) const;
 };

@@ -22,6 +22,7 @@ namespace
         bool water{false};
         bool directSky{false};
         uint8_t sunlight{0};
+        glm::u8vec3 localLight{0, 0, 0};
     };
 
     [[nodiscard]] constexpr size_t light_index(const int x, const int y, const int z) noexcept
@@ -60,6 +61,7 @@ std::shared_ptr<ChunkData> ChunkLighting::solve_skylight(const ChunkNeighborhood
                 cell.water = sample.has_value() && sample->block._type == BlockType::WATER;
                 cell.directSky = false;
                 cell.sunlight = 0;
+                cell.localLight = glm::u8vec3{0, 0, 0};
             }
         }
     }
@@ -208,6 +210,94 @@ std::shared_ptr<ChunkData> ChunkLighting::solve_skylight(const ChunkNeighborhood
         }
     }
 
+    std::queue<glm::ivec3> localLightFrontier{};
+    constexpr std::array<glm::ivec3, 6> LocalLightOffsets{{
+        { 1, 0, 0 },
+        { -1, 0, 0 },
+        { 0, 1, 0 },
+        { 0, -1, 0 },
+        { 0, 0, 1 },
+        { 0, 0, -1 }
+    }};
+
+    for (int x = 0; x < LightDomainSize; ++x)
+    {
+        for (int z = 0; z < LightDomainSize; ++z)
+        {
+            for (int y = 0; y < LightDomainHeight; ++y)
+            {
+                const auto sample = sample_block(neighborhood, x - CenterOffset, y, z - CenterOffset);
+                if (!sample.has_value())
+                {
+                    continue;
+                }
+
+                const BlockEmissionDef emission = get_block_emission(sample->block._type);
+                if (!emission.emits || emission.intensity == 0)
+                {
+                    continue;
+                }
+
+                LightCell& cell = domain[light_index(x, y, z)];
+                const auto intensity = static_cast<uint16_t>(emission.intensity);
+                cell.localLight = glm::u8vec3{
+                    static_cast<uint8_t>((static_cast<uint16_t>(emission.color.r) * intensity) / 255),
+                    static_cast<uint8_t>((static_cast<uint16_t>(emission.color.g) * intensity) / 255),
+                    static_cast<uint8_t>((static_cast<uint16_t>(emission.color.b) * intensity) / 255)
+                };
+                localLightFrontier.push(glm::ivec3{x, y, z});
+            }
+        }
+    }
+
+    while (!localLightFrontier.empty())
+    {
+        const glm::ivec3 current = localLightFrontier.front();
+        localLightFrontier.pop();
+
+        const glm::u8vec3 currentLight = domain[light_index(current.x, current.y, current.z)].localLight;
+        if (currentLight.r <= 1 && currentLight.g <= 1 && currentLight.b <= 1)
+        {
+            continue;
+        }
+
+        for (const glm::ivec3 offset : LocalLightOffsets)
+        {
+            const glm::ivec3 next = current + offset;
+            if (!in_bounds(next.x, next.y, next.z))
+            {
+                continue;
+            }
+
+            LightCell& nextCell = domain[light_index(next.x, next.y, next.z)];
+            if (nextCell.solid)
+            {
+                continue;
+            }
+
+            const uint8_t attenuation = (nextCell.water && next.y <= static_cast<int>(SEA_LEVEL)) ? WaterLateralAbsorption : HorizontalAbsorption;
+            const glm::u8vec3 propagated{
+                static_cast<uint8_t>(currentLight.r > attenuation ? currentLight.r - attenuation : 0),
+                static_cast<uint8_t>(currentLight.g > attenuation ? currentLight.g - attenuation : 0),
+                static_cast<uint8_t>(currentLight.b > attenuation ? currentLight.b - attenuation : 0)
+            };
+
+            if (propagated.r <= nextCell.localLight.r &&
+                propagated.g <= nextCell.localLight.g &&
+                propagated.b <= nextCell.localLight.b)
+            {
+                continue;
+            }
+
+            nextCell.localLight = glm::u8vec3{
+                std::max(nextCell.localLight.r, propagated.r),
+                std::max(nextCell.localLight.g, propagated.g),
+                std::max(nextCell.localLight.b, propagated.b)
+            };
+            localLightFrontier.push(next);
+        }
+    }
+
     auto litChunk = std::make_shared<ChunkData>(*neighborhood.center);
     for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
     {
@@ -215,7 +305,11 @@ std::shared_ptr<ChunkData> ChunkLighting::solve_skylight(const ChunkNeighborhood
         {
             for (int y = 0; y < LightDomainHeight; ++y)
             {
-                litChunk->blocks[x][y][z]._sunlight = domain[light_index(x + CenterOffset, y, z + CenterOffset)].sunlight;
+                const LightCell& solved = domain[light_index(x + CenterOffset, y, z + CenterOffset)];
+                litChunk->blocks[x][y][z]._sunlight = solved.sunlight;
+                litChunk->blocks[x][y][z]._localLightR = solved.localLight.r;
+                litChunk->blocks[x][y][z]._localLightG = solved.localLight.g;
+                litChunk->blocks[x][y][z]._localLightB = solved.localLight.b;
             }
         }
     }

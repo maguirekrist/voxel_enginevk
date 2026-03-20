@@ -4,6 +4,7 @@ layout(location = 0) in vec3 inColor;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec3 inWorldPosition;
 layout(location = 3) in vec2 inLighting;
+layout(location = 4) in vec3 inLocalLight;
 
 //output write
 layout (location = 0) out vec4 outFragColor;
@@ -50,6 +51,7 @@ void main()
     float skylight = clamp(inLighting.x, 0.0, 1.0);
     float waterFogStrength = lightingUbo.params2.w;
     float shadowStrength = lightingUbo.params3.x;
+    float localLightStrength = lightingUbo.params3.y;
     float curvedSky = pow(skylight, max(0.05, shadowStrength));
     float softSky = curvedSky * curvedSky * (3.0 - (2.0 * curvedSky));
     float hemi = clamp(inNormal.y * 0.5 + 0.5, 0.0, 1.0);
@@ -58,6 +60,7 @@ void main()
     vec3 waterTint = mix(lightingUbo.waterShallowColor.rgb, lightingUbo.waterDeepColor.rgb, depthFactor);
     vec3 skyTint = mix(lightingUbo.skyHorizonColor.rgb, lightingUbo.skyZenithColor.rgb, hemi);
     vec3 litWater = inColor * waterTint * mix(lightingUbo.shadowColor.rgb, lightingUbo.sunColor.rgb, softSky) * mix(vec3(0.85), skyTint, 0.35);
+    litWater += inColor * inLocalLight * (localLightStrength * 0.85);
 
     vec2 ndcPos = (gl_FragCoord.xy / fogUbo.screenSize) * 2.0 - 1.0;
     float ndcDepth = gl_FragCoord.z;
