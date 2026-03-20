@@ -2,7 +2,6 @@
 #include <world/terrain_gen.h>
 #include <tracy/Tracy.hpp>
 #include <render/mesh_release_queue.h>
-#include "structure.h"
 
 void Chunk::reset(const ChunkCoord chunkCoord)
 {
@@ -47,23 +46,50 @@ void ChunkData::generate()
         }
     }
 
-    //TODO: Add trees...
-    //Pick random block in the x/z plane
-    auto randX = Random::generate(0u, CHUNK_SIZE - 1);
-    auto randZ = Random::generate(0u, CHUNK_SIZE - 1);
-    auto heightIndex = (randZ * CHUNK_SIZE) + randX;
-    auto height = chunkHeightMap[heightIndex];
+    StructureGenerationContext structureContext{
+        .chunkCoord = {coord.x, coord.z},
+        .chunkOrigin = position
+    };
+    const std::vector<StructureBlockEdit> edits = StructureRegistry::instance().generate_overlapping(structureContext);
+    apply_structure_edits(edits);
+}
 
-    if (height > SEA_LEVEL)
+void ChunkData::apply_structure_edits(const std::span<const StructureBlockEdit> edits)
+{
+    for (const StructureBlockEdit& edit : edits)
     {
-        //Ok build an anchor
-        auto anchor = Anchor{
-            .type = StructureType::TREE,
-            .position = { randX, static_cast<int>(height) + 1, randZ },
-        };
-        //KEEP GOING!
-    }
+        if (!contains_world_position(edit.worldPosition))
+        {
+            continue;
+        }
 
+        const glm::ivec3 localPos = to_local_position(edit.worldPosition);
+        if (Chunk::is_outside_chunk(localPos))
+        {
+            continue;
+        }
+
+        blocks[localPos.x][localPos.y][localPos.z] = edit.block;
+    }
+}
+
+bool ChunkData::contains_world_position(const glm::ivec3& worldPos) const
+{
+    return worldPos.x >= position.x &&
+        worldPos.x < position.x + static_cast<int>(CHUNK_SIZE) &&
+        worldPos.z >= position.y &&
+        worldPos.z < position.y + static_cast<int>(CHUNK_SIZE) &&
+        worldPos.y >= 0 &&
+        worldPos.y < static_cast<int>(CHUNK_HEIGHT);
+}
+
+glm::ivec3 ChunkData::to_local_position(const glm::ivec3& worldPos) const
+{
+    return {
+        worldPos.x - position.x,
+        worldPos.y,
+        worldPos.z - position.y
+    };
 }
 
 ChunkMeshData::~ChunkMeshData()

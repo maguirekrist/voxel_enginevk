@@ -25,6 +25,8 @@ add_executable(vulkan_guide
         game/chunk.cpp
         game/block.h
         game/block.cpp
+        game/structure.h
+        game/structure.cpp
         world/chunk_mesher.h
         world/chunk_mesher.cpp
         world/chunk_manager.h

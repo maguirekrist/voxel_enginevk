@@ -3,6 +3,7 @@
 #include <constants.h>
 #include <format>
 #include "block.h"
+#include "structure.h"
 #include "render/mesh.h"
 
 struct ChunkCoord {
@@ -83,6 +84,10 @@ struct ChunkData
     ChunkBlocks blocks{};
 
     void generate();
+    void apply_structure_edits(std::span<const StructureBlockEdit> edits);
+
+    [[nodiscard]] bool contains_world_position(const glm::ivec3& worldPos) const;
+    [[nodiscard]] glm::ivec3 to_local_position(const glm::ivec3& worldPos) const;
 };
 
 struct ChunkMeshData

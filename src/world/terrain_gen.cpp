@@ -11,7 +11,20 @@ float TerrainGenerator::NormalizeHeight(std::vector<float> &map, int yScale, int
     return scaled_value;
 }
 
-float TerrainGenerator::map_height(float noise, const std::vector<SplinePoint> &splinePoints)
+float TerrainGenerator::SampleHeight(const int worldX, const int worldZ) const
+{
+    const float erosionValue = _erosion->GenSingle2D(static_cast<float>(worldX), static_cast<float>(worldZ), _seed);
+    const float peaksValue = _peaks->GenSingle2D(static_cast<float>(worldX), static_cast<float>(worldZ), _seed);
+    const float continentalValue = _continental->GenSingle2D(static_cast<float>(worldX), static_cast<float>(worldZ), _seed);
+
+    const float erosionHeight = map_height(erosionValue, _erosionSplines);
+    const float peaksHeight = map_height(peaksValue, _peakSplines);
+    const float continentalHeight = map_height(continentalValue, _continentalSplines);
+
+    return (erosionHeight + peaksHeight + continentalHeight) / 3.0f;
+}
+
+float TerrainGenerator::map_height(float noise, const std::vector<SplinePoint> &splinePoints) const
 {
     // Find the interval that contains the noise value
     for (size_t i = 0; i < splinePoints.size() - 1; ++i) {

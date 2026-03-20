@@ -159,13 +159,18 @@ enum BlockType {
     AIR = 0,
     GROUND = 1,
     WATER = 2,
-    STONE = 3
+    STONE = 3,
+    WOOD = 4,
+    LEAVES = 5
 };
 
-constexpr Color blockColor[3] = {
+constexpr Color blockColor[6] = {
     Colors::black,
     Colors::lightGreen,
-    Colors::blue
+    Colors::blue,
+    Color{110, 110, 110},
+    Color{110, 72, 35},
+    Color{65, 160, 55}
 };
 
 struct Block {

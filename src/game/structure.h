@@ -1,23 +1,46 @@
 #pragma once
 
-
-//TODO: Define structure class
-// Structures are a graph of chunks that are connected to each other.
-// They are used to create buildings, rooms, etc.
 #include <vk_types.h>
-#include <physics/aabb.h>
+#include <functional>
+
+#include "block.h"
 
 enum class StructureType {
 	TREE
 };
 
-struct Anchor {
-	StructureType type;
-	glm::ivec3 position; // relative position in chunk
-	AABB bounds;
+enum class TreeVariant {
+    Oak
 };
 
-class Structure {
-public:
+struct StructureAnchor {
+	StructureType type;
+	glm::ivec3 worldOrigin{};
+	uint64_t seed{0};
+    TreeVariant treeVariant{TreeVariant::Oak};
+};
 
+struct StructureBlockEdit {
+    glm::ivec3 worldPosition{};
+    Block block{};
+};
+
+struct StructureGenerationContext {
+    glm::ivec2 chunkCoord{};
+    glm::ivec2 chunkOrigin{};
+};
+
+using StructureGenerator = std::function<std::vector<StructureBlockEdit>(const StructureAnchor&, const StructureGenerationContext&)>;
+
+class StructureRegistry {
+public:
+    static StructureRegistry& instance();
+
+    [[nodiscard]] std::vector<StructureBlockEdit> generate(const StructureAnchor& anchor, const StructureGenerationContext& context) const;
+    [[nodiscard]] std::vector<StructureBlockEdit> generate_overlapping(const StructureGenerationContext& context) const;
+
+private:
+    StructureRegistry();
+
+    std::unordered_map<StructureType, StructureGenerator> _generators;
 };
