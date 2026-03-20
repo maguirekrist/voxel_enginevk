@@ -24,7 +24,11 @@ namespace GameConfig
     constexpr auto DEFAULT_POSITION = glm::vec3(0.0f, 120.0f, 0.0f);
 }
 
+#ifdef NDEBUG
+constexpr bool USE_VALIDATION_LAYERS = false;
+#else
 constexpr bool USE_VALIDATION_LAYERS = true;
+#endif
 constexpr bool USE_IMGUI = true;
 constexpr int MAX_COMPONENTS = 1;
 

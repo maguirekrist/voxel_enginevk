@@ -2,6 +2,7 @@
 
 #include "constants.h"
 
+#include "imgui.h"
 #include "backends/imgui_impl_sdl2.h"
 
 void WindowSystem::init(const char* title, const VkExtent2D extent)
@@ -58,6 +59,10 @@ WindowEventState WindowSystem::poll_events(const std::function<void(const SDL_Ev
             ImGui_ImplSDL2_ProcessEvent(&event);
         }
 
+        const bool imguiCaptureAllowed = !_focused;
+        const bool imguiCapturingMouse = imguiCaptureAllowed && USE_IMGUI && ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse;
+        const bool imguiCapturingKeyboard = imguiCaptureAllowed && USE_IMGUI && ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureKeyboard;
+
         switch (event.type)
         {
         case SDL_WINDOWEVENT:
@@ -76,7 +81,7 @@ WindowEventState WindowSystem::poll_events(const std::function<void(const SDL_Ev
             }
             break;
         case SDL_MOUSEBUTTONDOWN:
-            if (!_focused)
+            if (!_focused && !imguiCapturingMouse)
             {
                 _focused = true;
                 SDL_SetWindowGrab(_window, SDL_TRUE);
@@ -91,7 +96,14 @@ WindowEventState WindowSystem::poll_events(const std::function<void(const SDL_Ev
             break;
         }
 
-        if (_focused)
+        const bool isMouseEvent = event.type == SDL_MOUSEMOTION ||
+            event.type == SDL_MOUSEBUTTONDOWN ||
+            event.type == SDL_MOUSEBUTTONUP ||
+            event.type == SDL_MOUSEWHEEL;
+        const bool isKeyboardEvent = event.type == SDL_KEYDOWN || event.type == SDL_KEYUP || event.type == SDL_TEXTINPUT;
+        const bool imguiCapturedEvent = (isMouseEvent && imguiCapturingMouse) || (isKeyboardEvent && imguiCapturingKeyboard);
+
+        if (_focused && !imguiCapturedEvent)
         {
             sceneInputHandler(event);
         }

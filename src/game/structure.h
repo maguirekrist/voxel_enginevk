@@ -10,7 +10,8 @@ enum class StructureType {
 };
 
 enum class TreeVariant {
-    Oak
+    Oak,
+    Giant
 };
 
 struct StructureAnchor {

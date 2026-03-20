@@ -1,10 +1,26 @@
 
 #include "chunk_manager.h"
+#include "../game/block.h"
 #include "../game/chunk.h"
 #include "../game/world.h"
 #include "chunk_mesher.h"
 #include "tracy/Tracy.hpp"
+#include <algorithm>
 #include <memory>
+
+namespace
+{
+    constexpr int MaxGenerateJobsPerTick = 8;
+    constexpr int MaxLightJobsPerTick = 8;
+    constexpr int MaxMeshJobsPerTick = 8;
+
+    [[nodiscard]] int chunk_distance_sq(const ChunkCoord a, const ChunkCoord b) noexcept
+    {
+        const int dx = a.x - b.x;
+        const int dz = a.z - b.z;
+        return (dx * dx) + (dz * dz);
+    }
+}
 
 ChunkManager::ChunkManager() : m_chunkCache(nullptr)
 {
@@ -20,8 +36,6 @@ void ChunkManager::update_player_position(const glm::vec3& position)
     {
         const auto changeX = playerChunk.x - _lastPlayerChunk.x;
         const auto changeZ = playerChunk.z - _lastPlayerChunk.z;
-        std::println("Player changed chunks, delta: x {},  z {}", changeX, changeZ);
-        std::println("Player position: x {},  z {}", playerChunk.x, playerChunk.z);
         _lastPlayerChunk = playerChunk;
         const MapRange mapRange(playerChunk, _viewDistance);
 
@@ -43,12 +57,12 @@ void ChunkManager::update_player_position(const glm::vec3& position)
                 });
             }
 
-            std::println("Active chunks: {}", m_chunkCache->m_chunks.size());
         }
     }
 
     drain_generate_results();
     apply_pending_world_edits();
+    drain_light_results();
     drain_mesh_results();
     run_scheduler();
 }
@@ -76,11 +90,15 @@ std::optional<ChunkManager::ChunkDebugState> ChunkManager::debug_state(const Chu
         .resident = record.residency == ChunkResidencyState::Resident,
         .generationId = record.chunkGenerationId,
         .dataVersion = record.dataVersion,
+        .lightVersion = record.lightVersion,
+        .litAgainstSignature = record.litAgainstSignature,
         .meshedAgainstSignature = record.meshedAgainstSignature,
         .uploadedSignature = record.uploadedSignature,
         .dataState = record.dataState,
+        .lightState = record.lightState,
         .meshState = record.meshState,
         .generationJobInFlight = record.generationJobInFlight,
+        .lightJobInFlight = record.lightJobInFlight,
         .meshJobInFlight = record.meshJobInFlight,
         .uploadPending = record.uploadPending
     };
@@ -88,18 +106,68 @@ std::optional<ChunkManager::ChunkDebugState> ChunkManager::debug_state(const Chu
 
 void ChunkManager::initialize_map(const MapRange mapRange)
 {
-    m_chunkCache = std::make_unique<ChunkCache>(GameConfig::DEFAULT_VIEW_DISTANCE);
+    m_chunkCache = std::make_unique<ChunkCache>(_viewDistance);
     _runtimeByChunk.clear();
 
     for (auto& chunk : m_chunkCache->m_chunks)
     {
         reset_chunk_runtime(chunk.get());
+        _renderResetEvents.enqueue(ChunkRenderResetEvent{
+            .chunk = chunk.get(),
+            .generation = chunk->_gen.load(std::memory_order::acquire)
+        });
     }
 }
 
 void ChunkManager::enqueue_block_edit(const BlockEdit& edit)
 {
     _worldEditQueue.enqueue(edit);
+}
+
+void ChunkManager::set_ambient_occlusion_enabled(const bool enabled)
+{
+    if (_ambientOcclusionEnabled == enabled)
+    {
+        return;
+    }
+
+    _ambientOcclusionEnabled = enabled;
+    for (auto& [chunk, runtime] : _runtimeByChunk)
+    {
+        ChunkRecord& record = runtime.record;
+        if (chunk == nullptr || record.data == nullptr)
+        {
+            continue;
+        }
+
+        record.meshState = MeshState::Stale;
+        record.uploadPending = false;
+        record.meshedAgainstSignature = 0;
+        record.uploadedSignature = 0;
+        chunk->_state.store(ChunkState::Generated, std::memory_order::release);
+    }
+}
+
+bool ChunkManager::ambient_occlusion_enabled() const noexcept
+{
+    return _ambientOcclusionEnabled;
+}
+
+void ChunkManager::set_view_distance(const int viewDistance)
+{
+    const int clampedViewDistance = std::max(1, viewDistance);
+    if (_viewDistance == clampedViewDistance)
+    {
+        return;
+    }
+
+    _viewDistance = clampedViewDistance;
+    initialize_map(MapRange(_lastPlayerChunk, _viewDistance));
+}
+
+int ChunkManager::view_distance() const noexcept
+{
+    return _viewDistance;
 }
 
 void ChunkManager::notify_chunk_uploaded(Chunk* chunk, const uint32_t generationId, const uint64_t neighborhoodSignature)
@@ -151,9 +219,58 @@ void ChunkManager::drain_generate_results()
         result.chunk->_data = record.data;
         record.dataState = DataState::Ready;
         record.dataVersion += 1;
+        record.lightVersion = 0;
+        record.litAgainstSignature = 0;
+        record.lightState = LightState::Missing;
         record.meshState = MeshState::Missing;
         record.meshedAgainstSignature = 0;
         record.uploadedSignature = 0;
+        record.uploadPending = false;
+        result.chunk->_state.store(ChunkState::Generated, std::memory_order::release);
+    }
+}
+
+void ChunkManager::drain_light_results()
+{
+    ChunkLightBuildResult result;
+    while (_lightResults.try_dequeue(result))
+    {
+        if (result.chunk == nullptr || result.chunk->_gen.load(std::memory_order::acquire) != result.generationId)
+        {
+            continue;
+        }
+
+        ChunkRuntime* const runtime = runtime_for(result.chunk);
+        if (runtime == nullptr)
+        {
+            continue;
+        }
+
+        ChunkRecord& record = runtime->record;
+        record.lightJobInFlight = false;
+
+        ChunkNeighborhood neighborhood{};
+        uint64_t currentSignature = 0;
+        if (!required_neighbors_have_data(record.coord, currentSignature, neighborhood))
+        {
+            record.lightState = LightState::Stale;
+            continue;
+        }
+
+        if (record.dataVersion != result.dataVersion || currentSignature != result.neighborhoodSignature)
+        {
+            record.lightState = LightState::Stale;
+            continue;
+        }
+
+        record.data = std::move(result.litData);
+        result.chunk->_data = record.data;
+        record.dataState = DataState::Ready;
+        record.lightVersion += 1;
+        record.litAgainstSignature = result.neighborhoodSignature;
+        record.lightState = LightState::Ready;
+        record.meshState = MeshState::Missing;
+        record.meshedAgainstSignature = 0;
         record.uploadPending = false;
         result.chunk->_state.store(ChunkState::Generated, std::memory_order::release);
     }
@@ -180,7 +297,7 @@ void ChunkManager::drain_mesh_results()
 
         ChunkNeighborhood neighborhood{};
         uint64_t currentSignature = 0;
-        if (!required_neighbors_have_data(record.coord, currentSignature, neighborhood))
+        if (!required_neighbors_have_lighting(record.coord, currentSignature, neighborhood))
         {
             record.meshState = MeshState::Stale;
             continue;
@@ -227,13 +344,24 @@ void ChunkManager::apply_pending_world_edits()
             continue;
         }
 
-        ownerRecord.data->blocks[localPos.x][localPos.y][localPos.z] = edit->newBlock;
+        Block& existingBlock = ownerRecord.data->blocks[localPos.x][localPos.y][localPos.z];
+        const bool blockChanged = existingBlock._solid != edit->newBlock._solid ||
+            existingBlock._type != edit->newBlock._type;
+        if (!blockChanged)
+        {
+            continue;
+        }
+
+        const bool opacityChanged = existingBlock._solid != edit->newBlock._solid;
+        Block updatedBlock = edit->newBlock;
+        updatedBlock._sunlight = 0;
+        existingBlock = updatedBlock;
 
         for (const DirtyChunkMark& mark : _dirtyTracker.affected_chunks(ownerRecord.coord, localPos))
         {
             if (Chunk* const dirtyChunk = get_chunk(mark.coord))
             {
-                mark_chunk_dirty(dirtyChunk, dirtyChunk == ownerChunk);
+                mark_chunk_dirty(dirtyChunk, dirtyChunk == ownerChunk, opacityChanged);
             }
         }
     }
@@ -246,9 +374,26 @@ void ChunkManager::run_scheduler()
         return;
     }
 
+    std::vector<Chunk*> prioritizedChunks{};
+    prioritizedChunks.reserve(m_chunkCache->m_chunks.size());
     for (const auto& chunkPtr : m_chunkCache->m_chunks)
     {
-        Chunk* const chunk = chunkPtr.get();
+        prioritizedChunks.push_back(chunkPtr.get());
+    }
+
+    std::ranges::sort(prioritizedChunks, [this](const Chunk* lhs, const Chunk* rhs)
+    {
+        const ChunkCoord lhsCoord = lhs != nullptr ? lhs->_data->coord : ChunkCoord{};
+        const ChunkCoord rhsCoord = rhs != nullptr ? rhs->_data->coord : ChunkCoord{};
+        return chunk_distance_sq(lhsCoord, _lastPlayerChunk) < chunk_distance_sq(rhsCoord, _lastPlayerChunk);
+    });
+
+    int generateJobsQueued = 0;
+    int lightJobsQueued = 0;
+    int meshJobsQueued = 0;
+
+    for (Chunk* const chunk : prioritizedChunks)
+    {
         ChunkRuntime* const runtime = runtime_for(chunk);
         if (runtime == nullptr)
         {
@@ -256,27 +401,47 @@ void ChunkManager::run_scheduler()
         }
 
         ChunkRecord& record = runtime->record;
-        if (_scheduler.should_generate(record))
+        if (generateJobsQueued < MaxGenerateJobsPerTick && _scheduler.should_generate(record))
         {
             queue_generate(chunk);
+            ++generateJobsQueued;
             continue;
         }
 
         ChunkNeighborhood neighborhood{};
-        uint64_t signature = 0;
-        const bool neighborsReady = required_neighbors_have_data(record.coord, signature, neighborhood);
+        uint64_t lightSignature = 0;
+        const bool lightNeighborsReady = required_neighbors_have_data(record.coord, lightSignature, neighborhood);
+
+        if (record.lightState == LightState::Ready &&
+            lightNeighborsReady &&
+            record.litAgainstSignature != 0 &&
+            record.litAgainstSignature != lightSignature)
+        {
+            record.lightState = LightState::Stale;
+        }
+
+        if (lightJobsQueued < MaxLightJobsPerTick && _scheduler.should_light(record, lightNeighborsReady, lightSignature))
+        {
+            queue_light(chunk, lightSignature, neighborhood);
+            ++lightJobsQueued;
+            continue;
+        }
+
+        uint64_t meshSignature = 0;
+        const bool meshNeighborsReady = required_neighbors_have_lighting(record.coord, meshSignature, neighborhood);
 
         if ((record.meshState == MeshState::Uploaded || record.meshState == MeshState::MeshReady) &&
-            neighborsReady &&
+            meshNeighborsReady &&
             record.meshedAgainstSignature != 0 &&
-            record.meshedAgainstSignature != signature)
+            record.meshedAgainstSignature != meshSignature)
         {
             record.meshState = MeshState::Stale;
         }
 
-        if (_scheduler.should_mesh(record, neighborsReady, signature))
+        if (meshJobsQueued < MaxMeshJobsPerTick && _scheduler.should_mesh(record, meshNeighborsReady, meshSignature))
         {
-            queue_mesh(chunk, signature, neighborhood);
+            queue_mesh(chunk, meshSignature, neighborhood);
+            ++meshJobsQueued;
             continue;
         }
 
@@ -310,19 +475,23 @@ void ChunkManager::reset_chunk_runtime(Chunk* chunk)
         .mesh = chunk->_meshData,
         .chunkGenerationId = chunk->_gen.load(std::memory_order::acquire),
         .dataVersion = 0,
+        .lightVersion = 0,
+        .litAgainstSignature = 0,
         .meshedAgainstSignature = 0,
         .uploadedSignature = 0,
         .residency = ChunkResidencyState::Resident,
         .dataState = DataState::Empty,
+        .lightState = LightState::Missing,
         .meshState = MeshState::Missing,
         .generationJobInFlight = false,
+        .lightJobInFlight = false,
         .meshJobInFlight = false,
         .uploadPending = false
     };
     chunk->_state.store(ChunkState::Uninitialized, std::memory_order::release);
 }
 
-void ChunkManager::mark_chunk_dirty(Chunk* chunk, const bool dataChanged)
+void ChunkManager::mark_chunk_dirty(Chunk* chunk, const bool dataChanged, const bool lightingInvalidated)
 {
     ChunkRuntime* const runtime = runtime_for(chunk);
     if (runtime == nullptr)
@@ -339,8 +508,12 @@ void ChunkManager::mark_chunk_dirty(Chunk* chunk, const bool dataChanged)
     if (dataChanged)
     {
         record.dataVersion += 1;
+        record.dataState = DataState::Dirty;
     }
-    record.dataState = DataState::Dirty;
+    if (lightingInvalidated)
+    {
+        record.lightState = LightState::Stale;
+    }
     record.meshState = MeshState::Stale;
     record.uploadPending = false;
     chunk->_state.store(ChunkState::Generated, std::memory_order::release);
@@ -374,6 +547,35 @@ void ChunkManager::queue_generate(Chunk* const chunk)
     });
 }
 
+void ChunkManager::queue_light(Chunk* const chunk, const uint64_t neighborhoodSignature, const ChunkNeighborhood& neighborhood)
+{
+    ChunkRuntime* const runtime = runtime_for(chunk);
+    if (runtime == nullptr)
+    {
+        return;
+    }
+
+    ChunkRecord& record = runtime->record;
+    record.lightJobInFlight = true;
+    record.lightState = LightState::Lighting;
+    const uint32_t generationId = record.chunkGenerationId;
+    const uint32_t dataVersion = record.dataVersion;
+
+    _threadPool.post([this, chunk, generationId, dataVersion, neighborhoodSignature, neighborhood]() noexcept
+    {
+        auto litData = ChunkLighting::solve_skylight(neighborhood);
+
+        _lightResults.enqueue(ChunkLightBuildResult{
+            .chunk = chunk,
+            .coord = neighborhood.center != nullptr ? neighborhood.center->coord : ChunkCoord{},
+            .generationId = generationId,
+            .dataVersion = dataVersion,
+            .neighborhoodSignature = neighborhoodSignature,
+            .litData = std::move(litData)
+        });
+    });
+}
+
 void ChunkManager::queue_mesh(Chunk* const chunk, const uint64_t neighborhoodSignature, const ChunkNeighborhood& neighborhood)
 {
     ChunkRuntime* const runtime = runtime_for(chunk);
@@ -390,7 +592,7 @@ void ChunkManager::queue_mesh(Chunk* const chunk, const uint64_t neighborhoodSig
 
     _threadPool.post([this, chunk, generationId, dataVersion, neighborhoodSignature, neighborhood]() noexcept
     {
-        ChunkMesher mesher{ neighborhood };
+        ChunkMesher mesher{ neighborhood, _ambientOcclusionEnabled };
         auto meshData = mesher.generate_mesh();
 
         _meshResults.enqueue(ChunkMeshBuildResult{
@@ -487,6 +689,11 @@ std::optional<ChunkNeighborhood> ChunkManager::build_neighborhood(const ChunkCoo
     return neighborhood;
 }
 
+std::optional<ChunkNeighborhood> ChunkManager::build_light_neighborhood(const ChunkCoord coord) const
+{
+    return build_neighborhood(coord);
+}
+
 ChunkManager::ChunkRuntime* ChunkManager::runtime_for(const Chunk* chunk)
 {
     const auto it = _runtimeByChunk.find(const_cast<Chunk*>(chunk));
@@ -499,7 +706,7 @@ const ChunkManager::ChunkRuntime* ChunkManager::runtime_for(const Chunk* chunk) 
     return it != _runtimeByChunk.end() ? &it->second : nullptr;
 }
 
-uint64_t ChunkManager::compute_neighborhood_signature(const ChunkNeighborhood& neighborhood) const
+uint64_t ChunkManager::compute_light_signature(const ChunkNeighborhood& neighborhood) const
 {
     auto mix = [](const uint64_t seed, const uint64_t value)
     {
@@ -535,7 +742,59 @@ uint64_t ChunkManager::compute_neighborhood_signature(const ChunkNeighborhood& n
     return signature;
 }
 
+uint64_t ChunkManager::compute_mesh_signature(const ChunkNeighborhood& neighborhood) const
+{
+    auto mix = [](const uint64_t seed, const uint64_t value)
+    {
+        return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
+    };
+
+    uint64_t signature = 0;
+    if (const Chunk* const centerChunk = get_chunk(neighborhood.center->coord))
+    {
+        if (const ChunkRuntime* const centerRuntime = runtime_for(centerChunk))
+        {
+            signature = mix(signature, centerRuntime->record.dataVersion);
+            signature = mix(signature, centerRuntime->record.lightVersion);
+            signature = mix(signature, _ambientOcclusionEnabled ? 1ULL : 0ULL);
+        }
+    }
+
+    for (const auto direction : directionList)
+    {
+        const ChunkData* const neighbor = neighborhood.get_by_offset(directionOffsetX[direction], directionOffsetZ[direction]);
+        if (neighbor == nullptr)
+        {
+            return 0;
+        }
+
+        if (const Chunk* const chunk = get_chunk(neighbor->coord))
+        {
+            if (const ChunkRuntime* const runtime = runtime_for(chunk))
+            {
+                signature = mix(signature, runtime->record.dataVersion);
+                signature = mix(signature, runtime->record.lightVersion);
+            }
+        }
+    }
+
+    return signature;
+}
+
 bool ChunkManager::required_neighbors_have_data(const ChunkCoord coord, uint64_t& signature, ChunkNeighborhood& neighborhood) const
+{
+    const auto builtNeighborhood = build_light_neighborhood(coord);
+    if (!builtNeighborhood.has_value())
+    {
+        return false;
+    }
+
+    neighborhood = builtNeighborhood.value();
+    signature = compute_light_signature(neighborhood);
+    return signature != 0;
+}
+
+bool ChunkManager::required_neighbors_have_lighting(const ChunkCoord coord, uint64_t& signature, ChunkNeighborhood& neighborhood) const
 {
     const auto builtNeighborhood = build_neighborhood(coord);
     if (!builtNeighborhood.has_value())
@@ -544,6 +803,27 @@ bool ChunkManager::required_neighbors_have_data(const ChunkCoord coord, uint64_t
     }
 
     neighborhood = builtNeighborhood.value();
-    signature = compute_neighborhood_signature(neighborhood);
+    const Chunk* const centerChunk = get_chunk(coord);
+    const ChunkRuntime* const centerRuntime = runtime_for(centerChunk);
+    if (centerRuntime == nullptr || centerRuntime->record.lightState != LightState::Ready)
+    {
+        return false;
+    }
+
+    for (const auto direction : directionList)
+    {
+        const ChunkCoord neighborCoord{
+            coord.x + directionOffsetX[direction],
+            coord.z + directionOffsetZ[direction]
+        };
+        const Chunk* const neighborChunk = get_chunk(neighborCoord);
+        const ChunkRuntime* const neighborRuntime = runtime_for(neighborChunk);
+        if (neighborRuntime == nullptr || neighborRuntime->record.lightState != LightState::Ready)
+        {
+            return false;
+        }
+    }
+
+    signature = compute_mesh_signature(neighborhood);
     return signature != 0;
 }

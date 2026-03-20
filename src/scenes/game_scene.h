@@ -19,6 +19,7 @@ public:
     void update(float deltaTime) override;
     void handle_input(const SDL_Event& event) override;
     void handle_keystate(const Uint8* state) override;
+    void clear_input() override;
     void draw_imgui() override;
 	void rebuild_pipelines() override;
     void build_pipelines() override;
@@ -30,6 +31,53 @@ private:
         glm::mat4 projection;
         glm::mat4 view;
         glm::mat4 viewproject;
+    };
+
+    struct LightingUBO {
+        glm::vec4 skyZenithColor;
+        glm::vec4 skyHorizonColor;
+        glm::vec4 groundColor;
+        glm::vec4 sunColor;
+        glm::vec4 moonColor;
+        glm::vec4 shadowColor;
+        glm::vec4 waterShallowColor;
+        glm::vec4 waterDeepColor;
+        glm::vec4 params1; // x=timeOfDay, y=sunHeight, z=dayFactor, w=aoStrength
+        glm::vec4 params2; // x=shadowFloor, y=hemiStrength, z=skylightStrength, w=waterFogStrength
+        glm::vec4 params3; // x=shadowStrength
+    };
+
+    struct LightingTuning
+    {
+        glm::vec3 daySkyZenith{0.58f, 0.80f, 1.0f};
+        glm::vec3 daySkyHorizon{0.96f, 0.97f, 1.0f};
+        glm::vec3 dayGround{0.60f, 0.48f, 0.36f};
+        glm::vec3 daySun{1.18f, 1.06f, 0.92f};
+        glm::vec3 dayShadow{0.78f, 0.86f, 1.0f};
+        glm::vec3 dayFog{0.74f, 0.88f, 1.0f};
+        glm::vec3 dayWaterShallow{0.42f, 0.82f, 0.95f};
+        glm::vec3 dayWaterDeep{0.12f, 0.34f, 0.58f};
+
+        glm::vec3 duskSkyHorizon{1.0f, 0.56f, 0.35f};
+        glm::vec3 duskFog{0.93f, 0.56f, 0.42f};
+
+        glm::vec3 nightSkyZenith{0.03f, 0.05f, 0.11f};
+        glm::vec3 nightSkyHorizon{0.10f, 0.08f, 0.16f};
+        glm::vec3 nightGround{0.10f, 0.08f, 0.11f};
+        glm::vec3 nightSun{0.50f, 0.56f, 0.82f};
+        glm::vec3 nightMoon{0.34f, 0.42f, 0.62f};
+        glm::vec3 nightShadow{0.14f, 0.18f, 0.30f};
+        glm::vec3 nightFog{0.06f, 0.10f, 0.18f};
+        glm::vec3 nightWaterShallow{0.10f, 0.22f, 0.30f};
+        glm::vec3 nightWaterDeep{0.02f, 0.05f, 0.10f};
+
+        float aoStrength{0.10f};
+        float shadowFloor{0.84f};
+        float hemiStrength{0.50f};
+        float skylightStrength{1.0f};
+        float shadowStrength{1.0f};
+        float waterFogStrength{0.35f};
+        float cycleDurationSeconds{180.0f};
     };
 
     struct FogUBO {
@@ -49,10 +97,12 @@ private:
     };
 
     void update_fog_ubo() const;
+    void update_lighting_ubo() const;
     void update_uniform_buffer() const;
 
     std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Resource> _cameraUboResource;
+    std::shared_ptr<Resource> _lightingResource;
     std::shared_ptr<Mesh> _chunkBoundaryMesh;
     std::shared_ptr<Mesh> _targetBlockOutlineMesh;
     ChunkRenderRegistry _chunkRenderRegistry;
@@ -62,6 +112,11 @@ private:
     std::vector<dev_collections::sparse_set<RenderObject>::Handle> _chunkBoundaryHandles{};
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _targetBlockOutlineHandle{};
     bool _showChunkBoundaries{false};
+    bool _ambientOcclusionEnabled{false};
+    bool _timeOfDayPaused{false};
+    int _viewDistanceSetting{GameConfig::DEFAULT_VIEW_DISTANCE};
+    float _timeOfDay{0.32f};
+    LightingTuning _lightingTuning{};
 
     CubeEngine _game;
     std::unique_ptr<Camera> _camera;

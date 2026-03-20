@@ -1,8 +1,14 @@
 param(
-    [string]$Config = "Debug"
+    [ValidateSet("Debug", "Release")]
+    [string]$Config = "Debug",
+    [switch]$Release
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($Release) {
+    $Config = "Release"
+}
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $buildDir = Join-Path $repoRoot "build"

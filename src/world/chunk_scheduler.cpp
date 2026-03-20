@@ -7,6 +7,31 @@ bool ChunkScheduler::should_generate(const ChunkRecord& record) const noexcept
         !record.generationJobInFlight;
 }
 
+bool ChunkScheduler::should_light(const ChunkRecord& record, const bool requiredNeighborsReady, const uint64_t desiredSignature) const noexcept
+{
+    if (record.residency != ChunkResidencyState::Resident || !requiredNeighborsReady || record.lightJobInFlight)
+    {
+        return false;
+    }
+
+    if (record.dataState != DataState::Ready && record.dataState != DataState::Dirty)
+    {
+        return false;
+    }
+
+    if (record.lightState == LightState::Missing || record.lightState == LightState::Stale)
+    {
+        return true;
+    }
+
+    if (record.lightState == LightState::Ready)
+    {
+        return record.litAgainstSignature != desiredSignature;
+    }
+
+    return false;
+}
+
 bool ChunkScheduler::should_mesh(const ChunkRecord& record, const bool requiredNeighborsReady, const uint64_t desiredSignature) const noexcept
 {
     if (record.residency != ChunkResidencyState::Resident || !requiredNeighborsReady || record.meshJobInFlight)
@@ -15,6 +40,11 @@ bool ChunkScheduler::should_mesh(const ChunkRecord& record, const bool requiredN
     }
 
     if (record.dataState != DataState::Ready && record.dataState != DataState::Dirty)
+    {
+        return false;
+    }
+
+    if (record.lightState != LightState::Ready)
     {
         return false;
     }

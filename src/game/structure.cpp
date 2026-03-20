@@ -8,8 +8,9 @@ namespace
 {
     constexpr int TreePlacementCellSize = 12;
     constexpr int TreePlacementChancePercent = 40;
-    constexpr int MaxTreeCanopyRadius = 3;
-    constexpr int MaxTreeTrunkHeight = 6;
+    constexpr int GiantTreeChancePercent = 18;
+    constexpr int MaxTreeCanopyRadius = 7;
+    constexpr int MaxTreeTrunkHeight = 15;
 
     Block make_block(const BlockType type, const bool solid, const uint8_t sunlight = 0)
     {
@@ -27,6 +28,87 @@ namespace
             std::vector<StructureBlockEdit> edits;
 
             uint64_t seed = anchor.seed;
+            auto add_leaf_blob = [&edits](const glm::ivec3 center, const int radiusXZ, const int radiusY, const auto& skipPredicate)
+            {
+                for (int y = -radiusY; y <= radiusY; ++y)
+                {
+                    const float verticalBlend = radiusY > 0 ? static_cast<float>(std::abs(y)) / static_cast<float>(radiusY) : 0.0f;
+                    const int layerRadius = std::max(1, radiusXZ - static_cast<int>(std::round(verticalBlend * 2.0f)));
+                    for (int x = -layerRadius; x <= layerRadius; ++x)
+                    {
+                        for (int z = -layerRadius; z <= layerRadius; ++z)
+                        {
+                            const float normalized =
+                                (static_cast<float>(x * x + z * z) / static_cast<float>(std::max(1, layerRadius * layerRadius))) +
+                                (radiusY > 0 ? (static_cast<float>(y * y) / static_cast<float>(radiusY * radiusY)) : 0.0f);
+                            if (normalized > 1.35f)
+                            {
+                                continue;
+                            }
+
+                            const glm::ivec3 worldPos = center + glm::ivec3(x, y, z);
+                            if (skipPredicate(worldPos))
+                            {
+                                continue;
+                            }
+
+                            edits.push_back(StructureBlockEdit{
+                                .worldPosition = worldPos,
+                                .block = make_block(BlockType::LEAVES, true, 0)
+                            });
+                        }
+                    }
+                }
+            };
+
+            if (anchor.treeVariant == TreeVariant::Giant)
+            {
+                const int trunkHeight = Random::generate_from_seed(seed, 10, 15);
+                const int crownRadius = Random::generate_from_seed(seed, 4, 6);
+                const int crownHeight = Random::generate_from_seed(seed, 3, 4);
+                const glm::ivec3 trunkBase = anchor.worldOrigin;
+                const auto is_trunk_position = [&](const glm::ivec3& worldPos)
+                {
+                    if (worldPos.y < trunkBase.y || worldPos.y >= trunkBase.y + trunkHeight)
+                    {
+                        return false;
+                    }
+
+                    const int localX = worldPos.x - trunkBase.x;
+                    const int localZ = worldPos.z - trunkBase.z;
+                    return localX >= 0 && localX <= 1 && localZ >= 0 && localZ <= 1;
+                };
+
+                edits.reserve(640);
+
+                for (int y = 0; y < trunkHeight; ++y)
+                {
+                    for (int dx = 0; dx < 2; ++dx)
+                    {
+                        for (int dz = 0; dz < 2; ++dz)
+                        {
+                            edits.push_back(StructureBlockEdit{
+                                .worldPosition = trunkBase + glm::ivec3(dx, y, dz),
+                                .block = make_block(BlockType::WOOD, true, 0)
+                            });
+                        }
+                    }
+                }
+
+                const glm::ivec3 crownCenter = trunkBase + glm::ivec3(0, trunkHeight - 2, 0);
+                add_leaf_blob(crownCenter + glm::ivec3(1, 1, 1), crownRadius, crownHeight, is_trunk_position);
+                add_leaf_blob(crownCenter + glm::ivec3(1, crownHeight, 1), std::max(3, crownRadius - 1), 2, is_trunk_position);
+
+                const int sideBlobRadius = std::max(3, crownRadius - 1);
+                const int sideBlobHeight = std::max(2, crownHeight - 1);
+                add_leaf_blob(crownCenter + glm::ivec3(crownRadius - 1, 0, 1), sideBlobRadius, sideBlobHeight, is_trunk_position);
+                add_leaf_blob(crownCenter + glm::ivec3(-(crownRadius - 2), 0, 1), sideBlobRadius, sideBlobHeight, is_trunk_position);
+                add_leaf_blob(crownCenter + glm::ivec3(1, 0, crownRadius - 1), sideBlobRadius, sideBlobHeight, is_trunk_position);
+                add_leaf_blob(crownCenter + glm::ivec3(1, 0, -(crownRadius - 2)), sideBlobRadius, sideBlobHeight, is_trunk_position);
+                add_leaf_blob(crownCenter + glm::ivec3(1, -2, 1), std::max(3, crownRadius - 2), 2, is_trunk_position);
+                return edits;
+            }
+
             const int trunkHeight = Random::generate_from_seed(seed, 4, 6);
             const int canopyRadius = Random::generate_from_seed(seed, 2, 3);
             const int canopyBaseY = anchor.worldOrigin.y + trunkHeight - 2;
@@ -121,8 +203,15 @@ namespace
                 const int worldX = cellX * TreePlacementCellSize + Random::generate_from_seed(cellSeed, 0, TreePlacementCellSize - 1);
                 const int worldZ = cellZ * TreePlacementCellSize + Random::generate_from_seed(cellSeed, 0, TreePlacementCellSize - 1);
                 const int terrainHeight = static_cast<int>(TerrainGenerator::instance().SampleHeight(worldX, worldZ));
+                TreeVariant variant = TreeVariant::Oak;
+                if (Random::generate_from_seed(cellSeed, 0, 99) < GiantTreeChancePercent)
+                {
+                    variant = TreeVariant::Giant;
+                }
+
+                const int maxTreeTopPadding = variant == TreeVariant::Giant ? 6 : 2;
                 const bool canSpawnTree = terrainHeight > static_cast<int>(SEA_LEVEL) + 1 &&
-                    terrainHeight + MaxTreeTrunkHeight + 2 < static_cast<int>(CHUNK_HEIGHT);
+                    terrainHeight + MaxTreeTrunkHeight + maxTreeTopPadding < static_cast<int>(CHUNK_HEIGHT);
 
                 if (!canSpawnTree)
                 {
@@ -133,7 +222,7 @@ namespace
                     .type = StructureType::TREE,
                     .worldOrigin = { worldX, terrainHeight + 1, worldZ },
                     .seed = Random::seed_from_ints({ cellX, cellZ, worldX, worldZ, terrainHeight }),
-                    .treeVariant = TreeVariant::Oak
+                    .treeVariant = variant
                 });
             }
         }

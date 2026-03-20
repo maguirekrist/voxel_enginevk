@@ -36,6 +36,8 @@ add_executable(vulkan_guide
         world/chunk_scheduler.cpp
         world/chunk_neighborhood.h
         world/chunk_neighborhood.cpp
+        world/chunk_lighting.h
+        world/chunk_lighting.cpp
         world/chunk_dirty_tracker.h
         world/chunk_dirty_tracker.cpp
         world/world_edit_queue.h

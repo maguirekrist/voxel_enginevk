@@ -34,9 +34,17 @@ VertexInputDescription Vertex::get_vertex_description()
 	colorAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
 	colorAttribute.offset = offsetof(Vertex, color);
 
+	// Lighting data (skylight, ao) will be stored at Location 3
+	VkVertexInputAttributeDescription lightingAttribute = {};
+	lightingAttribute.binding = 0;
+	lightingAttribute.location = 3;
+	lightingAttribute.format = VK_FORMAT_R32G32_SFLOAT;
+	lightingAttribute.offset = offsetof(Vertex, lighting);
+
 	description.attributes.push_back(positionAttribute);
 	description.attributes.push_back(normalAttribute);
 	description.attributes.push_back(colorAttribute);
+	description.attributes.push_back(lightingAttribute);
 	return description;
 }
 

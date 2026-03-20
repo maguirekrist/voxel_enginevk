@@ -30,6 +30,15 @@ enum class MeshState : uint8_t
     Stale = 5
 };
 
+enum class LightState : uint8_t
+{
+    Missing = 0,
+    LightQueued = 1,
+    Lighting = 2,
+    Ready = 3,
+    Stale = 4
+};
+
 struct ChunkRecord
 {
     ChunkCoord coord{0, 0};
@@ -38,14 +47,18 @@ struct ChunkRecord
 
     uint32_t chunkGenerationId{1};
     uint32_t dataVersion{0};
+    uint32_t lightVersion{0};
+    uint64_t litAgainstSignature{0};
     uint64_t meshedAgainstSignature{0};
     uint64_t uploadedSignature{0};
 
     ChunkResidencyState residency{ChunkResidencyState::Resident};
     DataState dataState{DataState::Empty};
+    LightState lightState{LightState::Missing};
     MeshState meshState{MeshState::Missing};
 
     bool generationJobInFlight{false};
+    bool lightJobInFlight{false};
     bool meshJobInFlight{false};
     bool uploadPending{false};
 };

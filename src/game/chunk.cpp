@@ -34,13 +34,12 @@ void ChunkData::generate()
                 else if(y <= SEA_LEVEL) {
                     block._solid = false;
                     block._type = BlockType::WATER;
-                    int sunLight = std::max(-(static_cast<int>(SEA_LEVEL) - y) + static_cast<int>(MAX_LIGHT_LEVEL), 0);
-                    block._sunlight = std::clamp(static_cast<uint8_t>(sunLight), static_cast<uint8_t>(1), static_cast<uint8_t>(MAX_LIGHT_LEVEL));
+                    block._sunlight = 0;
                 }
                 else {
                     block._solid = false;
                     block._type = BlockType::AIR;
-                    block._sunlight = MAX_LIGHT_LEVEL;
+                    block._sunlight = 0;
                 }
             }
         }

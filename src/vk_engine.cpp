@@ -111,6 +111,14 @@ void VulkanEngine::handle_input()
 
     bQuit = bQuit || eventState.quitRequested;
     bResizeRequest = bResizeRequest || eventState.resizeRequested;
+    const bool imguiCapturingInput = !_windowSystem.is_focused() && USE_IMGUI && ImGui::GetCurrentContext() != nullptr &&
+        (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard);
+    if (imguiCapturingInput)
+    {
+        _sceneRenderer.get_current_scene()->clear_input();
+        return;
+    }
+
 	_sceneRenderer.get_current_scene()->handle_keystate(_windowSystem.keyboard_state());
 }
 

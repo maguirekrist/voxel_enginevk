@@ -88,84 +88,61 @@ float ChunkMesher::calculate_vertex_ao(const glm::ivec3 cubePos, const FaceDirec
     const bool edge1 = is_position_solid(edge1Pos);
     const bool edge2 = is_position_solid(edge2Pos);
 
-    // Classic voxel AO uses 4 levels based on two side blockers and one corner blocker.
-    // The previous weights were much harsher and crushed corners too aggressively.
+    // Classic Minecraft-style voxel AO.
+    // When both side neighbors are solid, the corner is fully occluded.
     if (edge1 && edge2)
     {
-        return GameConfig::AO_HEAVY;
+        return 0.55f;
     }
 
     const int occlusion = static_cast<int>(edge1) + static_cast<int>(edge2) + static_cast<int>(corner);
     switch (occlusion)
     {
     case 0:
-        return GameConfig::AO_FULL_LIGHT;
+        return 1.0f;
     case 1:
-        return GameConfig::AO_LIGHT;
+        return 0.82f;
     case 2:
-        return GameConfig::AO_MEDIUM;
+        return 0.68f;
     default:
-        return GameConfig::AO_HEAVY;
+        return 0.55f;
     }
 }
 
-void ChunkMesher::propagate_sunlight()
+float ChunkMesher::calculate_vertex_skylight(const glm::ivec3 cubePos, const FaceDirection face, const int vertex) const
 {
-    std::queue<glm::ivec3> lightQueue;
-    std::queue<glm::ivec3> crossChunkQueue;
-    for (int x = 0; x < CHUNK_SIZE; x++)
+    const glm::ivec3 facePos = cubePos + glm::ivec3(faceOffsetX[face], faceOffsetY[face], faceOffsetZ[face]);
+    const glm::ivec3 edge1Pos = cubePos + Side1Offsets[face][vertex];
+    const glm::ivec3 edge2Pos = cubePos + Side2Offsets[face][vertex];
+    const glm::ivec3 cornerPos = cubePos + CornerOffsets[face][vertex];
+
+    const bool edge1Solid = is_position_solid(edge1Pos);
+    const bool edge2Solid = is_position_solid(edge2Pos);
+    const uint8_t faceLight = sample_sunlight(facePos);
+    const uint8_t edge1Light = sample_sunlight(edge1Pos);
+    const uint8_t edge2Light = sample_sunlight(edge2Pos);
+
+    uint8_t cornerLight = 0;
+    if (edge1Solid && edge2Solid)
     {
-        for (int z = 0; z < CHUNK_SIZE; z++)
-        {
-            if (_neighborhood.center->blocks[x][CHUNK_HEIGHT - 1][z]._sunlight > 0)
-            {
-                lightQueue.push({ x, CHUNK_HEIGHT - 1, z});
-            }
-        }
+        // Minecraft-style corner rule: if both sides are blocked, reuse one of the
+        // side samples instead of letting the diagonal leak excessive light.
+        cornerLight = std::min(edge1Light, edge2Light);
+    }
+    else
+    {
+        cornerLight = sample_sunlight(cornerPos);
     }
 
-    // Directions for checking neighbors (UP, DOWN, LEFT, RIGHT, FRONT, BACK)
-    while (!lightQueue.empty())
-    {
-        const glm::ivec3 current = lightQueue.front();
-        lightQueue.pop();
-
-        for (auto face : faceDirections)
-        {
-            int nx = current.x + faceOffsetX[face];
-            int ny = current.y + faceOffsetY[face];
-            int nz = current.z + faceOffsetZ[face];
-
-            if(!Chunk::is_outside_chunk({ nx, ny, nz }))
-            {
-                Block neighbor = _neighborhood.center->blocks[nx][ny][nz];
-                const int newLight = _neighborhood.center->blocks[current.x][current.y][current.z]._sunlight - 1;
-
-                if (!neighbor._solid && neighbor._sunlight < newLight)
-                {
-                    neighbor._sunlight = newLight;
-                    lightQueue.push({ nx, ny, nz });
-                }
-            } else {
-                // neighbor = _world.get_block(_chunk->get_world_pos({ nx, ny, nz }));
-                // int newLight = _chunk->_blocks[current.x][current.y][current.z]._sunlight - 1;
-                // if (neighbor && !neighbor->_solid && neighbor->_sunlight < newLight)
-                // {
-                //     neighbor->_sunlight = newLight;
-                //     crossChunkQueue.push({ nx, ny, nz });
-                // }
-            }
-        }
-    }
-
-    while (!crossChunkQueue.empty())
-    {
-        glm::ivec3 current = crossChunkQueue.front();
-        crossChunkQueue.pop();
-    }
+    const float averageLight =
+        (static_cast<float>(faceLight) +
+         static_cast<float>(edge1Light) +
+         static_cast<float>(edge2Light) +
+         static_cast<float>(cornerLight)) * 0.25f;
+    return averageLight / static_cast<float>(MAX_LIGHT_LEVEL);
 }
 
-bool ChunkMesher::is_position_solid(const glm::ivec3& localPos)
+bool ChunkMesher::is_position_solid(const glm::ivec3& localPos) const
 {
     const auto sample = sample_block(_neighborhood, localPos.x, localPos.y, localPos.z);
     if (sample.has_value())
@@ -176,6 +153,17 @@ bool ChunkMesher::is_position_solid(const glm::ivec3& localPos)
     return true;
 }
 
+uint8_t ChunkMesher::sample_sunlight(const glm::ivec3& localPos) const
+{
+    const auto sample = sample_block(_neighborhood, localPos.x, localPos.y, localPos.z);
+    if (!sample.has_value() || sample->block._solid)
+    {
+        return 0;
+    }
+
+    return sample->block._sunlight;
+}
+
 void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
 {
     throw std::runtime_error("Not implemented.");
@@ -184,22 +172,23 @@ void ChunkMesher::propagate_pointlight(glm::vec3 lightPos, int lightLevel)
 //note: a block's position is the back-bottom-right of the cube.
 void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z, const FaceDirection face, const std::shared_ptr<Mesh>& mesh)
 {
-    const auto faceNeighbor = get_face_neighbor(x, y, z, face);
-    const float sunLight = faceNeighbor.has_value() ? static_cast<float>(faceNeighbor.value()._sunlight) / static_cast<float>(MAX_LIGHT_LEVEL) : 1.0f;
-
     const glm::ivec3 blockPos{x,y,z};
     const Block block = _neighborhood.center->blocks[x][y][z];
-    const auto color = static_cast<glm::vec3>(blockColor[block._type]);
+    glm::vec3 color = static_cast<glm::vec3>(blockColor[block._type]);
+
+    if (block._type == BlockType::GROUND || block._type == BlockType::LEAVES)
+    {
+        const float heightFactor = std::clamp((static_cast<float>(y) - static_cast<float>(SEA_LEVEL)) / 96.0f, 0.0f, 1.0f);
+        color *= glm::mix(0.97f, 1.04f, heightFactor);
+    }
 
     for (int i = 0; i < 4; ++i) {
-        //get the neighbors light-level
         glm::ivec3 position = blockPos + faceVertices[face][i];
-        const float ao = calculate_vertex_ao(blockPos, face, i);
+        const float ao = _ambientOcclusionEnabled ? calculate_vertex_ao(blockPos, face, i) : 1.0f;
+        const float sunLight = calculate_vertex_skylight(blockPos, face, i);
 
         const auto normal = faceNormals[face];
-        const auto final_color = color * (ao * sunLight);
-
-        mesh->_vertices.push_back({ position, normal, final_color });
+        mesh->_vertices.push_back({ position, normal, color, glm::vec2(sunLight, ao) });
     }
 
     // Add indices for the face (two triangles)
@@ -215,13 +204,14 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
 void ChunkMesher::add_face_to_water_mesh(const int x, const int y, const int z, const FaceDirection face, const std::shared_ptr<Mesh>& mesh) const
 {
     const glm::ivec3 blockPos{x,y,z};
-    const Block block = _neighborhood.center->blocks[x][y][z];
-    const auto color = static_cast<glm::vec3>(blockColor[block._type]);
+    const auto baseColor = static_cast<glm::vec3>(blockColor[BlockType::WATER]);
+    const auto normal = faceNormals[face];
 
     for (int i = 0; i < 4; ++i) {
         glm::ivec3 position = blockPos + faceVertices[face][i];
-    
-        mesh->_vertices.push_back({ position, faceNormals[face], color });
+        const float skylight = calculate_vertex_skylight(blockPos, face, i);
+
+        mesh->_vertices.push_back({ position, normal, baseColor, glm::vec2(skylight, 1.0f) });
     }
 
     uint32_t index = mesh->_vertices.size() - 4;
