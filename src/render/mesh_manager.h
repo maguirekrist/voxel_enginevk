@@ -11,7 +11,6 @@ public:
 
     void cleanup();
     moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> UploadQueue;
-	moodycamel::BlockingConcurrentQueue<std::shared_ptr<Mesh>> UnloadQueue;
 
     void unload_garbage();
     void handle_transfers();

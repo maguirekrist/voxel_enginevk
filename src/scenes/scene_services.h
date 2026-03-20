@@ -8,6 +8,7 @@ class MeshManager;
 struct SceneServices
 {
     VmaAllocator allocator{};
+    VkDevice device{VK_NULL_HANDLE};
     VkExtent2D* windowExtent{};
     MeshManager* meshManager{};
     MaterialManager* materialManager{};

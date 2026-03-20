@@ -1,11 +1,19 @@
 #pragma once
 #include "vk_types.h"
 
+struct ResourceBackendContext
+{
+    VkDevice device{VK_NULL_HANDLE};
+    VmaAllocator allocator{};
+};
+
 struct Resource {
     enum Type {
         BUFFER,
         IMAGE
     } type;
+
+    ResourceBackendContext backend{};
 
     union ResourceValue{
         AllocatedBuffer buffer;
@@ -16,7 +24,7 @@ struct Resource {
         explicit ResourceValue(const ImageResource& image) : image(image) {}
     } value;
 
-    Resource(const Type type, ResourceValue&& value);
+    Resource(ResourceBackendContext backend, Type type, ResourceValue&& value);
     // Move Constructor
     Resource(Resource&& other) noexcept;
 
@@ -26,4 +34,3 @@ struct Resource {
     Resource(const Resource&) = delete;
     Resource& operator=(const Resource&) = delete;
 };
-

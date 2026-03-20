@@ -85,6 +85,7 @@ void VulkanEngine::init()
 
 	_sceneRenderer.init(SceneServices{
 		.allocator = _allocator,
+		.device = _device,
 		.windowExtent = &_windowExtent,
 		.meshManager = &_meshManager,
 		.materialManager = &_materialManager

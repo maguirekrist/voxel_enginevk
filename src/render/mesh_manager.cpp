@@ -3,7 +3,7 @@
 #include <tracy/Tracy.hpp>
 #include <tiny_obj_loader.h>
 
-#include "vk_engine.h"
+#include "mesh_release_queue.h"
 
 void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamily& queue)
 {
@@ -44,7 +44,7 @@ void MeshManager::unload_garbage()
 {
 	ZoneScopedN("Handle Unload Meshes");
 	std::shared_ptr<Mesh> unloadMesh;
-	while(UnloadQueue.try_dequeue(unloadMesh))
+	while(render::try_dequeue_mesh_release(unloadMesh))
 	{
 		unload_mesh(std::move(unloadMesh));
 	}

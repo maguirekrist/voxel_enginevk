@@ -77,6 +77,8 @@ add_executable(vulkan_guide
         render/chunk_render_registry.cpp
         render/chunk_render_registry.h
         render/scene_render_state.h
+        render/mesh_release_queue.cpp
+        render/mesh_release_queue.h
 )
 
 

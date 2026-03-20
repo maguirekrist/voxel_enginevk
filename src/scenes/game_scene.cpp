@@ -4,22 +4,25 @@
 #include <vk_initializers.h>
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
-#include "components/player_input_component.h"
 
 
-GameScene::GameScene(const SceneServices& services): _player(nullptr), _services(services), _game(*this), _camera(nullptr)
+GameScene::GameScene(const SceneServices& services): _services(services)
 {
+    const ResourceBackendContext resourceBackend{
+        .device = _services.device,
+        .allocator = _services.allocator
+    };
 	auto fogUboBuffer = vkutil::create_buffer(_services.allocator, sizeof(FogUBO),
 	                                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	auto cameraUboBuffer = vkutil::create_buffer(_services.allocator, sizeof(CameraUBO),
 	                                             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-	_cameraUboResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
-	_fogResource = std::make_shared<Resource>(Resource::BUFFER, Resource::ResourceValue(fogUboBuffer));
+	_cameraUboResource = std::make_shared<Resource>(resourceBackend, Resource::BUFFER, Resource::ResourceValue(cameraUboBuffer));
+	_fogResource = std::make_shared<Resource>(resourceBackend, Resource::BUFFER, Resource::ResourceValue(fogUboBuffer));
 
 	build_pipelines();
 
-	create_player();
 	create_camera();
+    sync_camera_to_game(0.0f);
 
 	std::println("GameScene created!");
 }
@@ -33,7 +36,7 @@ GameScene::~GameScene()
 void GameScene::update_buffers() {
 	ZoneScopedN("Draw Chunks & Objects");
 	_chunkRenderRegistry.sync(
-		_game._chunkManager,
+		_game.chunk_manager(),
 		*_services.meshManager,
 		*_services.materialManager,
 		_renderState);
@@ -48,33 +51,19 @@ SceneRenderState& GameScene::get_render_state()
 
 void GameScene::update(const float deltaTime)
 {
-	for (const auto& obj : _gameObjects)
-	{
-		obj->update(deltaTime);
-	}
-	_game.update();
+	_game.set_player_input(_playerInput);
+	_game.update(deltaTime);
+    sync_camera_to_game(deltaTime);
 }
 
 void GameScene::handle_input(const SDL_Event& event)
 {
 	switch(event.type) {
 		case SDL_MOUSEBUTTONDOWN:
-			// _targetBlock = _camera.get_target_block(_game._world, _game._player);
-			// if(_targetBlock.has_value())
-			// {
-			// 	auto block = _targetBlock.value()._block;
-			// 	//auto chunk = _targetBlock.value()._chunk;
-			// 	glm::vec3 worldBlockPos = _targetBlock.value()._worldPos;
-			// 	//build_target_block_view(worldBlockPos);
-			// 	//fmt::println("Current target block: Block(x{}, y{}, z{}, light: {}), at distance: {}", block->_position.x, block->_position.y, block->_position.z, block->_sunlight, _targetBlock.value()._distance);
-			// 	//fmt::println("Current chunk: Chunk(x: {}, y: {})", chunk->_position.x, chunk->_position.y);
-			// }
 			break;
 		case SDL_MOUSEMOTION:
-			for (auto [go, component] : ComponentIter<PlayerInputComponent>(_gameObjects))
-			{
-				component.handle_mouse_move(go, static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel));
-			}
+            _playerInput.lookDeltaX += static_cast<float>(event.motion.xrel);
+            _playerInput.lookDeltaY += static_cast<float>(event.motion.yrel);
 			break;
 		default:
 			//no-op
@@ -84,29 +73,10 @@ void GameScene::handle_input(const SDL_Event& event)
 
 void GameScene::handle_keystate(const Uint8* state)
 {
-	//TODO: Build a custom component iterator that does some of this filter boilerplate.
-	for (auto [go, component] : ComponentIter<PlayerInputComponent>(_gameObjects))
-	{
-		if (state[SDL_SCANCODE_W])
-		{
-			component.move_forward(go);
-		}
-
-		if (state[SDL_SCANCODE_S])
-		{
-			component.move_backward(go);
-		}
-
-		if (state[SDL_SCANCODE_A])
-		{
-			component.move_left(go);
-		}
-
-		if (state[SDL_SCANCODE_D])
-		{
-			component.move_right(go);
-		}
-	}
+    _playerInput.moveForward = state[SDL_SCANCODE_W];
+    _playerInput.moveBackward = state[SDL_SCANCODE_S];
+    _playerInput.moveLeft = state[SDL_SCANCODE_A];
+    _playerInput.moveRight = state[SDL_SCANCODE_D];
 }
 
 void GameScene::draw_imgui()
@@ -171,18 +141,19 @@ void GameScene::draw_debug_map()
 	const VkExtent2D windowExtent = _services.current_window_extent();
 	ImGui::Text("Window size: %d x %d", windowExtent.width, windowExtent.height);
 
-	ChunkCoord playerChunk = World::get_chunk_coordinates(_player->_position);
-	if (_game._current_chunk != nullptr)
+    const GameSnapshot& snapshot = _game.snapshot();
+	ChunkCoord playerChunk = snapshot.currentChunk.value_or(World::get_chunk_coordinates(snapshot.player.position));
+	if (snapshot.currentChunk.has_value())
 	{
-		ImGui::Text("Player Chunk: %d,%d", _game._current_chunk->_data->coord.x,  _game._current_chunk->_data->coord.z);
+		ImGui::Text("Player Chunk: %d,%d", snapshot.currentChunk->x,  snapshot.currentChunk->z);
 	}
 
-	if (_game._current_block != nullptr)
+	if (snapshot.hasCurrentBlock)
 	{
 		ImGui::Text("Camera World Position: x: %f, z: %f, y: %f", _camera->_position.x, _camera->_position.z, _camera->_position.y);
-		ImGui::Text("Player World Position: x: %f, z: %f, y: %f", _player->_position.x, _player->_position.z, _player->_position.y);
+		ImGui::Text("Player World Position: x: %f, z: %f, y: %f", snapshot.player.position.x, snapshot.player.position.z, snapshot.player.position.y);
 		ImGui::Text("Camera Front: x: %f, z: %f, y: %f", _camera->_front.x, _camera->_front.z, _camera->_front.y);
-		auto local_pos = World::get_local_coordinates(_player->_position);
+		auto local_pos = World::get_local_coordinates(snapshot.player.position);
 		ImGui::Text("Player Local Position: x: %d, z: %d, y: %d", local_pos.x, local_pos.z, local_pos.y);
 	}
 
@@ -193,7 +164,7 @@ void GameScene::draw_debug_map()
 			for (int col = 0; col < max_chunks; ++col) {
 				ImGui::TableSetColumnIndex(col);
 				const ChunkCoord chunkCoord = {playerChunk.x + (row - GameConfig::DEFAULT_VIEW_DISTANCE), playerChunk.z + (col - GameConfig::DEFAULT_VIEW_DISTANCE)};
-				const auto chunk = _game._chunkManager.get_chunk(chunkCoord);
+				const auto chunk = _game.get_chunk(chunkCoord);
 				if (chunk)
 				{
 					switch (chunk->_state.load(std::memory_order::acquire))
@@ -237,7 +208,7 @@ void GameScene::update_fog_ubo() const
 	fogUBO.fogColor = static_cast<glm::vec3>(Colors::skyblueHigh);
 	fogUBO.fogEndColor = static_cast<glm::vec3>(Colors::skyblueLow);
 
-	fogUBO.fogCenter = _player->_position;
+	fogUBO.fogCenter = _game.snapshot().player.position;
 	fogUBO.fogRadius = (CHUNK_SIZE * GameConfig::DEFAULT_VIEW_DISTANCE) - 60.0f;
 	const VkExtent2D windowExtent = _services.current_window_extent();
 	fogUBO.screenSize = glm::ivec2(windowExtent.width, windowExtent.height);
@@ -261,39 +232,18 @@ void GameScene::update_uniform_buffer() const
 	memcpy(data, &cameraUBO, sizeof(CameraUBO));
 	vmaUnmapMemory(_services.allocator, _cameraUboResource->value.buffer._allocation);
 }
-
-
-
-void GameScene::create_player()
-{
-	auto player = std::make_unique<GameObject>(GameConfig::DEFAULT_POSITION);
-	auto& ref = *player;
-	ref.Add<PlayerInputComponent>([this](const glm::vec3& pos) -> bool
-	{
-		const auto block = _game._world.get_block(pos);
-		if (block != nullptr)
-		{
-			return block->_solid;
-		}
-		return false;
-	});
-	_gameObjects.emplace_back(std::move(player));
-	_player = _gameObjects.back().get();
-}
-
 void GameScene::create_camera()
 {
-	auto camera = std::make_unique<Camera>(GameConfig::DEFAULT_POSITION, _services.current_window_extent());
-	auto& ref = *camera;
-	ref.Add<PlayerInputComponent>([this](const glm::vec3& pos) -> bool
-	{
-		const auto block = _game._world.get_block(pos);
-		if (block != nullptr)
-		{
-			return block->_solid;
-		}
-		return false;
-	});
-	_gameObjects.emplace_back(std::move(camera));
-	_camera = dynamic_cast<Camera*>(_gameObjects.back().get());
+	_camera = std::make_unique<Camera>(GameConfig::DEFAULT_POSITION, _services.current_window_extent());
+}
+
+void GameScene::sync_camera_to_game(const float deltaTime)
+{
+    const PlayerSnapshot& player = _game.snapshot().player;
+    _camera->_position = player.position;
+    _camera->_front = player.front;
+    _camera->_up = player.up;
+    _camera->_yaw = player.yaw;
+    _camera->_pitch = player.pitch;
+    _camera->update(deltaTime);
 }

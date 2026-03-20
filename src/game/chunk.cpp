@@ -1,7 +1,7 @@
 #include "chunk.h"
 #include <world/terrain_gen.h>
 #include <tracy/Tracy.hpp>
-#include "vk_engine.h"
+#include <render/mesh_release_queue.h>
 #include "structure.h"
 
 void Chunk::reset(const ChunkCoord chunkCoord)
@@ -68,8 +68,8 @@ void ChunkData::generate()
 
 ChunkMeshData::~ChunkMeshData()
 {
-    VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(mesh));
-    VulkanEngine::instance()._meshManager.UnloadQueue.enqueue(std::move(waterMesh));
+    render::enqueue_mesh_release(std::move(mesh));
+    render::enqueue_mesh_release(std::move(waterMesh));
 }
 
 Chunk::Chunk(const ChunkCoord coord) :
@@ -86,4 +86,3 @@ glm::ivec3 Chunk::get_world_pos(const glm::ivec3& localPos) const
 {
     return { localPos.x + _data->position.x, localPos.y, localPos.z + _data->position.y };
 }
-

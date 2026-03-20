@@ -11,8 +11,6 @@
 
 class GameScene final : public Scene {
 public:
-    GameObject* _player;
-
     explicit GameScene(const SceneServices& services);
     ~GameScene() override;
     void update_buffers() override;
@@ -57,14 +55,13 @@ private:
     ChunkRenderRegistry _chunkRenderRegistry;
     SceneRenderState _renderState;
     SceneServices _services;
+    PlayerInputState _playerInput{};
 
     CubeEngine _game;
-    Camera* _camera;
+    std::unique_ptr<Camera> _camera;
 
     std::optional<RaycastResult> _targetBlock;
 
-    std::vector<std::unique_ptr<GameObject>> _gameObjects;
-
-    void create_player();
     void create_camera();
+    void sync_camera_to_game(float deltaTime);
 };

@@ -3,9 +3,8 @@
 //
 
 #include "resource.h"
-#include "vk_engine.h"
 
-Resource::Resource(const Type type, ResourceValue&& value): type(type)
+Resource::Resource(const ResourceBackendContext backend, const Type type, ResourceValue&& value): type(type), backend(backend)
 {
     switch (type) {
     case BUFFER:
@@ -17,7 +16,7 @@ Resource::Resource(const Type type, ResourceValue&& value): type(type)
     }
 }
 
-Resource::Resource(Resource&& other) noexcept: type(other.type), value(other.value)
+Resource::Resource(Resource&& other) noexcept: type(other.type), backend(other.backend), value(other.value)
 {
     switch (type) {
     case BUFFER:
@@ -26,6 +25,8 @@ Resource::Resource(Resource&& other) noexcept: type(other.type), value(other.val
     case IMAGE:
         break;
     }
+
+    other.backend = {};
 }
 
 Resource::~Resource()
@@ -34,12 +35,24 @@ Resource::~Resource()
     switch(type)
     {
     case BUFFER:
-        vmaDestroyBuffer(VulkanEngine::instance()._allocator, value.buffer._buffer, value.buffer._allocation);
+        if (value.buffer._buffer != VK_NULL_HANDLE)
+        {
+            vmaDestroyBuffer(backend.allocator, value.buffer._buffer, value.buffer._allocation);
+        }
         break;
     case IMAGE:
-        vkDestroyImageView(VulkanEngine::instance()._device, value.image.view, nullptr);
-        vkDestroySampler(VulkanEngine::instance()._device, value.image.sampler, nullptr);
-        vmaDestroyImage(VulkanEngine::instance()._allocator, value.image.image._image, value.image.image._allocation);
+        if (value.image.view != VK_NULL_HANDLE)
+        {
+            vkDestroyImageView(backend.device, value.image.view, nullptr);
+        }
+        if (value.image.sampler != VK_NULL_HANDLE)
+        {
+            vkDestroySampler(backend.device, value.image.sampler, nullptr);
+        }
+        if (value.image.image._image != VK_NULL_HANDLE)
+        {
+            vmaDestroyImage(backend.allocator, value.image.image._image, value.image.image._allocation);
+        }
         break;
     }
 }
