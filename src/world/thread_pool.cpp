@@ -4,6 +4,8 @@
 
 #include "thread_pool.h"
 
+#include <print>
+
 ThreadPool::ThreadPool(const int thread_count) : _thread_count(thread_count)
 {
     for (int i = 0; i < thread_count; i++)
@@ -25,7 +27,20 @@ ThreadPool::ThreadPool(const int thread_count) : _thread_count(thread_count)
                     continue;
                 }
 
-                job();
+                try
+                {
+                    job();
+                }
+                catch (const std::exception& ex)
+                {
+                    std::println("ThreadPool job failed: {}", ex.what());
+                    std::terminate();
+                }
+                catch (...)
+                {
+                    std::println("ThreadPool job failed with unknown exception");
+                    std::terminate();
+                }
             }
         });
     }

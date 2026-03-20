@@ -3,6 +3,20 @@
 
 constexpr float TerrainFrequency = 0.001f;
 
+namespace
+{
+    int floor_to_int(const float value)
+    {
+        return static_cast<int>(std::floor(value));
+    }
+
+    int wrap_to_chunk_axis(const int value, const int axisSize)
+    {
+        const int mod = value % axisSize;
+        return mod < 0 ? mod + axisSize : mod;
+    }
+}
+
 float TerrainGenerator::NormalizeHeight(std::vector<float> &map, int yScale, int xScale, int x, int y)
 {
     float height = map[(y * xScale) + x];
@@ -13,15 +27,12 @@ float TerrainGenerator::NormalizeHeight(std::vector<float> &map, int yScale, int
 
 float TerrainGenerator::SampleHeight(const int worldX, const int worldZ) const
 {
-    const float erosionValue = _erosion->GenSingle2D(static_cast<float>(worldX), static_cast<float>(worldZ), _seed);
-    const float peaksValue = _peaks->GenSingle2D(static_cast<float>(worldX), static_cast<float>(worldZ), _seed);
-    const float continentalValue = _continental->GenSingle2D(static_cast<float>(worldX), static_cast<float>(worldZ), _seed);
-
-    const float erosionHeight = map_height(erosionValue, _erosionSplines);
-    const float peaksHeight = map_height(peaksValue, _peakSplines);
-    const float continentalHeight = map_height(continentalValue, _continentalSplines);
-
-    return (erosionHeight + peaksHeight + continentalHeight) / 3.0f;
+    const int chunkOriginX = floor_to_int(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE)) * static_cast<int>(CHUNK_SIZE);
+    const int chunkOriginZ = floor_to_int(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)) * static_cast<int>(CHUNK_SIZE);
+    const std::vector<float> heightMap = GenerateHeightMap(chunkOriginX, chunkOriginZ);
+    const int localX = wrap_to_chunk_axis(worldX, CHUNK_SIZE);
+    const int localZ = wrap_to_chunk_axis(worldZ, CHUNK_SIZE);
+    return heightMap[(localZ * CHUNK_SIZE) + localX];
 }
 
 float TerrainGenerator::map_height(float noise, const std::vector<SplinePoint> &splinePoints) const
@@ -92,7 +103,7 @@ float TerrainGenerator::map_height(float noise, const std::vector<SplinePoint> &
 //     }
 // }
 
-std::vector<float> TerrainGenerator::GenerateHeightMap(int chunkX, int chunkZ)
+std::vector<float> TerrainGenerator::GenerateHeightMap(int chunkX, int chunkZ) const
 {
     std::vector<float> heightMap(CHUNK_SIZE * CHUNK_SIZE);
     std::vector<float> erosionMap(CHUNK_SIZE * CHUNK_SIZE);

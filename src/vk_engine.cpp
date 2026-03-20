@@ -250,18 +250,26 @@ void VulkanEngine::run()
 	while (!bQuit)
 	{
 		ZoneScopedN("Main Loop");
-		_deltaTime = _frameClock.tick_frame();
+		try
+		{
+			_deltaTime = _frameClock.tick_frame();
 
-		handle_input();
+			handle_input();
 
-		_sceneRenderer.get_current_scene()->update(_deltaTime);
+			_sceneRenderer.get_current_scene()->update(_deltaTime);
 
-		if (bResizeRequest) {
-			resize_swapchain();
-			continue;
+			if (bResizeRequest) {
+				resize_swapchain();
+				continue;
+			}
+
+			draw();
 		}
-
-		draw();
+		catch (const std::exception& ex)
+		{
+			std::println("Main loop failed: {}", ex.what());
+			throw;
+		}
 	}
 }
 

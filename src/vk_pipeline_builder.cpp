@@ -50,14 +50,16 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
 
 	//it's easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
 	VkPipeline newPipeline;
-	
-	if (vkCreateGraphicsPipelines(
-		device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline) != VK_SUCCESS) {
-		std::println("failed to create pipeline");
-		return VK_NULL_HANDLE; // failed to create graphics pipeline
+
+	const VkResult result = vkCreateGraphicsPipelines(
+		device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline);
+	if (result != VK_SUCCESS) {
+		throw std::runtime_error(std::format(
+			"Failed to create graphics pipeline. VkResult={}, topology={}, stageCount={}",
+			string_VkResult(result),
+			static_cast<int>(_inputAssembly.topology),
+			_shaderStages.size()));
 	}
-	else
-	{
-		return newPipeline;
-	}
+
+	return newPipeline;
 }

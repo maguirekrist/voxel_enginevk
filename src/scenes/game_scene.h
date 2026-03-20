@@ -6,6 +6,7 @@
 #include "render/chunk_render_registry.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
+#include "render/mesh.h"
 #include "game/cube_engine.h"
 
 
@@ -52,10 +53,13 @@ private:
 
     std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Resource> _cameraUboResource;
+    std::shared_ptr<Mesh> _chunkBoundaryMesh;
     ChunkRenderRegistry _chunkRenderRegistry;
     SceneRenderState _renderState;
     SceneServices _services;
     PlayerInputState _playerInput{};
+    std::vector<dev_collections::sparse_set<RenderObject>::Handle> _chunkBoundaryHandles{};
+    bool _showChunkBoundaries{false};
 
     CubeEngine _game;
     std::unique_ptr<Camera> _camera;
@@ -64,4 +68,6 @@ private:
 
     void create_camera();
     void sync_camera_to_game(float deltaTime);
+    void sync_chunk_boundary_debug();
+    void clear_chunk_boundary_debug();
 };

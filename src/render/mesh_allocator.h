@@ -24,12 +24,13 @@ public:
     AllocatedBuffer m_indexBuffer{};
     AllocatedBuffer m_vertexBuffer{};
 private:
-    inline static constexpr VkDeviceSize CAPACITY = GameConfig::MAXIMUM_CHUNKS * 2;
+    inline static constexpr VkDeviceSize DEBUG_MESH_HEADROOM = 128;
+    inline static constexpr VkDeviceSize CAPACITY = (GameConfig::MAXIMUM_CHUNKS * 2) + DEBUG_MESH_HEADROOM;
     std::vector<int32_t> m_free_list;
     VmaAllocator m_allocator;
 
-    inline static constexpr VkDeviceSize VERTEX_SLAB_SIZE = 200000; //2 mb
-    inline static constexpr VkDeviceSize INDEX_SLAB_SIZE = 200000; //2 mb
+    inline static constexpr VkDeviceSize VERTEX_SLAB_SIZE = 393216;
+    inline static constexpr VkDeviceSize INDEX_SLAB_SIZE = 196608;
 
     inline static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = VERTEX_SLAB_SIZE * CAPACITY;
     inline static constexpr VkDeviceSize INDEX_BUFFER_SIZE = INDEX_SLAB_SIZE * CAPACITY;

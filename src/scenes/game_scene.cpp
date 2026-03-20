@@ -4,6 +4,7 @@
 #include <vk_initializers.h>
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
+#include "render/mesh_release_queue.h"
 
 
 GameScene::GameScene(const SceneServices& services): _services(services)
@@ -29,7 +30,12 @@ GameScene::GameScene(const SceneServices& services): _services(services)
 
 GameScene::~GameScene()
 {
+    clear_chunk_boundary_debug();
 	_chunkRenderRegistry.clear(_renderState);
+    if (_chunkBoundaryMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_chunkBoundaryMesh));
+    }
 	std::println("GameScene::~GameScene");
 }
 
@@ -40,6 +46,7 @@ void GameScene::update_buffers() {
 		*_services.meshManager,
 		*_services.materialManager,
 		_renderState);
+    sync_chunk_boundary_debug();
 	update_uniform_buffer();
 	update_fog_ubo();
 }
@@ -61,6 +68,12 @@ void GameScene::update(const float deltaTime)
 void GameScene::handle_input(const SDL_Event& event)
 {
 	switch(event.type) {
+        case SDL_KEYDOWN:
+            if (!event.key.repeat && event.key.keysym.scancode == SDL_SCANCODE_G)
+            {
+                _showChunkBoundaries = !_showChunkBoundaries;
+            }
+            break;
 		case SDL_MOUSEBUTTONDOWN:
 			break;
 		case SDL_MOUSEMOTION:
@@ -135,6 +148,15 @@ void GameScene::build_pipelines()
 		"watermesh"
 	);
 
+    _services.materialManager->build_graphics_pipeline(
+        { MaterialBinding::from_resource(0, 0, _cameraUboResource) },
+        { translate },
+        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = false, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
+        "tri_mesh.vert.spv",
+        "tri_mesh.frag.spv",
+        "chunkboundary"
+    );
+
 	_services.materialManager->build_postprocess_pipeline(_fogResource);
 	_services.materialManager->build_present_pipeline();
 }
@@ -142,6 +164,7 @@ void GameScene::build_pipelines()
 void GameScene::draw_debug_map()
 {
 	ImGui::Begin("Chunk Debug");
+    ImGui::Checkbox("Show Chunk Boundaries (G)", &_showChunkBoundaries);
 
 	const VkExtent2D windowExtent = _services.current_window_extent();
 	ImGui::Text("Window size: %d x %d", windowExtent.width, windowExtent.height);
@@ -251,4 +274,55 @@ void GameScene::sync_camera_to_game(const float deltaTime)
     _camera->_yaw = player.yaw;
     _camera->_pitch = player.pitch;
     _camera->update(deltaTime);
+}
+
+void GameScene::sync_chunk_boundary_debug()
+{
+    clear_chunk_boundary_debug();
+    if (!_showChunkBoundaries)
+    {
+        return;
+    }
+
+    if (_chunkBoundaryMesh == nullptr)
+    {
+        _chunkBoundaryMesh = Mesh::create_chunk_boundary_mesh();
+        _services.meshManager->UploadQueue.enqueue(_chunkBoundaryMesh);
+    }
+
+    const auto debugMaterial = _services.materialManager->get_material("chunkboundary");
+    const GameSnapshot& snapshot = _game.snapshot();
+    const ChunkCoord playerChunk = snapshot.currentChunk.value_or(World::get_chunk_coordinates(snapshot.player.position));
+    const int viewDistance = GameConfig::DEFAULT_VIEW_DISTANCE;
+    _chunkBoundaryHandles.reserve(static_cast<size_t>((viewDistance * 2 + 1) * (viewDistance * 2 + 1)));
+
+    for (int chunkZ = playerChunk.z - viewDistance; chunkZ <= playerChunk.z + viewDistance; ++chunkZ)
+    {
+        for (int chunkX = playerChunk.x - viewDistance; chunkX <= playerChunk.x + viewDistance; ++chunkX)
+        {
+            const ChunkCoord chunkCoord{ chunkX, chunkZ };
+            const Chunk* const chunk = _game.get_chunk(chunkCoord);
+            if (chunk == nullptr)
+            {
+                continue;
+            }
+
+            _chunkBoundaryHandles.push_back(_renderState.opaqueObjects.insert(RenderObject{
+                .mesh = _chunkBoundaryMesh,
+                .material = debugMaterial,
+                .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
+                .layer = RenderLayer::Opaque
+            }));
+        }
+    }
+}
+
+void GameScene::clear_chunk_boundary_debug()
+{
+    for (const auto handle : _chunkBoundaryHandles)
+    {
+        _renderState.opaqueObjects.remove(handle);
+    }
+
+    _chunkBoundaryHandles.clear();
 }

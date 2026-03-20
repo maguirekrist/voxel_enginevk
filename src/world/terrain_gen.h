@@ -22,7 +22,7 @@ public:
     }
 
     // void GenerateChunk(int chunkX, int chunkZ, std::vector<uint8_t>& blockData);
-    std::vector<float> GenerateHeightMap(int chunkX, int chunkZ);
+    std::vector<float> GenerateHeightMap(int chunkX, int chunkZ) const;
     float SampleHeight(int worldX, int worldZ) const;
     //std::vector<float> GenerateDensityMap(int chunkX, int chunkZ);
     //float SampleNoise3D(int x, int y, int z);

@@ -47,14 +47,14 @@ std::optional<const Block> ChunkMesher::get_face_neighbor(const int x, const int
 
     if (Chunk::is_outside_chunk({ nx, ny, nz }))
     {
-        //Perform more expensive search.
-        auto direction = get_chunk_direction({ nx, ny, nz });
+        const auto direction = get_chunk_direction({ nx, ny, nz });
         if(direction.has_value() && _chunkNeighbors.has_value())
         {
             auto chunk = _chunkNeighbors.value()[direction.value()];
-            auto local_pos = World::get_local_coordinates({ nx, ny, nz });
-            return _chunk->blocks[local_pos.x][local_pos.y][local_pos.z];
+            const auto local_pos = World::get_local_coordinates({ nx, ny, nz });
+            return chunk->blocks[local_pos.x][local_pos.y][local_pos.z];
         }
+
         return std::nullopt;
     }
 
@@ -63,14 +63,12 @@ std::optional<const Block> ChunkMesher::get_face_neighbor(const int x, const int
 
 bool ChunkMesher::is_face_visible(int x, int y, int z, FaceDirection face)
 {
-    // Check the neighboring block in the direction of 'face'
     int nx = x + faceOffsetX[face];
     int ny = y + faceOffsetY[face];
     int nz = z + faceOffsetZ[face];
 
     if (Chunk::is_outside_chunk({ nx, ny, nz }))
     {
-        //Perform more expenive search.
         return !is_position_solid({ nx, ny, nz });
     }
 

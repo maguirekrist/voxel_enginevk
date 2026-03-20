@@ -102,7 +102,7 @@ void SceneRenderer::run_compute(VkCommandBuffer cmd, const FrameRenderContext& f
 		auto depthBarrier = vkinit::make_image_barrier({
 			.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
 			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-			.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
 			.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
 			.image = frameContext.depthImage.image._image,
 			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
