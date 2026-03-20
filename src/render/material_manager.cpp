@@ -1,11 +1,61 @@
 #include "material_manager.h"
 
 #include <expected>
-#include <vk_util.h>
 #include <vk_initializers.h>
 #include <vk_pipeline_builder.h>
+#include <render/shader_program.h>
+#include <vk_vertex.h>
 
-#include <scenes/blueprint_builder_scene.h>
+namespace
+{
+    void validate_descriptor_sets_are_contiguous(const std::vector<ReflectedDescriptorSet>& descriptorSets)
+    {
+        for (uint32_t index = 0; index < descriptorSets.size(); ++index)
+        {
+            if (descriptorSets[index].set != index)
+            {
+                throw std::runtime_error("Descriptor sets must be contiguous and start at set 0");
+            }
+        }
+    }
+
+    VkDescriptorSet allocate_descriptor_set(vkutil::DescriptorAllocator& allocator, const VkDescriptorSetLayout layout)
+    {
+        VkDescriptorSet set = VK_NULL_HANDLE;
+        if (!allocator.allocate(&set, layout))
+        {
+            throw std::runtime_error("Failed to allocate descriptor set");
+        }
+
+        return set;
+    }
+
+    void update_descriptor_set(const VkDevice device, const VkDescriptorSet set, std::vector<VkWriteDescriptorSet>& writes)
+    {
+        for (VkWriteDescriptorSet& write : writes)
+        {
+            write.dstSet = set;
+        }
+
+        vkUpdateDescriptorSets(device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    }
+
+    void validate_push_constants(const std::vector<PushConstant>& runtimePushConstants, const std::vector<VkPushConstantRange>& reflectedPushConstants)
+    {
+        if (runtimePushConstants.size() != reflectedPushConstants.size())
+        {
+            throw std::runtime_error("Runtime push constants do not match reflected shader push constant ranges");
+        }
+
+        for (size_t index = 0; index < runtimePushConstants.size(); ++index)
+        {
+            if (runtimePushConstants[index].size != reflectedPushConstants[index].size)
+            {
+                throw std::runtime_error("Runtime push constant size does not match reflected shader push constant size");
+            }
+        }
+    }
+}
 
 void MaterialManager::init(const MaterialBackendContext& context)
 {
@@ -43,61 +93,93 @@ void MaterialManager::build_graphics_pipeline(
 	const std::string& fragment_shader, 
 	const std::string& name)
 {
-	VkShaderModule vertexShader;
-	vkutil::load_shader_module(vertex_shader, _context.device, &vertexShader);
-
-	VkShaderModule fragmentShader;
-	vkutil::load_shader_module(fragment_shader, _context.device, &fragmentShader);
+	ShaderProgram shaderProgram = ShaderProgram::load_graphics(_context.device, vertex_shader, fragment_shader);
+	validate_descriptor_sets_are_contiguous(shaderProgram.descriptor_sets());
+	validate_push_constants(pConstants, shaderProgram.push_constant_ranges());
 
 	std::vector<VkDescriptorSet> descriptorSets;
-	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = shaderProgram.create_descriptor_set_layouts(*_context.descriptorLayoutCache);
 
-	for (const auto& resource : resources) {
-		if (resource->type == Resource::IMAGE) {
-			VkDescriptorSetLayout imageSetLayout;
-			VkDescriptorSet imageSet;
-			VkDescriptorImageInfo imageInfo{
-				.sampler = VK_NULL_HANDLE,
-				.imageView = resource->value.image.view,
-				.imageLayout = VK_IMAGE_LAYOUT_GENERAL
-			};
-			vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
-				.bind_image(0, &imageInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
-				.build(imageSet, imageSetLayout);
-			descriptorSets.push_back(imageSet);
-			descriptorSetLayouts.push_back(imageSetLayout);
+	if (resources.size() != descriptorSetLayouts.size())
+	{
+		throw std::runtime_error("Material resources do not match reflected descriptor set count");
+	}
+
+	for (size_t setIndex = 0; setIndex < resources.size(); ++setIndex)
+	{
+		const auto& descriptorSetInfo = shaderProgram.descriptor_sets()[setIndex];
+		if (descriptorSetInfo.bindings.size() != 1)
+		{
+			throw std::runtime_error("Graphics material currently expects exactly one binding per descriptor set");
 		}
 
-		if (resource->type == Resource::BUFFER) {
-			VkDescriptorSetLayout bufferSetLayout;
-			VkDescriptorSet bufferSet;
-			VkDescriptorBufferInfo bufferInfo{
+		const auto& binding = descriptorSetInfo.bindings.front();
+		const auto& resource = resources[setIndex];
+		const VkDescriptorSet descriptorSet = allocate_descriptor_set(*_context.descriptorAllocator, descriptorSetLayouts[setIndex]);
+		std::vector<VkWriteDescriptorSet> writes;
+		writes.reserve(1);
+
+		if (resource->type == Resource::BUFFER)
+		{
+			if (binding.descriptorType != VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+			{
+				throw std::runtime_error("Buffer resource does not match reflected descriptor type");
+			}
+
+			auto* bufferInfo = new VkDescriptorBufferInfo{
 				.buffer = resource->value.buffer._buffer,
 				.offset = 0,
 				.range = resource->value.buffer._size
 			};
-			vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
-				.bind_buffer(0, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-				.build(bufferSet, bufferSetLayout);
-			descriptorSets.push_back(bufferSet);
-			descriptorSetLayouts.push_back(bufferSetLayout);
+
+			writes.push_back(VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = VK_NULL_HANDLE,
+				.dstBinding = binding.binding,
+				.descriptorCount = 1,
+				.descriptorType = binding.descriptorType,
+				.pBufferInfo = bufferInfo
+			});
+		}
+		else if (resource->type == Resource::IMAGE)
+		{
+			auto* imageInfo = new VkDescriptorImageInfo{
+				.sampler = resource->value.image.sampler,
+				.imageView = resource->value.image.view,
+				.imageLayout = binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+					? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+					: VK_IMAGE_LAYOUT_GENERAL
+			};
+
+			writes.push_back(VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = VK_NULL_HANDLE,
+				.dstBinding = binding.binding,
+				.descriptorCount = 1,
+				.descriptorType = binding.descriptorType,
+				.pImageInfo = imageInfo
+			});
+		}
+		else
+		{
+			throw std::runtime_error("Unsupported resource type");
+		}
+
+		update_descriptor_set(_context.device, descriptorSet, writes);
+		descriptorSets.push_back(descriptorSet);
+
+		for (const VkWriteDescriptorSet& write : writes)
+		{
+			delete write.pBufferInfo;
+			delete write.pImageInfo;
 		}
 	}
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
-	pipelineLayoutInfo.setLayoutCount = descriptorSetLayouts.size();
+	pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
 	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
-	
-	std::vector<VkPushConstantRange> pushConstantRanges;
-
-	for (const auto& pConstant : pConstants)
-	{
-		VkPushConstantRange push_constant = vkinit::pushconstrant_range(pConstant.size, pConstant.stageFlags);
-		pushConstantRanges.push_back(push_constant);
-	}
-	
-	pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
-	pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
+	pipelineLayoutInfo.pPushConstantRanges = shaderProgram.push_constant_ranges().data();
+	pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(shaderProgram.push_constant_ranges().size());
 
 	VkPipelineLayout pipelineLayout;
 	VK_CHECK(vkCreatePipelineLayout(_context.device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
@@ -150,13 +232,7 @@ void MaterialManager::build_graphics_pipeline(
 
 
 	//clear the shader stages for the builder
-	pipelineBuilder._shaderStages.clear();
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
+	pipelineBuilder._shaderStages = shaderProgram.shader_stages();
 
 	//finally build the pipeline
 	VkRenderPass render_pass = metadata.enableBlending ? *_context.renderPass : *_context.offscreenPass;
@@ -173,61 +249,79 @@ void MaterialManager::build_graphics_pipeline(
 	};
 
 	add_material(name, std::move(new_material));
-
-	vkDestroyShaderModule(_context.device, fragmentShader, nullptr);
-	vkDestroyShaderModule(_context.device, vertexShader, nullptr);
-
 }
 
 void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUboBuffer)
 {
-	VkShaderModule computeShaderModule;
-	vkutil::load_shader_module("fog.comp.spv", _context.device, &computeShaderModule);
+	ShaderProgram shaderProgram = ShaderProgram::load_compute(_context.device, "fog.comp.spv");
+	validate_descriptor_sets_are_contiguous(shaderProgram.descriptor_sets());
+	std::vector<VkDescriptorSetLayout> layouts = shaderProgram.create_descriptor_set_layouts(*_context.descriptorLayoutCache);
+	if (layouts.size() != 3)
+	{
+		throw std::runtime_error("Compute pipeline reflection does not match expected descriptor set count");
+	}
 
-	VkDescriptorSet colorImageSet;
-	VkDescriptorSetLayout colorImageSetLayout;
+	VkDescriptorSet colorImageSet = allocate_descriptor_set(*_context.descriptorAllocator, layouts[0]);
 	VkDescriptorImageInfo colorImageInfo{
 		.sampler = VK_NULL_HANDLE,
 		.imageView = _context.fullscreenImage->view,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 	};
-	vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
-		.bind_image(0, &colorImageInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
-		.build(colorImageSet, colorImageSetLayout);
+	std::vector<VkWriteDescriptorSet> colorWrites{
+		VkWriteDescriptorSet{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = VK_NULL_HANDLE,
+			.dstBinding = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.pImageInfo = &colorImageInfo
+		}
+	};
+	update_descriptor_set(_context.device, colorImageSet, colorWrites);
 
-	VkDescriptorSet depthImageSet;
-	VkDescriptorSetLayout depthImageSetLayout;
+	VkDescriptorSet depthImageSet = allocate_descriptor_set(*_context.descriptorAllocator, layouts[1]);
 	VkDescriptorImageInfo depthImageInfo{
 		.sampler = *_context.sampler,
 		.imageView = _context.depthImage->view,
 		.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
 	};
-	vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
-		.bind_image(0, &depthImageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
-		.build(depthImageSet, depthImageSetLayout);
+	std::vector<VkWriteDescriptorSet> depthWrites{
+		VkWriteDescriptorSet{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = VK_NULL_HANDLE,
+			.dstBinding = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &depthImageInfo
+		}
+	};
+	update_descriptor_set(_context.device, depthImageSet, depthWrites);
 
-	VkDescriptorSet fogSet;
-	VkDescriptorSetLayout fogSetLayout;
+	VkDescriptorSet fogSet = allocate_descriptor_set(*_context.descriptorAllocator, layouts[2]);
 	VkDescriptorBufferInfo fogBufferInfo{
 		.buffer = fogUboBuffer->value.buffer._buffer,
 		.offset = 0,
 		.range = fogUboBuffer->value.buffer._size
 	};
-	vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
-		.bind_buffer(0, &fogBufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(fogSet, fogSetLayout);
-
-
-	std::array<VkDescriptorSetLayout, 3> layouts = { colorImageSetLayout, depthImageSetLayout, fogSetLayout };
-
-	VkPipelineShaderStageCreateInfo computeShaderStageInfo = vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_COMPUTE_BIT, computeShaderModule);
-
+	std::vector<VkWriteDescriptorSet> fogWrites{
+		VkWriteDescriptorSet{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = VK_NULL_HANDLE,
+			.dstBinding = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.pBufferInfo = &fogBufferInfo
+		}
+	};
+	update_descriptor_set(_context.device, fogSet, fogWrites);
 
 	// Define pipeline layout (descriptor set layouts need to be set up based on your compute shader)
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
 
-	pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(layouts.size()); // Assuming one descriptor set layout
-	pipelineLayoutInfo.pSetLayouts = layouts.data(); // Descriptor set layout containing the image resources
+	pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(layouts.size());
+	pipelineLayoutInfo.pSetLayouts = layouts.data();
+	pipelineLayoutInfo.pPushConstantRanges = shaderProgram.push_constant_ranges().data();
+	pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(shaderProgram.push_constant_ranges().size());
 
 	VkPipelineLayout computePipelineLayout;
 
@@ -238,7 +332,7 @@ void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUb
 	// Create compute pipeline
 	VkComputePipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-	pipelineInfo.stage = computeShaderStageInfo;
+	pipelineInfo.stage = shaderProgram.shader_stages().front();
 	pipelineInfo.layout = computePipelineLayout;
 
 	VkPipeline computePipeline;
@@ -256,17 +350,17 @@ void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUb
 
 	/*m_materials.emplace("compute", std::make_shared<Material>());*/
 	add_material("compute", std::move(new_material));
-
-	vkDestroyShaderModule(_context.device, computeShaderModule, nullptr);
 }
 
 void MaterialManager::build_present_pipeline()
 {
-	VkShaderModule fragShader;
-	vkutil::load_shader_module("present_full.frag.spv", _context.device, &fragShader);
-
-	VkShaderModule vertexShader;
-	vkutil::load_shader_module("present_full.vert.spv", _context.device, &vertexShader);
+	ShaderProgram shaderProgram = ShaderProgram::load_graphics(_context.device, "present_full.vert.spv", "present_full.frag.spv");
+	validate_descriptor_sets_are_contiguous(shaderProgram.descriptor_sets());
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = shaderProgram.create_descriptor_set_layouts(*_context.descriptorLayoutCache);
+	if (descriptorSetLayouts.size() != 1)
+	{
+		throw std::runtime_error("Present pipeline reflection does not match expected descriptor set count");
+	}
 
 	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
@@ -275,12 +369,24 @@ void MaterialManager::build_present_pipeline()
 		.imageView = _context.fullscreenImage->view,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 	};
-	vkutil::DescriptorBuilder::begin(_context.descriptorLayoutCache, _context.descriptorAllocator)
-		.bind_image(0, &sampleImageInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(_sampledImageSet, _sampledImageSetLayout);
+	_sampledImageSetLayout = descriptorSetLayouts.front();
+	_sampledImageSet = allocate_descriptor_set(*_context.descriptorAllocator, _sampledImageSetLayout);
+	std::vector<VkWriteDescriptorSet> presentWrites{
+		VkWriteDescriptorSet{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = VK_NULL_HANDLE,
+			.dstBinding = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &sampleImageInfo
+		}
+	};
+	update_descriptor_set(_context.device, _sampledImageSet, presentWrites);
 
 	pipeline_layout_info.setLayoutCount = 1;
 	pipeline_layout_info.pSetLayouts = &_sampledImageSetLayout;
+	pipeline_layout_info.pPushConstantRanges = shaderProgram.push_constant_ranges().data();
+	pipeline_layout_info.pushConstantRangeCount = static_cast<uint32_t>(shaderProgram.push_constant_ranges().size());
 
 	VkPipelineLayout meshPipelineLayout;
 
@@ -336,13 +442,7 @@ void MaterialManager::build_present_pipeline()
 
 
 	//clear the shader stages for the builder
-	pipelineBuilder._shaderStages.clear();
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragShader));
+	pipelineBuilder._shaderStages = shaderProgram.shader_stages();
 
 	//finally build the pipeline
 	const VkPipeline meshPipeline = pipelineBuilder.build_pipeline(_context.device, *_context.renderPass);
@@ -357,9 +457,6 @@ void MaterialManager::build_present_pipeline()
 		.descriptorSets = { _sampledImageSet },
 		.resources = {} };
 	add_material("present", std::move(new_material));
-
-	vkDestroyShaderModule(_context.device, fragShader, nullptr);
-	vkDestroyShaderModule(_context.device, vertexShader, nullptr);
 }
 
 void MaterialManager::add_material(const std::string& name, Material&& material)

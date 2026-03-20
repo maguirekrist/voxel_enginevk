@@ -52,6 +52,8 @@ SceneRenderState& GameScene::get_render_state()
 void GameScene::update(const float deltaTime)
 {
 	_game.set_player_input(_playerInput);
+    _playerInput.lookDeltaX = 0.0f;
+    _playerInput.lookDeltaY = 0.0f;
 	_game.update(deltaTime);
     sync_camera_to_game(deltaTime);
 }

@@ -41,12 +41,12 @@ add_executable(vulkan_guide
     render/mesh_manager.cpp
     render/material_manager.h
     render/material_manager.cpp
+    render/shader_program.h
+    render/shader_program.cpp
     scenes/scene.h
     scenes/scene_services.h
     scenes/game_scene.h
     scenes/game_scene.cpp
-    scenes/blueprint_builder_scene.h
-    scenes/blueprint_builder_scene.cpp
     render/scene_renderer.h
     render/scene_renderer.cpp
         render/render_primitives.h
