@@ -355,9 +355,7 @@ void ChunkManager::apply_pending_world_edits()
         const bool opacityChanged = existingBlock._solid != edit->newBlock._solid;
         Block updatedBlock = edit->newBlock;
         updatedBlock._sunlight = 0;
-        updatedBlock._localLightR = 0;
-        updatedBlock._localLightG = 0;
-        updatedBlock._localLightB = 0;
+        updatedBlock._localLight = {};
         existingBlock = updatedBlock;
 
         for (const DirtyChunkMark& mark : _dirtyTracker.affected_chunks(ownerRecord.coord, localPos))

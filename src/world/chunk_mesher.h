@@ -20,6 +20,7 @@ private:
     bool is_face_visible_water(int x, int y, int z, FaceDirection face);
     void add_face_to_opaque_mesh(int x, int y, int z, FaceDirection face, const std::shared_ptr<Mesh>& mesh);
     void add_face_to_water_mesh(int x, int y, int z, FaceDirection face, const std::shared_ptr<Mesh>& mesh) const;
+    void add_glow_to_mesh(int x, int y, int z, const BlockEmissionDef& emission, const std::shared_ptr<Mesh>& mesh) const;
     float calculate_vertex_ao(glm::ivec3 cubePos, FaceDirection face, int vertex);
     float calculate_vertex_skylight(glm::ivec3 cubePos, FaceDirection face, int vertex) const;
     glm::vec3 calculate_vertex_local_light(glm::ivec3 cubePos, FaceDirection face, int vertex) const;

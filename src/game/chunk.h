@@ -94,6 +94,7 @@ struct ChunkMeshData
 {
     std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
     std::shared_ptr<Mesh> waterMesh = std::make_shared<Mesh>();
+    std::shared_ptr<Mesh> glowMesh = std::make_shared<Mesh>();
 
     ~ChunkMeshData();
 };

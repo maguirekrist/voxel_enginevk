@@ -203,11 +203,16 @@ struct BlockEmissionDef
     }
 }
 
+struct LocalLight
+{
+    uint8_t r{0};
+    uint8_t g{0};
+    uint8_t b{0};
+};
+
 struct Block {
     bool _solid;
     uint8_t _sunlight;
     uint8_t _type;
-    uint8_t _localLightR;
-    uint8_t _localLightG;
-    uint8_t _localLightB;
+    LocalLight _localLight{};
 };

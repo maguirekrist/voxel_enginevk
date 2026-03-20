@@ -19,6 +19,11 @@ std::shared_ptr<ChunkMeshData> ChunkMesher::generate_mesh()
         for (int y = 0; y < CHUNK_HEIGHT; ++y) {
             for (int z = 0; z < CHUNK_SIZE; ++z) {
                 const Block block = chunk->blocks[x][y][z];
+                const BlockEmissionDef emission = get_block_emission(block._type);
+                if (emission.hasGlow)
+                {
+                    add_glow_to_mesh(x, y, z, emission, chunkMeshData->glowMesh);
+                }
                 if (block._solid) {
                     for(const auto face : faceDirections)
                     {
@@ -42,6 +47,39 @@ std::shared_ptr<ChunkMeshData> ChunkMesher::generate_mesh()
     }
 
     return chunkMeshData;
+}
+
+void ChunkMesher::add_glow_to_mesh(const int x, const int y, const int z, const BlockEmissionDef& emission, const std::shared_ptr<Mesh>& mesh) const
+{
+    const glm::vec3 center = glm::vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.58f, static_cast<float>(z) + 0.5f);
+    const glm::vec3 color = glm::vec3(emission.color) / 255.0f;
+    const float radius = emission.glowRadius;
+    const float intensity = emission.glowIntensity;
+    constexpr glm::vec2 corners[4] = {
+        {-1.0f, -1.0f},
+        { 1.0f, -1.0f},
+        { 1.0f,  1.0f},
+        {-1.0f,  1.0f}
+    };
+
+    for (int i = 0; i < 4; ++i)
+    {
+        mesh->_vertices.push_back({
+            center,
+            glm::vec3(corners[i], 0.0f),
+            color,
+            glm::vec2(radius, intensity),
+            glm::vec3(0.0f)
+        });
+    }
+
+    const uint32_t index = static_cast<uint32_t>(mesh->_vertices.size() - 4);
+    mesh->_indices.push_back(index + 0);
+    mesh->_indices.push_back(index + 1);
+    mesh->_indices.push_back(index + 2);
+    mesh->_indices.push_back(index + 2);
+    mesh->_indices.push_back(index + 3);
+    mesh->_indices.push_back(index + 0);
 }
 
 std::optional<const Block> ChunkMesher::get_face_neighbor(const int x, const int y, const int z, const FaceDirection face) const
@@ -199,9 +237,9 @@ glm::vec3 ChunkMesher::sample_local_light(const glm::ivec3& localPos) const
     }
 
     return glm::vec3(
-        static_cast<float>(sample->block._localLightR),
-        static_cast<float>(sample->block._localLightG),
-        static_cast<float>(sample->block._localLightB)) / static_cast<float>(MAX_LIGHT_LEVEL);
+        static_cast<float>(sample->block._localLight.r),
+        static_cast<float>(sample->block._localLight.g),
+        static_cast<float>(sample->block._localLight.b)) / static_cast<float>(MAX_LIGHT_LEVEL);
 }
 
 //note: a block's position is the back-bottom-right of the cube.

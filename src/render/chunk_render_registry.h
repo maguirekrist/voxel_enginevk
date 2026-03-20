@@ -26,9 +26,11 @@ private:
     struct ChunkRenderHandles
     {
         dev_collections::sparse_set<RenderObject>::Handle opaque{};
-        dev_collections::sparse_set<RenderObject>::Handle transparent{};
+        dev_collections::sparse_set<RenderObject>::Handle waterTransparent{};
+        dev_collections::sparse_set<RenderObject>::Handle glowTransparent{};
         bool hasOpaque{false};
-        bool hasTransparent{false};
+        bool hasWaterTransparent{false};
+        bool hasGlowTransparent{false};
     };
 
     struct PendingChunkRender
@@ -38,7 +40,8 @@ private:
         uint64_t neighborhoodSignature{};
         std::shared_ptr<ChunkData> data{};
         std::shared_ptr<ChunkMeshData> meshData{};
-        bool hasTransparentMesh{false};
+        bool hasWaterTransparentMesh{false};
+        bool hasGlowTransparentMesh{false};
     };
 
     std::unordered_map<Chunk*, ChunkRenderHandles> _handlesByChunk;

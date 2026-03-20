@@ -307,9 +307,11 @@ std::shared_ptr<ChunkData> ChunkLighting::solve_skylight(const ChunkNeighborhood
             {
                 const LightCell& solved = domain[light_index(x + CenterOffset, y, z + CenterOffset)];
                 litChunk->blocks[x][y][z]._sunlight = solved.sunlight;
-                litChunk->blocks[x][y][z]._localLightR = solved.localLight.r;
-                litChunk->blocks[x][y][z]._localLightG = solved.localLight.g;
-                litChunk->blocks[x][y][z]._localLightB = solved.localLight.b;
+                litChunk->blocks[x][y][z]._localLight = LocalLight{
+                    .r = solved.localLight.r,
+                    .g = solved.localLight.g,
+                    .b = solved.localLight.b
+                };
             }
         }
     }

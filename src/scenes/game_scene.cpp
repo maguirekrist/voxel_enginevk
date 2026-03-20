@@ -101,10 +101,7 @@ void GameScene::handle_input(const SDL_Event& event)
                         .newBlock = Block{
                             ._solid = false,
                             ._sunlight = 0,
-                            ._type = BlockType::AIR,
-                            ._localLightR = 0,
-                            ._localLightG = 0,
-                            ._localLightB = 0
+                            ._type = BlockType::AIR
                         },
                         .source = EditSource::LocalPlayer
                     });
@@ -123,10 +120,7 @@ void GameScene::handle_input(const SDL_Event& event)
                         .newBlock = Block{
                             ._solid = true,
                             ._sunlight = 0,
-                            ._type = BlockType::LAMP,
-                            ._localLightR = 0,
-                            ._localLightG = 0,
-                            ._localLightB = 0
+                            ._type = BlockType::LAMP
                         },
                         .source = EditSource::LocalPlayer
                     });
@@ -213,6 +207,17 @@ void GameScene::build_pipelines()
 		"water_mesh.frag.spv",
 		"watermesh"
 	);
+
+    _services.materialManager->build_graphics_pipeline(
+        {
+            MaterialBinding::from_resource(0, 0, _cameraUboResource)
+        },
+        { translate },
+        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = true },
+        "glow_mesh.vert.spv",
+        "glow_mesh.frag.spv",
+        "glowmesh"
+    );
 
     _services.materialManager->build_graphics_pipeline(
         {

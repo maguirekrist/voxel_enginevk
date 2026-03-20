@@ -42,15 +42,25 @@ void  operator delete[](void* p, std::size_t, std::align_val_t) noexcept { if(p)
 
 int main(int argc, char* argv[])
 {
+	try
+	{
+		//std::raise(SIGTRAP);
+		VulkanEngine& engine = VulkanEngine::instance();
 
-	//std::raise(SIGTRAP);
-	VulkanEngine& engine = VulkanEngine::instance();
+		engine.init();
+		engine.run();
+		engine.cleanup();
 
-	engine.init();	
-	
-	engine.run();	
-
-	engine.cleanup();	
-
-	return 0;
+		return 0;
+	}
+	catch (const std::exception& ex)
+	{
+		std::println("Fatal error: {}", ex.what());
+		return 1;
+	}
+	catch (...)
+	{
+		std::println("Fatal error: unknown exception");
+		return 1;
+	}
 }

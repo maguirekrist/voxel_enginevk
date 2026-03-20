@@ -36,6 +36,10 @@ void ChunkRenderRegistry::sync(
         {
             meshManager.UploadQueue.enqueue(readyEvent.meshData->waterMesh);
         }
+        if (!readyEvent.meshData->glowMesh->_vertices.empty())
+        {
+            meshManager.UploadQueue.enqueue(readyEvent.meshData->glowMesh);
+        }
 
         _pendingByChunk[readyEvent.chunk] = PendingChunkRender{
             .chunk = readyEvent.chunk,
@@ -43,9 +47,12 @@ void ChunkRenderRegistry::sync(
             .neighborhoodSignature = readyEvent.neighborhoodSignature,
             .data = readyEvent.data,
             .meshData = readyEvent.meshData,
-            .hasTransparentMesh = readyEvent.meshData != nullptr &&
+            .hasWaterTransparentMesh = readyEvent.meshData != nullptr &&
                 readyEvent.meshData->waterMesh != nullptr &&
-                !readyEvent.meshData->waterMesh->_vertices.empty()
+                !readyEvent.meshData->waterMesh->_vertices.empty(),
+            .hasGlowTransparentMesh = readyEvent.meshData != nullptr &&
+                readyEvent.meshData->glowMesh != nullptr &&
+                !readyEvent.meshData->glowMesh->_vertices.empty()
         };
     }
 
@@ -77,11 +84,14 @@ void ChunkRenderRegistry::finalize_pending_renders(
         const bool opaqueReady = pending.meshData != nullptr &&
             pending.meshData->mesh != nullptr &&
             pending.meshData->mesh->_isActive.load(std::memory_order::acquire);
-        const bool transparentExpected = pending.hasTransparentMesh;
-        const bool transparentReady = !transparentExpected ||
+        const bool waterExpected = pending.hasWaterTransparentMesh;
+        const bool glowExpected = pending.hasGlowTransparentMesh;
+        const bool transparentReady = !waterExpected ||
             pending.meshData->waterMesh->_isActive.load(std::memory_order::acquire);
+        const bool glowReady = !glowExpected ||
+            pending.meshData->glowMesh->_isActive.load(std::memory_order::acquire);
 
-        if (!opaqueReady || !transparentReady)
+        if (!opaqueReady || !transparentReady || !glowReady)
         {
             continue;
         }
@@ -97,15 +107,26 @@ void ChunkRenderRegistry::finalize_pending_renders(
         });
         handles.hasOpaque = true;
 
-        if (transparentExpected)
+        if (waterExpected)
         {
-            handles.transparent = renderState.transparentObjects.insert(RenderObject{
+            handles.waterTransparent = renderState.transparentObjects.insert(RenderObject{
                 .mesh = pending.meshData->waterMesh,
                 .material = materialManager.get_material("watermesh"),
                 .xzPos = glm::ivec2(pending.data->position.x, pending.data->position.y),
                 .layer = RenderLayer::Transparent
             });
-            handles.hasTransparent = true;
+            handles.hasWaterTransparent = true;
+        }
+
+        if (glowExpected)
+        {
+            handles.glowTransparent = renderState.transparentObjects.insert(RenderObject{
+                .mesh = pending.meshData->glowMesh,
+                .material = materialManager.get_material("glowmesh"),
+                .xzPos = glm::ivec2(pending.data->position.x, pending.data->position.y),
+                .layer = RenderLayer::Transparent
+            });
+            handles.hasGlowTransparent = true;
         }
 
         _handlesByChunk[chunk] = handles;
@@ -156,9 +177,14 @@ void ChunkRenderRegistry::remove_chunk(Chunk* chunk, SceneRenderState& renderSta
         renderState.opaqueObjects.remove(it->second.opaque);
     }
 
-    if (it->second.hasTransparent)
+    if (it->second.hasWaterTransparent)
     {
-        renderState.transparentObjects.remove(it->second.transparent);
+        renderState.transparentObjects.remove(it->second.waterTransparent);
+    }
+
+    if (it->second.hasGlowTransparent)
+    {
+        renderState.transparentObjects.remove(it->second.glowTransparent);
     }
 
     _handlesByChunk.erase(it);
