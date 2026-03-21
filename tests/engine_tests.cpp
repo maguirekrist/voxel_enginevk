@@ -9,8 +9,10 @@
 #include "constants.h"
 #include "game/block.h"
 #include "game/chunk.h"
+#include "game/cloud_structure_generator.h"
 #include "game/tree_structure_generator.h"
 #include "settings/game_settings.h"
+#include "config/game_settings_config_repository.h"
 #include "config/json_document_store.h"
 #include "config/world_gen_config_repository.h"
 #include "game/world.h"
@@ -25,6 +27,39 @@ Chunk* ChunkManager::get_chunk(const ChunkCoord) const
 
 namespace
 {
+    class TestJsonDocumentStore final : public config::IJsonDocumentStore
+    {
+    public:
+        explicit TestJsonDocumentStore(std::filesystem::path rootPath) : _rootPath(std::move(rootPath))
+        {
+        }
+
+        [[nodiscard]] std::optional<nlohmann::json> load(const std::filesystem::path& path) const override
+        {
+            const std::filesystem::path resolved = _rootPath / path;
+            if (!std::filesystem::exists(resolved))
+            {
+                return std::nullopt;
+            }
+
+            std::ifstream input(resolved);
+            nlohmann::json document{};
+            input >> document;
+            return document;
+        }
+
+        void save(const std::filesystem::path& path, const nlohmann::json& document) const override
+        {
+            const std::filesystem::path resolved = _rootPath / path;
+            std::filesystem::create_directories(resolved.parent_path());
+            std::ofstream output(resolved, std::ios::trunc);
+            output << document.dump(2) << '\n';
+        }
+
+    private:
+        std::filesystem::path _rootPath{};
+    };
+
     std::shared_ptr<ChunkData> make_empty_chunk(const ChunkCoord coord)
     {
         auto chunk = std::make_shared<ChunkData>();
@@ -195,7 +230,9 @@ TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
 
     TerrainGeneratorSettings updatedSettings = originalSettings;
     updatedSettings.seed += 97;
-    updatedSettings.shape.terrainFrequency *= 1.6f;
+    updatedSettings.shape.continentalFrequency *= 1.35f;
+    updatedSettings.shape.peaksFrequency *= 1.45f;
+    updatedSettings.shape.detailStrength += 3.0f;
     updatedSettings.shape.riverFrequency *= 0.75f;
     updatedSettings.biome.mountainHeightOffset += 12;
     updatedSettings.continentalSplines.back().heightValue = std::min(updatedSettings.continentalSplines.back().heightValue + 12.0f, static_cast<float>(CHUNK_HEIGHT - 1));
@@ -221,43 +258,11 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
 {
     TerrainGeneratorSettings settings = TerrainGenerator::default_settings();
     settings.seed = 987654321u;
-    settings.shape.terrainFrequency = 0.0022f;
+    settings.shape.continentalFrequency = 0.0022f;
+    settings.shape.peaksFrequency = 0.0031f;
     settings.biome.mountainHeightOffset = 63;
     settings.surface.riverMaxDepth = 7;
     settings.peakSplines[1].heightValue = 17.0f;
-
-    class TestJsonDocumentStore final : public config::IJsonDocumentStore
-    {
-    public:
-        explicit TestJsonDocumentStore(std::filesystem::path rootPath) : _rootPath(std::move(rootPath))
-        {
-        }
-
-        [[nodiscard]] std::optional<nlohmann::json> load(const std::filesystem::path& path) const override
-        {
-            const std::filesystem::path resolved = _rootPath / path;
-            if (!std::filesystem::exists(resolved))
-            {
-                return std::nullopt;
-            }
-
-            std::ifstream input(resolved);
-            nlohmann::json document{};
-            input >> document;
-            return document;
-        }
-
-        void save(const std::filesystem::path& path, const nlohmann::json& document) const override
-        {
-            const std::filesystem::path resolved = _rootPath / path;
-            std::filesystem::create_directories(resolved.parent_path());
-            std::ofstream output(resolved, std::ios::trunc);
-            output << document.dump(2) << '\n';
-        }
-
-    private:
-        std::filesystem::path _rootPath{};
-    };
 
     const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_config_repo_test";
     std::filesystem::remove_all(tempRoot);
@@ -268,11 +273,50 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     std::filesystem::remove_all(tempRoot);
 
     EXPECT_EQ(loaded.seed, settings.seed);
-    EXPECT_FLOAT_EQ(loaded.shape.terrainFrequency, settings.shape.terrainFrequency);
+    EXPECT_FLOAT_EQ(loaded.shape.continentalFrequency, settings.shape.continentalFrequency);
+    EXPECT_FLOAT_EQ(loaded.shape.peaksFrequency, settings.shape.peaksFrequency);
     EXPECT_EQ(loaded.biome.mountainHeightOffset, settings.biome.mountainHeightOffset);
     EXPECT_EQ(loaded.surface.riverMaxDepth, settings.surface.riverMaxDepth);
     ASSERT_GT(loaded.peakSplines.size(), 1);
     EXPECT_FLOAT_EQ(loaded.peakSplines[1].heightValue, settings.peakSplines[1].heightValue);
+}
+
+TEST(GameSettingsConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
+{
+    settings::GameSettingsPersistence persistence{};
+    persistence.world.viewDistance = 14;
+    persistence.world.ambientOcclusionEnabled = true;
+    persistence.debug.showChunkBoundaries = true;
+    persistence.dayNight.paused = true;
+    persistence.dayNight.timeOfDay = 0.71f;
+    persistence.dayNight.tuning.daySkyZenith = { 0.25f, 0.44f, 0.93f };
+    persistence.dayNight.tuning.dayFog = { 0.68f, 0.59f, 0.41f };
+    persistence.dayNight.tuning.nightMoon = { 0.31f, 0.37f, 0.72f };
+    persistence.dayNight.tuning.aoStrength = 0.22f;
+    persistence.dayNight.tuning.shadowStrength = 2.2f;
+    persistence.dayNight.tuning.cycleDurationSeconds = 420.0f;
+
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_game_settings_repo_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const config::GameSettingsConfigRepository repository(documentStore);
+    repository.save(persistence);
+    const settings::GameSettingsPersistence loaded = repository.load_or_default();
+    std::filesystem::remove_all(tempRoot);
+
+    EXPECT_EQ(loaded.world.viewDistance, persistence.world.viewDistance);
+    EXPECT_EQ(loaded.world.ambientOcclusionEnabled, persistence.world.ambientOcclusionEnabled);
+    EXPECT_EQ(loaded.debug.showChunkBoundaries, persistence.debug.showChunkBoundaries);
+    EXPECT_EQ(loaded.dayNight.paused, persistence.dayNight.paused);
+    EXPECT_FLOAT_EQ(loaded.dayNight.timeOfDay, persistence.dayNight.timeOfDay);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.daySkyZenith.x, persistence.dayNight.tuning.daySkyZenith.x);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.daySkyZenith.y, persistence.dayNight.tuning.daySkyZenith.y);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.daySkyZenith.z, persistence.dayNight.tuning.daySkyZenith.z);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.dayFog.x, persistence.dayNight.tuning.dayFog.x);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.nightMoon.z, persistence.dayNight.tuning.nightMoon.z);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.aoStrength, persistence.dayNight.tuning.aoStrength);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.shadowStrength, persistence.dayNight.tuning.shadowStrength);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.cycleDurationSeconds, persistence.dayNight.tuning.cycleDurationSeconds);
 }
 
 TEST(TreeStructureGeneratorTest, GiantTreeBuildsTwoByTwoTrunk)
@@ -332,6 +376,39 @@ TEST(TreeStructureGeneratorTest, OakTreePreservesFullTrunkColumn)
 
     EXPECT_GE(maxLeafY, anchor.worldOrigin.y + 2);
     EXPECT_LE(maxLeafY, anchor.worldOrigin.y + 8);
+}
+
+TEST(CloudStructureGeneratorTest, CloudBuildsFlatBottomPuffyVolume)
+{
+    CloudStructureGenerator generator;
+    const StructureAnchor anchor{
+        .type = StructureType::CLOUD,
+        .worldOrigin = { 48, 164, 48 },
+        .seed = 882244
+    };
+    const StructureGenerationContext context{};
+
+    const std::vector<StructureBlockEdit> edits = generator.generate(anchor, context);
+    ASSERT_FALSE(edits.empty());
+
+    int minY = std::numeric_limits<int>::max();
+    int maxY = std::numeric_limits<int>::min();
+    int baseLayerBlocks = 0;
+
+    for (const StructureBlockEdit& edit : edits)
+    {
+        EXPECT_EQ(edit.block._type, BlockType::CLOUD);
+        minY = std::min(minY, edit.worldPosition.y);
+        maxY = std::max(maxY, edit.worldPosition.y);
+        if (edit.worldPosition.y == anchor.worldOrigin.y)
+        {
+            ++baseLayerBlocks;
+        }
+    }
+
+    EXPECT_EQ(minY, anchor.worldOrigin.y);
+    EXPECT_GT(maxY, anchor.worldOrigin.y);
+    EXPECT_GE(baseLayerBlocks, 12);
 }
 
 TEST(SettingsManagerTest, ViewDistanceHandlersReceiveDerivedRuntimeValues)

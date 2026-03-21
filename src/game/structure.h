@@ -10,7 +10,8 @@
 class TerrainGenerator;
 
 enum class StructureType {
-	TREE
+	TREE,
+    CLOUD
 };
 
 enum class TreeVariant {

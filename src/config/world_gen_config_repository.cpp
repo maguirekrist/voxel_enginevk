@@ -55,10 +55,18 @@ namespace config
                 { "version", WorldGenConfigVersion },
                 { "seed", settings.seed },
                 { "shape", {
-                    { "terrainFrequency", settings.shape.terrainFrequency },
+                    { "continentalFrequency", settings.shape.continentalFrequency },
+                    { "erosionFrequency", settings.shape.erosionFrequency },
+                    { "peaksFrequency", settings.shape.peaksFrequency },
+                    { "detailFrequency", settings.shape.detailFrequency },
                     { "climateFrequency", settings.shape.climateFrequency },
                     { "riverFrequency", settings.shape.riverFrequency },
                     { "riverThreshold", settings.shape.riverThreshold },
+                    { "continentalStrength", settings.shape.continentalStrength },
+                    { "peaksStrength", settings.shape.peaksStrength },
+                    { "erosionStrength", settings.shape.erosionStrength },
+                    { "valleyStrength", settings.shape.valleyStrength },
+                    { "detailStrength", settings.shape.detailStrength },
                     { "erosionSuppressionLow", settings.shape.erosionSuppressionLow },
                     { "erosionSuppressionHigh", settings.shape.erosionSuppressionHigh }
                 } },
@@ -103,10 +111,18 @@ namespace config
             if (document.contains("shape") && document.at("shape").is_object())
             {
                 const auto& shape = document.at("shape");
-                settings.shape.terrainFrequency = shape.value("terrainFrequency", settings.shape.terrainFrequency);
+                settings.shape.continentalFrequency = shape.value("continentalFrequency", settings.shape.continentalFrequency);
+                settings.shape.erosionFrequency = shape.value("erosionFrequency", settings.shape.erosionFrequency);
+                settings.shape.peaksFrequency = shape.value("peaksFrequency", settings.shape.peaksFrequency);
+                settings.shape.detailFrequency = shape.value("detailFrequency", settings.shape.detailFrequency);
                 settings.shape.climateFrequency = shape.value("climateFrequency", settings.shape.climateFrequency);
                 settings.shape.riverFrequency = shape.value("riverFrequency", settings.shape.riverFrequency);
                 settings.shape.riverThreshold = shape.value("riverThreshold", settings.shape.riverThreshold);
+                settings.shape.continentalStrength = shape.value("continentalStrength", settings.shape.continentalStrength);
+                settings.shape.peaksStrength = shape.value("peaksStrength", settings.shape.peaksStrength);
+                settings.shape.erosionStrength = shape.value("erosionStrength", settings.shape.erosionStrength);
+                settings.shape.valleyStrength = shape.value("valleyStrength", settings.shape.valleyStrength);
+                settings.shape.detailStrength = shape.value("detailStrength", settings.shape.detailStrength);
                 settings.shape.erosionSuppressionLow = shape.value("erosionSuppressionLow", settings.shape.erosionSuppressionLow);
                 settings.shape.erosionSuppressionHigh = shape.value("erosionSuppressionHigh", settings.shape.erosionSuppressionHigh);
             }

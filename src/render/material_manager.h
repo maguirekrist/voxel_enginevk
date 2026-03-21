@@ -2,12 +2,18 @@
 #include "material.h"
 #include "vk_util.h"
 
+enum class BlendMode : uint8_t
+{
+    Opaque = 0,
+    Alpha = 1,
+    Additive = 2
+};
 
 struct PipelineMetadata {
 	bool depthTest = true;
 	bool depthWrite = true;
 	VkCompareOp compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-	bool enableBlending = false;
+	BlendMode blendMode = BlendMode::Opaque;
 	VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 };
 

@@ -26,6 +26,8 @@ add_executable(vulkan_guide
         game/block.cpp
         game/structure.h
         game/structure.cpp
+        game/cloud_structure_generator.h
+        game/cloud_structure_generator.cpp
         game/tree_structure_generator.h
         game/tree_structure_generator.cpp
         world/chunk_mesher.h
@@ -73,6 +75,8 @@ add_executable(vulkan_guide
     config/json_document_store.cpp
     config/config_service.h
     config/config_service.cpp
+    config/game_settings_config_repository.h
+    config/game_settings_config_repository.cpp
     config/world_gen_config_repository.h
     config/world_gen_config_repository.cpp
     render/scene_renderer.h

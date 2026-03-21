@@ -1,0 +1,117 @@
+{
+  "biome": {
+    "beachMaxHeightOffset": 3,
+    "beachMinHeightOffset": -2,
+    "forestHumidityThreshold": 0.550000011920929,
+    "forestTemperatureThreshold": 0.3499999940395355,
+    "mountainHeightOffset": 60,
+    "mountainPeaksThreshold": 0.6899999976158142,
+    "mountainStoneHeightOffset": 70,
+    "oceanContinentalnessThreshold": -0.5899999737739563,
+    "riverBlendThreshold": 0.550000011920929,
+    "riverMinBankHeightOffset": -4
+  },
+  "seed": 1337,
+  "shape": {
+    "climateFrequency": 0.0005499999970197678,
+    "continentalFrequency": 0.0005600000149570405,
+    "continentalStrength": 1.1299999952316284,
+    "detailFrequency": 0.0013200000394135714,
+    "detailStrength": 5.0,
+    "erosionFrequency": 0.0011699999449774623,
+    "erosionStrength": 0.4000000059604645,
+    "erosionSuppressionHigh": 0.9399999976158142,
+    "erosionSuppressionLow": 0.5,
+    "peaksFrequency": 0.001560000004246831,
+    "peaksStrength": 0.5199999809265137,
+    "riverFrequency": 4.999999873689376e-05,
+    "riverThreshold": 0.004999999888241291,
+    "valleyStrength": 28.0
+  },
+  "splines": {
+    "continentalness": [
+      {
+        "height": 0.0,
+        "noise": -1.0
+      },
+      {
+        "height": 0.0,
+        "noise": -0.699999988079071
+      },
+      {
+        "height": 50.5,
+        "noise": -0.6899999976158142
+      },
+      {
+        "height": 54.20000076293945,
+        "noise": 0.6200000047683716
+      },
+      {
+        "height": 54.29999923706055,
+        "noise": 0.6200000047683716
+      },
+      {
+        "height": 54.20000076293945,
+        "noise": 1.0
+      }
+    ],
+    "erosion": [
+      {
+        "height": 0.0,
+        "noise": -1.0
+      },
+      {
+        "height": 0.0,
+        "noise": -1.0
+      },
+      {
+        "height": 0.0,
+        "noise": 0.5
+      },
+      {
+        "height": 110.0,
+        "noise": 1.0
+      }
+    ],
+    "peaks": [
+      {
+        "height": 0.0,
+        "noise": -1.0
+      },
+      {
+        "height": 3.0999999046325684,
+        "noise": -0.5
+      },
+      {
+        "height": 0.0,
+        "noise": 0.0
+      },
+      {
+        "height": 67.80000305175781,
+        "noise": 0.4399999976158142
+      },
+      {
+        "height": 48.0,
+        "noise": 0.7300000190734863
+      },
+      {
+        "height": 255.0,
+        "noise": 1.0
+      }
+    ]
+  },
+  "surface": {
+    "mountainStoneDepth": 1,
+    "oceanFloorHeightOffset": -4,
+    "oceanStoneDepth": 2,
+    "plainsStoneDepth": 4,
+    "riverMaxDepth": 5,
+    "riverMinDepth": 1,
+    "riverStoneDepth": 2,
+    "riverTargetHeightOffset": -16,
+    "shoreMaxHeightOffset": 2,
+    "shoreMinHeightOffset": -1,
+    "shoreStoneDepth": 3
+  },
+  "version": 1
+}

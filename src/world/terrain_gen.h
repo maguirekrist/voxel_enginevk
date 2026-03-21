@@ -38,6 +38,7 @@ struct TerrainNoiseSample
     float continentalness{};
     float erosion{};
     float peaksValleys{};
+    float detail{};
     float temperature{};
     float humidity{};
     float river{};
@@ -57,10 +58,18 @@ struct TerrainColumnSample
 
 struct TerrainShapeSettings
 {
-    float terrainFrequency{0.0010f};
+    float continentalFrequency{0.00055f};
+    float erosionFrequency{0.00115f};
+    float peaksFrequency{0.00185f};
+    float detailFrequency{0.0065f};
     float climateFrequency{0.00055f};
     float riverFrequency{0.0018f};
     float riverThreshold{0.07f};
+    float continentalStrength{1.0f};
+    float peaksStrength{0.9f};
+    float erosionStrength{1.0f};
+    float valleyStrength{28.0f};
+    float detailStrength{5.0f};
     float erosionSuppressionLow{1.25f};
     float erosionSuppressionHigh{0.55f};
 };
@@ -172,6 +181,7 @@ private:
     FastNoise::SmartNode<> _erosion;
     FastNoise::SmartNode<> _peaks;
     FastNoise::SmartNode<> _continental;
+    FastNoise::SmartNode<> _detail;
     FastNoise::SmartNode<> _temperature;
     FastNoise::SmartNode<> _humidity;
     FastNoise::SmartNode<> _river;

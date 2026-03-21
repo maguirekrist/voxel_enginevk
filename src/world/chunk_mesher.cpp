@@ -4,6 +4,41 @@
 #include "tracy/Tracy.hpp"
 #include <game/world.h>
 
+namespace
+{
+    float cloud_noise_value(const int worldX, const int worldY, const int worldZ)
+    {
+        uint32_t seed = 2166136261u;
+        seed = (seed ^ static_cast<uint32_t>(worldX * 73856093)) * 16777619u;
+        seed = (seed ^ static_cast<uint32_t>(worldY * 19349663)) * 16777619u;
+        seed = (seed ^ static_cast<uint32_t>(worldZ * 83492791)) * 16777619u;
+        return static_cast<float>(seed & 1023u) / 1023.0f;
+    }
+
+    glm::vec3 tint_cloud_color(const glm::vec3 baseColor, const glm::ivec3 blockPos, const glm::ivec2 chunkOrigin, const FaceDirection face)
+    {
+        const int worldX = chunkOrigin.x + blockPos.x;
+        const int worldZ = chunkOrigin.y + blockPos.z;
+        const float noise = cloud_noise_value(worldX, blockPos.y, worldZ);
+        float tint = glm::mix(0.94f, 1.03f, noise);
+
+        if (face == TOP_FACE)
+        {
+            tint *= 1.06f;
+        }
+        else if (face == BOTTOM_FACE)
+        {
+            tint *= 0.82f;
+        }
+        else
+        {
+            tint *= 0.97f;
+        }
+
+        return glm::clamp(baseColor * tint, glm::vec3(0.0f), glm::vec3(1.0f));
+    }
+}
+
 std::shared_ptr<ChunkMeshData> ChunkMesher::generate_mesh()
 {
     ZoneScopedN("Generate Chunk Mesh");
@@ -253,6 +288,10 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
     {
         const float heightFactor = std::clamp((static_cast<float>(y) - static_cast<float>(SEA_LEVEL)) / 96.0f, 0.0f, 1.0f);
         color *= glm::mix(0.97f, 1.04f, heightFactor);
+    }
+    else if (block._type == BlockType::CLOUD)
+    {
+        color = tint_cloud_color(color, blockPos, _neighborhood.center->position, face);
     }
 
     for (int i = 0; i < 4; ++i) {

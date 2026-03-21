@@ -176,6 +176,11 @@ namespace
 
         return state;
     }
+
+    bool uses_blending(const BlendMode mode)
+    {
+        return mode != BlendMode::Opaque;
+    }
 }
 
 void MaterialManager::init(const MaterialBackendContext& context)
@@ -261,7 +266,19 @@ void MaterialManager::build_graphics_pipeline(
 	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 
 	//a single blend attachment with no blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = metadata.enableBlending ? vkinit::color_blend_attachment_state_blending() : vkinit::color_blend_attachment_state();
+    switch (metadata.blendMode)
+    {
+    case BlendMode::Alpha:
+        pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state_blending();
+        break;
+    case BlendMode::Additive:
+        pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state_additive();
+        break;
+    case BlendMode::Opaque:
+    default:
+        pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+        break;
+    }
 
 	//default depthtesting
 	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(metadata.depthTest, metadata.depthWrite, metadata.compareOp);
@@ -284,7 +301,7 @@ void MaterialManager::build_graphics_pipeline(
 	pipelineBuilder._shaderStages = shaderProgram.shader_stages();
 
 	//finally build the pipeline
-	VkRenderPass render_pass = metadata.enableBlending ? *_context.renderPass : *_context.offscreenPass;
+	VkRenderPass render_pass = uses_blending(metadata.blendMode) ? *_context.renderPass : *_context.offscreenPass;
 	VkPipeline meshPipeline = pipelineBuilder.build_pipeline(_context.device, render_pass);
 
 

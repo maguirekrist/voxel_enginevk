@@ -1,5 +1,6 @@
 #include "structure.h"
 
+#include "cloud_structure_generator.h"
 #include "tree_structure_generator.h"
 
 StructureRegistry& StructureRegistry::instance()
@@ -48,11 +49,19 @@ StructureRegistry::StructureRegistry()
 {
     auto treeGenerator = std::make_unique<TreeStructureGenerator>();
     auto treePlacement = std::make_unique<TreePlacementStrategy>(*treeGenerator);
+    auto cloudGenerator = std::make_unique<CloudStructureGenerator>();
+    auto cloudPlacement = std::make_unique<CloudPlacementStrategy>(*cloudGenerator);
 
     _structures.emplace(
         StructureType::TREE,
         RegisteredStructure{
             .generator = std::move(treeGenerator),
             .placement = std::move(treePlacement)
+        });
+    _structures.emplace(
+        StructureType::CLOUD,
+        RegisteredStructure{
+            .generator = std::move(cloudGenerator),
+            .placement = std::move(cloudPlacement)
         });
 }

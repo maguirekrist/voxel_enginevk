@@ -40,6 +40,7 @@ namespace
             FastNoise::SmartNode<> erosion,
             FastNoise::SmartNode<> peaks,
             FastNoise::SmartNode<> continental,
+            FastNoise::SmartNode<> detail,
             FastNoise::SmartNode<> temperature,
             FastNoise::SmartNode<> humidity,
             FastNoise::SmartNode<> river,
@@ -51,6 +52,7 @@ namespace
             _erosion(std::move(erosion)),
             _peaks(std::move(peaks)),
             _continental(std::move(continental)),
+            _detail(std::move(detail)),
             _temperature(std::move(temperature)),
             _humidity(std::move(humidity)),
             _river(std::move(river)),
@@ -72,13 +74,15 @@ namespace
             std::vector<float> erosionMap(CHUNK_SIZE * CHUNK_SIZE);
             std::vector<float> peaksMap(CHUNK_SIZE * CHUNK_SIZE);
             std::vector<float> continentalMap(CHUNK_SIZE * CHUNK_SIZE);
+            std::vector<float> detailMap(CHUNK_SIZE * CHUNK_SIZE);
             std::vector<float> temperatureMap(CHUNK_SIZE * CHUNK_SIZE);
             std::vector<float> humidityMap(CHUNK_SIZE * CHUNK_SIZE);
             std::vector<float> riverMap(CHUNK_SIZE * CHUNK_SIZE);
 
-            _erosion->GenUniformGrid2D(erosionMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.terrainFrequency, _seed);
-            _peaks->GenUniformGrid2D(peaksMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.terrainFrequency, _seed);
-            _continental->GenUniformGrid2D(continentalMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.terrainFrequency, _seed);
+            _erosion->GenUniformGrid2D(erosionMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.erosionFrequency, _seed);
+            _peaks->GenUniformGrid2D(peaksMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.peaksFrequency, _seed);
+            _continental->GenUniformGrid2D(continentalMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.continentalFrequency, _seed);
+            _detail->GenUniformGrid2D(detailMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.detailFrequency, _seed + 77);
             _temperature->GenUniformGrid2D(temperatureMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.climateFrequency, _seed + 101);
             _humidity->GenUniformGrid2D(humidityMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.climateFrequency, _seed + 202);
             _river->GenUniformGrid2D(riverMap.data(), context.chunkOrigin.x, context.chunkOrigin.y, CHUNK_SIZE, CHUNK_SIZE, _shapeSettings.riverFrequency, _seed + 303);
@@ -93,19 +97,25 @@ namespace
                         .continentalness = continentalMap[index],
                         .erosion = erosionMap[index],
                         .peaksValleys = peaksMap[index],
+                        .detail = detailMap[index],
                         .temperature = temperatureMap[index],
                         .humidity = humidityMap[index],
                         .river = riverMap[index]
                     };
 
-                    const float continentalHeight = map_height(column.noise.continentalness, _continentalSplines);
-                    const float peaksHeight = map_height(column.noise.peaksValleys, _peakSplines);
-                    const float erosionSuppression = lerp(_shapeSettings.erosionSuppressionLow, _shapeSettings.erosionSuppressionHigh, inverse_lerp(-1.0f, 1.0f, column.noise.erosion));
-                    const float mountainLift = peaksHeight * erosionSuppression;
-                    const float height = std::clamp(continentalHeight + mountainLift, 1.0f, static_cast<float>(CHUNK_HEIGHT - 8));
+                    const float continentalHeight = map_height(column.noise.continentalness, _continentalSplines) * _shapeSettings.continentalStrength;
+                    const float peaksHeight = map_height(column.noise.peaksValleys, _peakSplines) * _shapeSettings.peaksStrength;
+                    const float erosionHeight = map_height(column.noise.erosion, _erosionSplines);
+                    const float erosionBlend = inverse_lerp(0.0f, static_cast<float>(CHUNK_HEIGHT - 1), erosionHeight);
+                    const float peakMask = inverse_lerp(-1.0f, 1.0f, column.noise.peaksValleys);
+                    const float erosionSuppression = lerp(_shapeSettings.erosionSuppressionLow, _shapeSettings.erosionSuppressionHigh, erosionBlend);
+                    const float mountainLift = peaksHeight * lerp(1.0f, erosionSuppression, _shapeSettings.erosionStrength);
+                    const float valleyCarve = (1.0f - peakMask) * (1.0f - erosionBlend) * _shapeSettings.valleyStrength;
+                    const float detailLift = column.noise.detail * _shapeSettings.detailStrength;
+                    const float height = std::clamp(continentalHeight + mountainLift - valleyCarve + detailLift, 1.0f, static_cast<float>(CHUNK_HEIGHT - 8));
 
                     const int surfaceHeight = static_cast<int>(std::round(height));
-                    const int stoneDepth = std::max(3, static_cast<int>(std::round(map_height(column.noise.erosion, _erosionSplines) * 0.08f)));
+                    const int stoneDepth = std::max(3, static_cast<int>(std::round(erosionHeight * 0.08f)));
 
                     column.surfaceHeight = surfaceHeight;
                     column.stoneHeight = std::max(0, surfaceHeight - stoneDepth);
@@ -142,6 +152,7 @@ namespace
         FastNoise::SmartNode<> _erosion;
         FastNoise::SmartNode<> _peaks;
         FastNoise::SmartNode<> _continental;
+        FastNoise::SmartNode<> _detail;
         FastNoise::SmartNode<> _temperature;
         FastNoise::SmartNode<> _humidity;
         FastNoise::SmartNode<> _river;
@@ -309,6 +320,7 @@ TerrainGenerator::TerrainGenerator() :
     _erosion(FastNoise::NewFromEncodedNodeTree("FwAAAAAAexQuv83MTL5mZgbAIgApXJNBZmZmvxAAbxKDOg0ACAAAAArXI0AHAAB7FC4/AAAAgD8Aw/XwQQ==")),
     _peaks(FastNoise::NewFromEncodedNodeTree("EwCamRk/IgDXo3A/zcwMQBcAuB6FPpqZqcA9Cte+w/XoQCIAexS+QK5HwUAQAIXr0UAPAAkAAABcjyJACQAAXI/CPgB7FK4/AI/C9T0=")),
     _continental(FastNoise::NewFromEncodedNodeTree("FwAK16M8w/Wov7geBb8UrkdAIgCkcA1BCtejPA0ABAAAALgeZUAIAAAAAAA/AFyPwj8=")),
+    _detail(FastNoise::New<FastNoise::OpenSimplex2>()),
     _temperature(FastNoise::New<FastNoise::OpenSimplex2>()),
     _humidity(FastNoise::New<FastNoise::OpenSimplex2S>()),
     _river(FastNoise::New<FastNoise::Perlin>()),
@@ -479,10 +491,18 @@ void TerrainGenerator::normalize_settings(TerrainGeneratorSettings& settings)
         }
     };
 
-    settings.shape.terrainFrequency = std::max(settings.shape.terrainFrequency, 0.00001f);
+    settings.shape.continentalFrequency = std::max(settings.shape.continentalFrequency, 0.00001f);
+    settings.shape.erosionFrequency = std::max(settings.shape.erosionFrequency, 0.00001f);
+    settings.shape.peaksFrequency = std::max(settings.shape.peaksFrequency, 0.00001f);
+    settings.shape.detailFrequency = std::max(settings.shape.detailFrequency, 0.00001f);
     settings.shape.climateFrequency = std::max(settings.shape.climateFrequency, 0.00001f);
     settings.shape.riverFrequency = std::max(settings.shape.riverFrequency, 0.00001f);
     settings.shape.riverThreshold = std::clamp(settings.shape.riverThreshold, 0.0001f, 1.0f);
+    settings.shape.continentalStrength = std::clamp(settings.shape.continentalStrength, 0.0f, 3.0f);
+    settings.shape.peaksStrength = std::clamp(settings.shape.peaksStrength, 0.0f, 3.0f);
+    settings.shape.erosionStrength = std::clamp(settings.shape.erosionStrength, 0.0f, 2.0f);
+    settings.shape.valleyStrength = std::clamp(settings.shape.valleyStrength, 0.0f, 96.0f);
+    settings.shape.detailStrength = std::clamp(settings.shape.detailStrength, 0.0f, 32.0f);
     settings.shape.erosionSuppressionLow = std::clamp(settings.shape.erosionSuppressionLow, 0.0f, 4.0f);
     settings.shape.erosionSuppressionHigh = std::clamp(settings.shape.erosionSuppressionHigh, 0.0f, 4.0f);
     settings.biome.oceanContinentalnessThreshold = std::clamp(settings.biome.oceanContinentalnessThreshold, -1.0f, 1.0f);
@@ -530,6 +550,7 @@ void TerrainGenerator::rebuild_layers()
         _erosion,
         _peaks,
         _continental,
+        _detail,
         _temperature,
         _humidity,
         _river,

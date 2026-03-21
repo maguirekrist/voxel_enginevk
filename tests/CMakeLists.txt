@@ -6,8 +6,11 @@ add_executable(engine_tests
     ../src/config/config_paths.cpp
     ../src/config/json_document_store.cpp
     ../src/config/config_service.cpp
+    ../src/config/game_settings_config_repository.cpp
     ../src/config/world_gen_config_repository.cpp
     ../src/game/world.cpp
+    ../src/game/structure.cpp
+    ../src/game/cloud_structure_generator.cpp
     ../src/game/tree_structure_generator.cpp
     ../src/world/chunk_neighborhood.cpp
     ../src/world/chunk_lighting.cpp

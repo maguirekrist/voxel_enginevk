@@ -33,10 +33,18 @@ namespace
     bool equal_world_gen_settings(const TerrainGeneratorSettings& lhs, const TerrainGeneratorSettings& rhs)
     {
         return lhs.seed == rhs.seed &&
-            lhs.shape.terrainFrequency == rhs.shape.terrainFrequency &&
+            lhs.shape.continentalFrequency == rhs.shape.continentalFrequency &&
+            lhs.shape.erosionFrequency == rhs.shape.erosionFrequency &&
+            lhs.shape.peaksFrequency == rhs.shape.peaksFrequency &&
+            lhs.shape.detailFrequency == rhs.shape.detailFrequency &&
             lhs.shape.climateFrequency == rhs.shape.climateFrequency &&
             lhs.shape.riverFrequency == rhs.shape.riverFrequency &&
             lhs.shape.riverThreshold == rhs.shape.riverThreshold &&
+            lhs.shape.continentalStrength == rhs.shape.continentalStrength &&
+            lhs.shape.peaksStrength == rhs.shape.peaksStrength &&
+            lhs.shape.erosionStrength == rhs.shape.erosionStrength &&
+            lhs.shape.valleyStrength == rhs.shape.valleyStrength &&
+            lhs.shape.detailStrength == rhs.shape.detailStrength &&
             lhs.shape.erosionSuppressionLow == rhs.shape.erosionSuppressionLow &&
             lhs.shape.erosionSuppressionHigh == rhs.shape.erosionSuppressionHigh &&
             lhs.biome.oceanContinentalnessThreshold == rhs.biome.oceanContinentalnessThreshold &&
@@ -139,12 +147,14 @@ namespace
         case 3:
             return pack_color(gradient_color((column.noise.peaksValleys + 1.0f) * 0.5f));
         case 4:
-            return pack_color(gradient_color((column.noise.temperature + 1.0f) * 0.5f));
+            return pack_color(gradient_color((column.noise.detail + 1.0f) * 0.5f));
         case 5:
-            return pack_color(gradient_color((column.noise.humidity + 1.0f) * 0.5f));
+            return pack_color(gradient_color((column.noise.temperature + 1.0f) * 0.5f));
         case 6:
-            return pack_color(gradient_color((column.noise.river + 1.0f) * 0.5f));
+            return pack_color(gradient_color((column.noise.humidity + 1.0f) * 0.5f));
         case 7:
+            return pack_color(gradient_color((column.noise.river + 1.0f) * 0.5f));
+        case 8:
             switch (column.biome)
             {
             case BiomeType::Ocean: return IM_COL32(28, 88, 160, 255);
@@ -313,6 +323,7 @@ namespace
             ImGui::Text("Cont: %.2f", column.noise.continentalness);
             ImGui::Text("Erosion: %.2f", column.noise.erosion);
             ImGui::Text("Peaks: %.2f", column.noise.peaksValleys);
+            ImGui::Text("Detail: %.2f", column.noise.detail);
             ImGui::Text("Temp: %.2f", column.noise.temperature);
             ImGui::Text("Humidity: %.2f", column.noise.humidity);
             ImGui::Text("River: %.2f", column.noise.river);
@@ -341,6 +352,10 @@ GameScene::GameScene(const SceneServices& services): _services(services)
 	build_pipelines();
 
 	create_camera();
+    if (_services.configService != nullptr)
+    {
+        _settings = settings::SettingsManager(_services.configService->game_settings().load_or_default());
+    }
     if (_services.configService != nullptr)
     {
         TerrainGenerator::instance().apply_settings(_services.configService->world_gen().load_or_default());
@@ -529,7 +544,7 @@ void GameScene::build_pipelines()
             MaterialBinding::from_resource(2, 0, _fogResource)
         },
 		{ translate },
-		{ .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = true },
+		{ .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Alpha },
 		"water_mesh.vert.spv",
 		"water_mesh.frag.spv",
 		"watermesh"
@@ -540,7 +555,7 @@ void GameScene::build_pipelines()
             MaterialBinding::from_resource(0, 0, _cameraUboResource)
         },
         { translate },
-        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = true },
+        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Additive },
         "glow_mesh.vert.spv",
         "glow_mesh.frag.spv",
         "glowmesh"
@@ -552,7 +567,7 @@ void GameScene::build_pipelines()
             MaterialBinding::from_resource(1, 0, _lightingResource)
         },
         { translate },
-        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .enableBlending = false, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
+        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Opaque, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
         "tri_mesh.vert.spv",
         "tri_mesh.frag.spv",
         "chunkboundary"
@@ -694,6 +709,7 @@ void GameScene::draw_debug_map()
         if (ImGui::BeginTabItem("Settings"))
         {
             const settings::GameSettingsPersistence& persistence = _settings.persistence();
+            ImGui::Text("Settings changes apply live. File persistence only happens when you press Save.");
 
             bool showChunkBoundaries = persistence.debug.showChunkBoundaries;
             if (ImGui::Checkbox("Show Chunk Boundaries (G)", &showChunkBoundaries))
@@ -799,6 +815,33 @@ void GameScene::draw_debug_map()
                     updated.dayNight.tuning = tuning;
                 });
             }
+
+            if (_services.configService == nullptr)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::Button("Save Settings To File"))
+            {
+                _services.configService->game_settings().save(_settings.persistence());
+            }
+            if (_services.configService == nullptr)
+            {
+                ImGui::EndDisabled();
+            }
+            ImGui::SameLine();
+            if (_services.configService == nullptr)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::Button("Reload Saved Settings"))
+            {
+                _settings = settings::SettingsManager(_services.configService->game_settings().load_or_default());
+                bind_settings();
+            }
+            if (_services.configService == nullptr)
+            {
+                ImGui::EndDisabled();
+            }
             ImGui::EndTabItem();
         }
 
@@ -812,10 +855,18 @@ void GameScene::draw_debug_map()
             ImGui::Text("Stage terrain changes here. Nothing regenerates until you press the button.");
             ImGui::InputScalar("Seed", ImGuiDataType_U32, &_worldGenDraft.seed);
             ImGui::SeparatorText("Shape");
-            ImGui::SliderFloat("Terrain Frequency", &_worldGenDraft.shape.terrainFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderFloat("Continental Frequency", &_worldGenDraft.shape.continentalFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderFloat("Erosion Frequency", &_worldGenDraft.shape.erosionFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderFloat("Peaks Frequency", &_worldGenDraft.shape.peaksFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderFloat("Detail Frequency", &_worldGenDraft.shape.detailFrequency, 0.00020f, 0.0300f, "%.5f", ImGuiSliderFlags_Logarithmic);
             ImGui::SliderFloat("Climate Frequency", &_worldGenDraft.shape.climateFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
             ImGui::SliderFloat("River Frequency", &_worldGenDraft.shape.riverFrequency, 0.00005f, 0.0100f, "%.5f", ImGuiSliderFlags_Logarithmic);
             ImGui::SliderFloat("River Width Threshold", &_worldGenDraft.shape.riverThreshold, 0.005f, 0.35f, "%.3f");
+            ImGui::SliderFloat("Continental Strength", &_worldGenDraft.shape.continentalStrength, 0.0f, 2.0f, "%.2f");
+            ImGui::SliderFloat("Peaks Strength", &_worldGenDraft.shape.peaksStrength, 0.0f, 2.5f, "%.2f");
+            ImGui::SliderFloat("Erosion Strength", &_worldGenDraft.shape.erosionStrength, 0.0f, 2.0f, "%.2f");
+            ImGui::SliderFloat("Valley Strength", &_worldGenDraft.shape.valleyStrength, 0.0f, 64.0f, "%.1f");
+            ImGui::SliderFloat("Detail Strength", &_worldGenDraft.shape.detailStrength, 0.0f, 16.0f, "%.1f");
             ImGui::SliderFloat("Erosion Suppression Low", &_worldGenDraft.shape.erosionSuppressionLow, 0.1f, 2.5f, "%.2f");
             ImGui::SliderFloat("Erosion Suppression High", &_worldGenDraft.shape.erosionSuppressionHigh, 0.1f, 2.5f, "%.2f");
 
@@ -854,6 +905,7 @@ void GameScene::draw_debug_map()
                 "Continentalness",
                 "Erosion",
                 "Peaks/Valleys",
+                "Detail",
                 "Temperature",
                 "Humidity",
                 "River",

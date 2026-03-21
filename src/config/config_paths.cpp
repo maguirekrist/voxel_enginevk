@@ -7,6 +7,11 @@ namespace config
         return "config";
     }
 
+    std::filesystem::path ConfigPaths::game_settings()
+    {
+        return root() / "game_settings.json";
+    }
+
     std::filesystem::path ConfigPaths::world_gen()
     {
         return root() / "world_gen.json";

@@ -163,10 +163,11 @@ enum BlockType {
     SAND = 4,
     WOOD = 5,
     LEAVES = 6,
-    LAMP = 7
+    LAMP = 7,
+    CLOUD = 8
 };
 
-constexpr Color blockColor[8] = {
+constexpr Color blockColor[9] = {
     Colors::black,
     Colors::lightGreen,
     Colors::blue,
@@ -174,7 +175,8 @@ constexpr Color blockColor[8] = {
     Color{214, 196, 132},
     Color{110, 72, 35},
     Color{65, 160, 55},
-    Color{255, 214, 120}
+    Color{255, 214, 120},
+    Color{238, 242, 250}
 };
 
 struct BlockEmissionDef
