@@ -55,6 +55,56 @@ struct TerrainColumnSample
     TerrainNoiseSample noise{};
 };
 
+struct TerrainShapeSettings
+{
+    float terrainFrequency{0.0010f};
+    float climateFrequency{0.00055f};
+    float riverFrequency{0.0018f};
+    float riverThreshold{0.07f};
+    float erosionSuppressionLow{1.25f};
+    float erosionSuppressionHigh{0.55f};
+};
+
+struct TerrainBiomeSettings
+{
+    float oceanContinentalnessThreshold{-0.42f};
+    float riverBlendThreshold{0.55f};
+    int riverMinBankHeightOffset{-4};
+    int beachMinHeightOffset{-2};
+    int beachMaxHeightOffset{3};
+    int mountainHeightOffset{45};
+    float mountainPeaksThreshold{0.38f};
+    float forestHumidityThreshold{0.55f};
+    float forestTemperatureThreshold{0.35f};
+    int mountainStoneHeightOffset{70};
+};
+
+struct TerrainSurfaceSettings
+{
+    int riverTargetHeightOffset{-2};
+    int riverMinDepth{1};
+    int riverMaxDepth{5};
+    int oceanFloorHeightOffset{-4};
+    int shoreMinHeightOffset{-1};
+    int shoreMaxHeightOffset{2};
+    int riverStoneDepth{2};
+    int oceanStoneDepth{2};
+    int shoreStoneDepth{3};
+    int plainsStoneDepth{4};
+    int mountainStoneDepth{1};
+};
+
+struct TerrainGeneratorSettings
+{
+    uint32_t seed{1337};
+    TerrainShapeSettings shape{};
+    TerrainBiomeSettings biome{};
+    TerrainSurfaceSettings surface{};
+    std::vector<SplinePoint> erosionSplines{};
+    std::vector<SplinePoint> peakSplines{};
+    std::vector<SplinePoint> continentalSplines{};
+};
+
 struct ChunkTerrainData
 {
     glm::ivec2 chunkOrigin{};
@@ -88,11 +138,14 @@ public:
         return instance;
     }
 
-    [[nodiscard]] const ChunkTerrainData& GenerateChunkData(int chunkX, int chunkZ) const;
+    [[nodiscard]] ChunkTerrainData GenerateChunkData(int chunkX, int chunkZ) const;
     [[nodiscard]] std::vector<float> GenerateHeightMap(int chunkX, int chunkZ) const;
     [[nodiscard]] TerrainColumnSample SampleColumn(int worldX, int worldZ) const;
     [[nodiscard]] float SampleHeight(int worldX, int worldZ) const;
     [[nodiscard]] float NormalizeHeight(std::vector<float>& map, int yScale, int xScale, int x, int y) const;
+    [[nodiscard]] TerrainGeneratorSettings settings() const;
+    [[nodiscard]] static TerrainGeneratorSettings default_settings();
+    void apply_settings(const TerrainGeneratorSettings& settings);
 
 private:
     struct ChunkCacheKey
@@ -113,6 +166,8 @@ private:
 
     [[nodiscard]] ChunkTerrainData build_chunk_data(int chunkX, int chunkZ) const;
     [[nodiscard]] float map_height(float noise, const std::vector<SplinePoint>& splinePoints) const;
+    static void normalize_settings(TerrainGeneratorSettings& settings);
+    void rebuild_layers();
 
     FastNoise::SmartNode<> _erosion;
     FastNoise::SmartNode<> _peaks;
@@ -121,13 +176,9 @@ private:
     FastNoise::SmartNode<> _humidity;
     FastNoise::SmartNode<> _river;
 
-    std::vector<SplinePoint> _erosionSplines;
-    std::vector<SplinePoint> _peakSplines;
-    std::vector<SplinePoint> _continentalSplines;
-
-    uint32_t _seed{1337};
+    TerrainGeneratorSettings _settings{};
     std::vector<std::unique_ptr<IWorldGenLayer>> _layers;
 
-    mutable std::mutex _cacheMutex;
+    mutable std::mutex _stateMutex;
     mutable std::unordered_map<ChunkCacheKey, ChunkTerrainData, ChunkCacheKeyHash> _chunkCache;
 };

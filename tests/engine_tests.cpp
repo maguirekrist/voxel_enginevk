@@ -168,7 +168,7 @@ TEST(TerrainGeneratorTest, SampleColumnMatchesChunkDataAndIsDeterministic)
 
     const TerrainColumnSample first = generator.SampleColumn(128, -64);
     const TerrainColumnSample second = generator.SampleColumn(128, -64);
-    const ChunkTerrainData& chunkData = generator.GenerateChunkData(128, -64);
+    const ChunkTerrainData chunkData = generator.GenerateChunkData(128, -64);
     const TerrainColumnSample fromChunk = chunkData.at(0, 0);
 
     EXPECT_EQ(first.surfaceHeight, second.surfaceHeight);
@@ -180,6 +180,37 @@ TEST(TerrainGeneratorTest, SampleColumnMatchesChunkDataAndIsDeterministic)
     EXPECT_EQ(first.biome, fromChunk.biome);
     EXPECT_GE(first.surfaceHeight, 0);
     EXPECT_LT(first.surfaceHeight, static_cast<int>(CHUNK_HEIGHT));
+}
+
+TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
+{
+    TerrainGenerator& generator = TerrainGenerator::instance();
+    const TerrainGeneratorSettings originalSettings = generator.settings();
+    const TerrainColumnSample baselineA = generator.SampleColumn(128, -64);
+    const TerrainColumnSample baselineB = generator.SampleColumn(144, -48);
+
+    TerrainGeneratorSettings updatedSettings = originalSettings;
+    updatedSettings.seed += 97;
+    updatedSettings.shape.terrainFrequency *= 1.6f;
+    updatedSettings.shape.riverFrequency *= 0.75f;
+    updatedSettings.biome.mountainHeightOffset += 12;
+    updatedSettings.continentalSplines.back().heightValue = std::min(updatedSettings.continentalSplines.back().heightValue + 12.0f, static_cast<float>(CHUNK_HEIGHT - 1));
+    generator.apply_settings(updatedSettings);
+
+    const TerrainColumnSample changedA = generator.SampleColumn(128, -64);
+    const TerrainColumnSample changedB = generator.SampleColumn(144, -48);
+
+    generator.apply_settings(originalSettings);
+
+    const bool anyChanged =
+        baselineA.surfaceHeight != changedA.surfaceHeight ||
+        baselineA.biome != changedA.biome ||
+        baselineA.noise.continentalness != changedA.noise.continentalness ||
+        baselineB.surfaceHeight != changedB.surfaceHeight ||
+        baselineB.biome != changedB.biome ||
+        baselineB.noise.river != changedB.noise.river;
+
+    EXPECT_TRUE(anyChanged);
 }
 
 TEST(TreeStructureGeneratorTest, GiantTreeBuildsTwoByTwoTrunk)

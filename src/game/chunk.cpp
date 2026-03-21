@@ -17,7 +17,7 @@ void ChunkData::generate()
 {
     ZoneScopedN("Generate Chunk Data");
     const TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
-    const ChunkTerrainData& terrainData = terrainGenerator.GenerateChunkData(position.x, position.y);
+    const ChunkTerrainData terrainData = terrainGenerator.GenerateChunkData(position.x, position.y);
     for(int x = 0; x < CHUNK_SIZE; x++)
     {
         for(int z = 0; z < CHUNK_SIZE; z++)

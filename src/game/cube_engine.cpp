@@ -65,6 +65,11 @@ void CubeEngine::apply_block_edit(const BlockEdit& edit)
     _chunkManager.enqueue_block_edit(edit);
 }
 
+void CubeEngine::regenerate_world()
+{
+    _chunkManager.regenerate_world();
+}
+
 ChunkManager& CubeEngine::chunk_manager()
 {
     return _chunkManager;

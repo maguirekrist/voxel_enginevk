@@ -9,6 +9,7 @@
 #include "render/mesh.h"
 #include "settings/game_settings.h"
 #include "game/cube_engine.h"
+#include "world/terrain_gen.h"
 
 
 class GameScene final : public Scene {
@@ -81,6 +82,9 @@ private:
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _targetBlockOutlineHandle{};
     settings::SettingsManager _settings{};
     int _viewDistanceDraft{GameConfig::DEFAULT_VIEW_DISTANCE};
+    TerrainGeneratorSettings _worldGenDraft{};
+    int _worldGenPreviewLayer{0};
+    bool _worldGenDraftInitialized{false};
 
     CubeEngine _game;
     std::unique_ptr<Camera> _camera;
@@ -96,6 +100,7 @@ private:
     void bind_settings();
     void apply_view_distance_settings(const settings::ViewDistanceRuntimeSettings& settings);
     void apply_ambient_occlusion_settings(const settings::AmbientOcclusionRuntimeSettings& settings);
+    void sync_world_gen_draft();
     void clear_target_block_outline();
     void clear_chunk_boundary_debug();
 };

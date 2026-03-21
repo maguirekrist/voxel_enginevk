@@ -149,6 +149,31 @@ void ChunkManager::apply_mesh_settings(const ChunkMeshSettings& settings)
     }
 }
 
+void ChunkManager::regenerate_world()
+{
+    if (m_chunkCache == nullptr)
+    {
+        return;
+    }
+
+    for (const auto& chunkPtr : m_chunkCache->m_chunks)
+    {
+        Chunk* const chunk = chunkPtr.get();
+        if (chunk == nullptr)
+        {
+            continue;
+        }
+
+        const ChunkCoord coord = chunk->_data != nullptr ? chunk->_data->coord : ChunkCoord{};
+        chunk->reset(coord);
+        reset_chunk_runtime(chunk);
+        _renderResetEvents.enqueue(ChunkRenderResetEvent{
+            .chunk = chunk,
+            .generation = chunk->_gen.load(std::memory_order::acquire)
+        });
+    }
+}
+
 bool ChunkManager::ambient_occlusion_enabled() const noexcept
 {
     return _ambientOcclusionEnabled;

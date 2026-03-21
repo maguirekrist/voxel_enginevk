@@ -64,6 +64,63 @@ namespace
         }
     }
 
+    void add_leaf_puff(
+        std::vector<StructureBlockEdit>& edits,
+        const glm::ivec3 center,
+        const int radiusXZ,
+        const int radiusY,
+        const uint64_t shapeSeed,
+        const auto& skipPredicate)
+    {
+        const int verticalExtent = std::max(1, radiusY);
+        const int horizontalExtent = std::max(1, radiusXZ + 1);
+
+        for (int y = -verticalExtent; y <= verticalExtent; ++y)
+        {
+            for (int x = -horizontalExtent; x <= horizontalExtent; ++x)
+            {
+                for (int z = -horizontalExtent; z <= horizontalExtent; ++z)
+                {
+                    const float normalizedX = static_cast<float>(x) / static_cast<float>(std::max(1, radiusXZ));
+                    const float normalizedY = static_cast<float>(y) / static_cast<float>(verticalExtent);
+                    const float normalizedZ = static_cast<float>(z) / static_cast<float>(std::max(1, radiusXZ));
+                    const float radialDistance = std::sqrt(normalizedX * normalizedX + normalizedY * normalizedY + normalizedZ * normalizedZ);
+
+                    const uint64_t noiseSeed = Random::seed_from_ints({
+                        static_cast<int64_t>(shapeSeed),
+                        static_cast<int64_t>(center.x + x),
+                        static_cast<int64_t>((center.y + y) * 3),
+                        static_cast<int64_t>((center.z + z) * 5)
+                    });
+                    const float edgeNoise = static_cast<float>(noiseSeed & 1023ULL) / 1023.0f;
+                    const float shellBias = 0.82f + edgeNoise * 0.42f;
+
+                    if (radialDistance > shellBias)
+                    {
+                        continue;
+                    }
+
+                    const bool nearCenterColumn = std::abs(x) <= 1 && std::abs(z) <= 1;
+                    if (nearCenterColumn && y < -verticalExtent / 2 && radialDistance > 0.58f + edgeNoise * 0.12f)
+                    {
+                        continue;
+                    }
+
+                    const glm::ivec3 worldPos = center + glm::ivec3(x, y, z);
+                    if (skipPredicate(worldPos))
+                    {
+                        continue;
+                    }
+
+                    edits.push_back(StructureBlockEdit{
+                        .worldPosition = worldPos,
+                        .block = make_structure_block(BlockType::LEAVES, true)
+                    });
+                }
+            }
+        }
+    }
+
     int floor_divide(const int value, const int divisor)
     {
         int quotient = value / divisor;
@@ -214,17 +271,36 @@ namespace
                 }
             }
 
-            const glm::ivec3 crownCenter = trunkBase + glm::ivec3(0, trunkHeight - 2, 0);
-            add_leaf_blob(edits, crownCenter + glm::ivec3(1, 1, 1), crownRadius, crownHeight, is_trunk_position);
-            add_leaf_blob(edits, crownCenter + glm::ivec3(1, crownHeight, 1), std::max(3, crownRadius - 1), 2, is_trunk_position);
+            const glm::ivec3 crownCenter = trunkBase + glm::ivec3(1, trunkHeight - 1, 1);
+            const auto add_seeded_puff = [&](const glm::ivec3 baseOffset, const int minRadiusXZ, const int maxRadiusXZ, const int minRadiusY, const int maxRadiusY)
+            {
+                const glm::ivec3 jitter{
+                    Random::generate_from_seed(seed, -1, 1),
+                    Random::generate_from_seed(seed, -1, 1),
+                    Random::generate_from_seed(seed, -1, 1)
+                };
+                const int puffRadiusXZ = Random::generate_from_seed(seed, minRadiusXZ, maxRadiusXZ);
+                const int puffRadiusY = Random::generate_from_seed(seed, minRadiusY, maxRadiusY);
+                const uint64_t puffSeed = seed;
 
-            const int sideBlobRadius = std::max(3, crownRadius - 1);
-            const int sideBlobHeight = std::max(2, crownHeight - 1);
-            add_leaf_blob(edits, crownCenter + glm::ivec3(crownRadius - 1, 0, 1), sideBlobRadius, sideBlobHeight, is_trunk_position);
-            add_leaf_blob(edits, crownCenter + glm::ivec3(-(crownRadius - 2), 0, 1), sideBlobRadius, sideBlobHeight, is_trunk_position);
-            add_leaf_blob(edits, crownCenter + glm::ivec3(1, 0, crownRadius - 1), sideBlobRadius, sideBlobHeight, is_trunk_position);
-            add_leaf_blob(edits, crownCenter + glm::ivec3(1, 0, -(crownRadius - 2)), sideBlobRadius, sideBlobHeight, is_trunk_position);
-            add_leaf_blob(edits, crownCenter + glm::ivec3(1, -2, 1), std::max(3, crownRadius - 2), 2, is_trunk_position);
+                add_leaf_puff(edits, crownCenter + baseOffset + jitter, puffRadiusXZ, puffRadiusY, puffSeed, is_trunk_position);
+            };
+
+            add_seeded_puff(glm::ivec3(0, 0, 0), std::max(3, crownRadius - 1), crownRadius, crownHeight, crownHeight + 1);
+            add_seeded_puff(glm::ivec3(0, crownHeight - 1, 0), std::max(3, crownRadius - 2), std::max(3, crownRadius - 1), 1, 2);
+            add_seeded_puff(glm::ivec3(0, -2, 0), std::max(3, crownRadius - 2), std::max(3, crownRadius - 1), 1, 2);
+
+            const int sideReach = std::max(3, crownRadius - 1);
+            add_seeded_puff(glm::ivec3(sideReach, 0, 0), std::max(3, crownRadius - 2), sideReach, std::max(2, crownHeight - 1), crownHeight);
+            add_seeded_puff(glm::ivec3(-sideReach, 0, 0), std::max(3, crownRadius - 2), sideReach, std::max(2, crownHeight - 1), crownHeight);
+            add_seeded_puff(glm::ivec3(0, 0, sideReach), std::max(3, crownRadius - 2), sideReach, std::max(2, crownHeight - 1), crownHeight);
+            add_seeded_puff(glm::ivec3(0, 0, -sideReach), std::max(3, crownRadius - 2), sideReach, std::max(2, crownHeight - 1), crownHeight);
+
+            const int diagonalReach = std::max(2, crownRadius - 2);
+            add_seeded_puff(glm::ivec3(diagonalReach, 1, diagonalReach), std::max(2, crownRadius - 3), std::max(3, crownRadius - 1), 1, std::max(2, crownHeight - 1));
+            add_seeded_puff(glm::ivec3(diagonalReach, 0, -diagonalReach), std::max(2, crownRadius - 3), std::max(3, crownRadius - 1), 1, std::max(2, crownHeight - 1));
+            add_seeded_puff(glm::ivec3(-diagonalReach, 1, diagonalReach), std::max(2, crownRadius - 3), std::max(3, crownRadius - 1), 1, std::max(2, crownHeight - 1));
+            add_seeded_puff(glm::ivec3(-diagonalReach, 0, -diagonalReach), std::max(2, crownRadius - 3), std::max(3, crownRadius - 1), 1, std::max(2, crownHeight - 1));
         }
     };
 

@@ -47,6 +47,7 @@ public:
     [[nodiscard]] const Block* get_block(const glm::vec3& worldPos) const;
     [[nodiscard]] std::optional<RaycastResult> raycast_target_block(float maxDistance);
     void apply_block_edit(const BlockEdit& edit);
+    void regenerate_world();
     [[nodiscard]] ChunkManager& chunk_manager();
     [[nodiscard]] const ChunkManager& chunk_manager() const;
 

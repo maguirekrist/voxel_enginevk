@@ -1,10 +1,325 @@
 #include "game_scene.h"
 #include "vk_engine.h"
+#include <array>
+#include <format>
+#include <limits>
+#include <ranges>
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "render/mesh_release_queue.h"
+
+namespace
+{
+    bool equal_spline_points(const std::vector<SplinePoint>& lhs, const std::vector<SplinePoint>& rhs)
+    {
+        if (lhs.size() != rhs.size())
+        {
+            return false;
+        }
+
+        for (size_t i = 0; i < lhs.size(); ++i)
+        {
+            if (lhs[i].noiseValue != rhs[i].noiseValue || lhs[i].heightValue != rhs[i].heightValue)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool equal_world_gen_settings(const TerrainGeneratorSettings& lhs, const TerrainGeneratorSettings& rhs)
+    {
+        return lhs.seed == rhs.seed &&
+            lhs.shape.terrainFrequency == rhs.shape.terrainFrequency &&
+            lhs.shape.climateFrequency == rhs.shape.climateFrequency &&
+            lhs.shape.riverFrequency == rhs.shape.riverFrequency &&
+            lhs.shape.riverThreshold == rhs.shape.riverThreshold &&
+            lhs.shape.erosionSuppressionLow == rhs.shape.erosionSuppressionLow &&
+            lhs.shape.erosionSuppressionHigh == rhs.shape.erosionSuppressionHigh &&
+            lhs.biome.oceanContinentalnessThreshold == rhs.biome.oceanContinentalnessThreshold &&
+            lhs.biome.riverBlendThreshold == rhs.biome.riverBlendThreshold &&
+            lhs.biome.riverMinBankHeightOffset == rhs.biome.riverMinBankHeightOffset &&
+            lhs.biome.beachMinHeightOffset == rhs.biome.beachMinHeightOffset &&
+            lhs.biome.beachMaxHeightOffset == rhs.biome.beachMaxHeightOffset &&
+            lhs.biome.mountainHeightOffset == rhs.biome.mountainHeightOffset &&
+            lhs.biome.mountainPeaksThreshold == rhs.biome.mountainPeaksThreshold &&
+            lhs.biome.forestHumidityThreshold == rhs.biome.forestHumidityThreshold &&
+            lhs.biome.forestTemperatureThreshold == rhs.biome.forestTemperatureThreshold &&
+            lhs.biome.mountainStoneHeightOffset == rhs.biome.mountainStoneHeightOffset &&
+            lhs.surface.riverTargetHeightOffset == rhs.surface.riverTargetHeightOffset &&
+            lhs.surface.riverMinDepth == rhs.surface.riverMinDepth &&
+            lhs.surface.riverMaxDepth == rhs.surface.riverMaxDepth &&
+            lhs.surface.oceanFloorHeightOffset == rhs.surface.oceanFloorHeightOffset &&
+            lhs.surface.shoreMinHeightOffset == rhs.surface.shoreMinHeightOffset &&
+            lhs.surface.shoreMaxHeightOffset == rhs.surface.shoreMaxHeightOffset &&
+            lhs.surface.riverStoneDepth == rhs.surface.riverStoneDepth &&
+            lhs.surface.oceanStoneDepth == rhs.surface.oceanStoneDepth &&
+            lhs.surface.shoreStoneDepth == rhs.surface.shoreStoneDepth &&
+            lhs.surface.plainsStoneDepth == rhs.surface.plainsStoneDepth &&
+            lhs.surface.mountainStoneDepth == rhs.surface.mountainStoneDepth &&
+            equal_spline_points(lhs.erosionSplines, rhs.erosionSplines) &&
+            equal_spline_points(lhs.peakSplines, rhs.peakSplines) &&
+            equal_spline_points(lhs.continentalSplines, rhs.continentalSplines);
+    }
+
+    float sample_spline_height(const std::vector<SplinePoint>& spline, const float noiseValue)
+    {
+        if (spline.empty())
+        {
+            return 0.0f;
+        }
+
+        for (size_t i = 0; i + 1 < spline.size(); ++i)
+        {
+            if (noiseValue >= spline[i].noiseValue && noiseValue <= spline[i + 1].noiseValue)
+            {
+                const float range = spline[i + 1].noiseValue - spline[i].noiseValue;
+                const float t = std::abs(range) > std::numeric_limits<float>::epsilon()
+                    ? (noiseValue - spline[i].noiseValue) / range
+                    : 0.0f;
+                return lerp(spline[i].heightValue, spline[i + 1].heightValue, t);
+            }
+        }
+
+        return noiseValue < spline.front().noiseValue ? spline.front().heightValue : spline.back().heightValue;
+    }
+
+    const char* biome_label(const BiomeType biome)
+    {
+        switch (biome)
+        {
+        case BiomeType::Ocean: return "Ocean";
+        case BiomeType::Shore: return "Shore";
+        case BiomeType::Plains: return "Plains";
+        case BiomeType::Forest: return "Forest";
+        case BiomeType::River: return "River";
+        case BiomeType::Mountains: return "Mountains";
+        }
+
+        return "Unknown";
+    }
+
+    ImU32 pack_color(const ImVec4 color)
+    {
+        return ImGui::ColorConvertFloat4ToU32(color);
+    }
+
+    ImVec4 gradient_color(const float normalized)
+    {
+        const float t = std::clamp(normalized, 0.0f, 1.0f);
+        if (t < 0.33f)
+        {
+            const float localT = t / 0.33f;
+            return ImVec4(0.08f + (0.12f * localT), 0.12f + (0.46f * localT), 0.20f + (0.50f * localT), 1.0f);
+        }
+
+        if (t < 0.66f)
+        {
+            const float localT = (t - 0.33f) / 0.33f;
+            return ImVec4(0.20f + (0.38f * localT), 0.58f + (0.26f * localT), 0.70f - (0.32f * localT), 1.0f);
+        }
+
+        const float localT = (t - 0.66f) / 0.34f;
+        return ImVec4(0.58f + (0.34f * localT), 0.84f - (0.12f * localT), 0.38f + (0.16f * localT), 1.0f);
+    }
+
+    ImU32 noise_preview_color(const TerrainColumnSample& column, const int layer)
+    {
+        switch (layer)
+        {
+        case 0:
+            return pack_color(gradient_color(static_cast<float>(column.surfaceHeight) / static_cast<float>(CHUNK_HEIGHT - 1)));
+        case 1:
+            return pack_color(gradient_color((column.noise.continentalness + 1.0f) * 0.5f));
+        case 2:
+            return pack_color(gradient_color((column.noise.erosion + 1.0f) * 0.5f));
+        case 3:
+            return pack_color(gradient_color((column.noise.peaksValleys + 1.0f) * 0.5f));
+        case 4:
+            return pack_color(gradient_color((column.noise.temperature + 1.0f) * 0.5f));
+        case 5:
+            return pack_color(gradient_color((column.noise.humidity + 1.0f) * 0.5f));
+        case 6:
+            return pack_color(gradient_color((column.noise.river + 1.0f) * 0.5f));
+        case 7:
+            switch (column.biome)
+            {
+            case BiomeType::Ocean: return IM_COL32(28, 88, 160, 255);
+            case BiomeType::Shore: return IM_COL32(212, 196, 132, 255);
+            case BiomeType::Plains: return IM_COL32(106, 170, 88, 255);
+            case BiomeType::Forest: return IM_COL32(48, 118, 54, 255);
+            case BiomeType::River: return IM_COL32(70, 142, 204, 255);
+            case BiomeType::Mountains: return IM_COL32(120, 124, 132, 255);
+            }
+            break;
+        default:
+            break;
+        }
+
+        return IM_COL32(255, 255, 255, 255);
+    }
+
+    void draw_spline_editor(const char* tableId, const char* label, std::vector<SplinePoint>& spline)
+    {
+        ImGui::PushID(tableId);
+        ImGui::SeparatorText(label);
+
+        std::array<float, 64> preview{};
+        for (size_t i = 0; i < preview.size(); ++i)
+        {
+            const float noise = -1.0f + (2.0f * static_cast<float>(i) / static_cast<float>(preview.size() - 1));
+            preview[i] = sample_spline_height(spline, noise);
+        }
+        ImGui::PlotLines("##SplinePreview", preview.data(), static_cast<int>(preview.size()), 0, nullptr, 0.0f, static_cast<float>(CHUNK_HEIGHT - 1), ImVec2(-1.0f, 70.0f));
+
+        int removeIndex = -1;
+        if (ImGui::BeginTable(tableId, 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame))
+        {
+            ImGui::TableSetupColumn("Noise");
+            ImGui::TableSetupColumn("Height");
+            ImGui::TableSetupColumn("Action");
+            ImGui::TableHeadersRow();
+
+            for (int i = 0; i < static_cast<int>(spline.size()); ++i)
+            {
+                ImGui::PushID(i);
+                ImGui::TableNextRow();
+
+                ImGui::TableSetColumnIndex(0);
+                ImGui::SliderFloat("##noise", &spline[i].noiseValue, -1.0f, 1.0f, "%.2f");
+
+                ImGui::TableSetColumnIndex(1);
+                ImGui::SliderFloat("##height", &spline[i].heightValue, 0.0f, static_cast<float>(CHUNK_HEIGHT - 1), "%.1f");
+
+                ImGui::TableSetColumnIndex(2);
+                if (spline.size() > 2)
+                {
+                    if (ImGui::SmallButton("Remove"))
+                    {
+                        removeIndex = i;
+                    }
+                }
+                else
+                {
+                    ImGui::TextDisabled("Min 2");
+                }
+
+                ImGui::PopID();
+            }
+
+            ImGui::EndTable();
+        }
+
+        if (removeIndex >= 0)
+        {
+            spline.erase(spline.begin() + removeIndex);
+        }
+
+        if (ImGui::Button(std::format("Add Point##{}", tableId).c_str()))
+        {
+            const SplinePoint tail = spline.empty() ? SplinePoint{} : spline.back();
+            spline.push_back(SplinePoint{
+                .noiseValue = std::clamp(tail.noiseValue + 0.15f, -1.0f, 1.0f),
+                .heightValue = std::clamp(tail.heightValue + 8.0f, 0.0f, static_cast<float>(CHUNK_HEIGHT - 1))
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(std::format("Sort By Noise##{}", tableId).c_str()))
+        {
+            std::ranges::sort(spline, [](const SplinePoint& lhs, const SplinePoint& rhs)
+            {
+                return lhs.noiseValue < rhs.noiseValue;
+            });
+        }
+        ImGui::PopID();
+    }
+
+    void draw_noise_preview(const char* label, const ChunkCoord centerChunk, const int viewDistance, const int layer)
+    {
+        const float availableWidth = ImGui::GetContentRegionAvail().x;
+        const int chunkSpan = (viewDistance * 2) + 1;
+        const int worldSpan = chunkSpan * static_cast<int>(CHUNK_SIZE);
+        const float previewSize = std::max(192.0f, std::min(availableWidth, 420.0f));
+        const float cellSize = previewSize / static_cast<float>(worldSpan);
+        const ImVec2 start = ImGui::GetCursorScreenPos();
+        const ImVec2 end = ImVec2(start.x + previewSize, start.y + previewSize);
+        ImDrawList* const drawList = ImGui::GetWindowDrawList();
+        TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
+
+        drawList->AddRectFilled(start, end, IM_COL32(18, 20, 24, 255), 6.0f);
+        for (int chunkOffsetZ = -viewDistance; chunkOffsetZ <= viewDistance; ++chunkOffsetZ)
+        {
+            for (int chunkOffsetX = -viewDistance; chunkOffsetX <= viewDistance; ++chunkOffsetX)
+            {
+                const ChunkCoord chunkCoord{ centerChunk.x + chunkOffsetX, centerChunk.z + chunkOffsetZ };
+                const ChunkTerrainData chunkData = terrainGenerator.GenerateChunkData(
+                    chunkCoord.x * static_cast<int>(CHUNK_SIZE),
+                    chunkCoord.z * static_cast<int>(CHUNK_SIZE));
+
+                for (int localZ = 0; localZ < CHUNK_SIZE; ++localZ)
+                {
+                    for (int localX = 0; localX < CHUNK_SIZE; ++localX)
+                    {
+                        const int worldX = ((chunkOffsetX + viewDistance) * static_cast<int>(CHUNK_SIZE)) + localX;
+                        const int worldZ = ((chunkOffsetZ + viewDistance) * static_cast<int>(CHUNK_SIZE)) + localZ;
+                        const TerrainColumnSample& column = chunkData.at(localX, localZ);
+                        const ImVec2 min(start.x + (static_cast<float>(worldX) * cellSize), start.y + (static_cast<float>(worldZ) * cellSize));
+                        const ImVec2 max(min.x + cellSize + 1.0f, min.y + cellSize + 1.0f);
+                        drawList->AddRectFilled(min, max, noise_preview_color(column, layer));
+                    }
+                }
+
+                const float chunkMinX = start.x + static_cast<float>((chunkOffsetX + viewDistance) * static_cast<int>(CHUNK_SIZE)) * cellSize;
+                const float chunkMinY = start.y + static_cast<float>((chunkOffsetZ + viewDistance) * static_cast<int>(CHUNK_SIZE)) * cellSize;
+                const float chunkMaxX = chunkMinX + (static_cast<float>(CHUNK_SIZE) * cellSize);
+                const float chunkMaxY = chunkMinY + (static_cast<float>(CHUNK_SIZE) * cellSize);
+                drawList->AddRect(
+                    ImVec2(chunkMinX, chunkMinY),
+                    ImVec2(chunkMaxX, chunkMaxY),
+                    chunkCoord == centerChunk ? IM_COL32(255, 245, 170, 200) : IM_COL32(255, 255, 255, 36),
+                    0.0f,
+                    0,
+                    chunkCoord == centerChunk ? 2.0f : 1.0f);
+            }
+        }
+
+        ImGui::InvisibleButton(label, ImVec2(previewSize, previewSize));
+        if (ImGui::IsItemHovered())
+        {
+            const ImVec2 mouse = ImGui::GetIO().MousePos;
+            const int previewX = std::clamp(static_cast<int>((mouse.x - start.x) / cellSize), 0, worldSpan - 1);
+            const int previewZ = std::clamp(static_cast<int>((mouse.y - start.y) / cellSize), 0, worldSpan - 1);
+            const int chunkOffsetX = (previewX / static_cast<int>(CHUNK_SIZE)) - viewDistance;
+            const int chunkOffsetZ = (previewZ / static_cast<int>(CHUNK_SIZE)) - viewDistance;
+            const int localX = previewX % static_cast<int>(CHUNK_SIZE);
+            const int localZ = previewZ % static_cast<int>(CHUNK_SIZE);
+            const ChunkCoord hoveredChunk{ centerChunk.x + chunkOffsetX, centerChunk.z + chunkOffsetZ };
+            const ChunkTerrainData chunkData = terrainGenerator.GenerateChunkData(
+                hoveredChunk.x * static_cast<int>(CHUNK_SIZE),
+                hoveredChunk.z * static_cast<int>(CHUNK_SIZE));
+            const TerrainColumnSample& column = chunkData.at(localX, localZ);
+            const int worldX = hoveredChunk.x * static_cast<int>(CHUNK_SIZE) + localX;
+            const int worldZ = hoveredChunk.z * static_cast<int>(CHUNK_SIZE) + localZ;
+
+            ImGui::BeginTooltip();
+            ImGui::Text("Chunk: %d, %d", hoveredChunk.x, hoveredChunk.z);
+            ImGui::Text("World: %d, %d", worldX, worldZ);
+            ImGui::Text("Local: %d, %d", localX, localZ);
+            ImGui::Text("Height: %d", column.surfaceHeight);
+            ImGui::Text("Biome: %s", biome_label(column.biome));
+            ImGui::Text("Cont: %.2f", column.noise.continentalness);
+            ImGui::Text("Erosion: %.2f", column.noise.erosion);
+            ImGui::Text("Peaks: %.2f", column.noise.peaksValleys);
+            ImGui::Text("Temp: %.2f", column.noise.temperature);
+            ImGui::Text("Humidity: %.2f", column.noise.humidity);
+            ImGui::Text("River: %.2f", column.noise.river);
+            ImGui::EndTooltip();
+        }
+    }
+}
 
 
 GameScene::GameScene(const SceneServices& services): _services(services)
@@ -27,6 +342,7 @@ GameScene::GameScene(const SceneServices& services): _services(services)
 
 	create_camera();
     bind_settings();
+    sync_world_gen_draft();
     sync_camera_to_game(0.0f);
 
 	std::println("GameScene created!");
@@ -482,6 +798,107 @@ void GameScene::draw_debug_map()
             ImGui::EndTabItem();
         }
 
+        if (ImGui::BeginTabItem("World Gen"))
+        {
+            sync_world_gen_draft();
+            TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
+            const TerrainGeneratorSettings appliedSettings = terrainGenerator.settings();
+            const bool draftDirty = !equal_world_gen_settings(_worldGenDraft, appliedSettings);
+
+            ImGui::Text("Stage terrain changes here. Nothing regenerates until you press the button.");
+            ImGui::InputScalar("Seed", ImGuiDataType_U32, &_worldGenDraft.seed);
+            ImGui::SeparatorText("Shape");
+            ImGui::SliderFloat("Terrain Frequency", &_worldGenDraft.shape.terrainFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderFloat("Climate Frequency", &_worldGenDraft.shape.climateFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderFloat("River Frequency", &_worldGenDraft.shape.riverFrequency, 0.00005f, 0.0100f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderFloat("River Width Threshold", &_worldGenDraft.shape.riverThreshold, 0.005f, 0.35f, "%.3f");
+            ImGui::SliderFloat("Erosion Suppression Low", &_worldGenDraft.shape.erosionSuppressionLow, 0.1f, 2.5f, "%.2f");
+            ImGui::SliderFloat("Erosion Suppression High", &_worldGenDraft.shape.erosionSuppressionHigh, 0.1f, 2.5f, "%.2f");
+
+            ImGui::SeparatorText("Biome Thresholds");
+            ImGui::SliderFloat("Ocean Continentalness", &_worldGenDraft.biome.oceanContinentalnessThreshold, -1.0f, 0.2f, "%.2f");
+            ImGui::SliderFloat("River Biome Threshold", &_worldGenDraft.biome.riverBlendThreshold, 0.05f, 0.95f, "%.2f");
+            ImGui::SliderInt("River Bank Min Offset", &_worldGenDraft.biome.riverMinBankHeightOffset, -16, 16);
+            ImGui::SliderInt("Beach Min Offset", &_worldGenDraft.biome.beachMinHeightOffset, -12, 8);
+            ImGui::SliderInt("Beach Max Offset", &_worldGenDraft.biome.beachMaxHeightOffset, -6, 20);
+            ImGui::SliderInt("Mountain Height Offset", &_worldGenDraft.biome.mountainHeightOffset, 8, 96);
+            ImGui::SliderFloat("Mountain Peaks Threshold", &_worldGenDraft.biome.mountainPeaksThreshold, -0.2f, 1.0f, "%.2f");
+            ImGui::SliderFloat("Forest Humidity Threshold", &_worldGenDraft.biome.forestHumidityThreshold, 0.0f, 1.0f, "%.2f");
+            ImGui::SliderFloat("Forest Temperature Threshold", &_worldGenDraft.biome.forestTemperatureThreshold, 0.0f, 1.0f, "%.2f");
+            ImGui::SliderInt("Mountain Stone Line", &_worldGenDraft.biome.mountainStoneHeightOffset, 20, 120);
+
+            ImGui::SeparatorText("Surface");
+            ImGui::SliderInt("River Target Offset", &_worldGenDraft.surface.riverTargetHeightOffset, -16, 8);
+            ImGui::SliderInt("River Min Depth", &_worldGenDraft.surface.riverMinDepth, 1, 8);
+            ImGui::SliderInt("River Max Depth", &_worldGenDraft.surface.riverMaxDepth, 1, 12);
+            ImGui::SliderInt("Ocean Floor Offset", &_worldGenDraft.surface.oceanFloorHeightOffset, -24, 4);
+            ImGui::SliderInt("Shore Min Offset", &_worldGenDraft.surface.shoreMinHeightOffset, -8, 6);
+            ImGui::SliderInt("Shore Max Offset", &_worldGenDraft.surface.shoreMaxHeightOffset, -2, 10);
+            ImGui::SliderInt("River Stone Depth", &_worldGenDraft.surface.riverStoneDepth, 1, 8);
+            ImGui::SliderInt("Ocean Stone Depth", &_worldGenDraft.surface.oceanStoneDepth, 1, 8);
+            ImGui::SliderInt("Shore Stone Depth", &_worldGenDraft.surface.shoreStoneDepth, 1, 8);
+            ImGui::SliderInt("Plains Stone Depth", &_worldGenDraft.surface.plainsStoneDepth, 1, 12);
+            ImGui::SliderInt("Mountain Stone Depth", &_worldGenDraft.surface.mountainStoneDepth, 1, 8);
+
+            draw_spline_editor("ErosionSplineTable", "Erosion Spline", _worldGenDraft.erosionSplines);
+            draw_spline_editor("PeakSplineTable", "Peak Spline", _worldGenDraft.peakSplines);
+            draw_spline_editor("ContinentalSplineTable", "Continentalness Spline", _worldGenDraft.continentalSplines);
+
+            ImGui::SeparatorText("Current Area Preview");
+            const char* layerLabels[] = {
+                "Final Height",
+                "Continentalness",
+                "Erosion",
+                "Peaks/Valleys",
+                "Temperature",
+                "Humidity",
+                "River",
+                "Biome"
+            };
+            ImGui::Combo("Preview Layer", &_worldGenPreviewLayer, layerLabels, IM_ARRAYSIZE(layerLabels));
+
+            const ChunkCoord centerChunk = _game.snapshot().currentChunk.value_or(World::get_chunk_coordinates(_game.snapshot().player.position));
+            const int previewViewDistance = _settings.persistence().world.viewDistance;
+            ImGui::Text("Preview Center Chunk: %d, %d", centerChunk.x, centerChunk.z);
+            ImGui::Text("Preview Area: %dx%d chunks", (previewViewDistance * 2) + 1, (previewViewDistance * 2) + 1);
+            draw_noise_preview("WorldGenPreview", centerChunk, previewViewDistance, _worldGenPreviewLayer);
+
+            if (!draftDirty)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::Button("Regenerate World With Draft Settings"))
+            {
+                terrainGenerator.apply_settings(_worldGenDraft);
+                _game.regenerate_world();
+            }
+            if (!draftDirty)
+            {
+                ImGui::EndDisabled();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Reload Applied Settings"))
+            {
+                _worldGenDraft = appliedSettings;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Reset To Defaults"))
+            {
+                _worldGenDraft = TerrainGenerator::default_settings();
+            }
+
+            if (draftDirty)
+            {
+                ImGui::TextColored(ImVec4(0.95f, 0.72f, 0.30f, 1.0f), "Draft differs from active worldgen settings.");
+            }
+            else
+            {
+                ImGui::TextDisabled("Draft matches active worldgen settings.");
+            }
+
+            ImGui::EndTabItem();
+        }
+
         ImGui::EndTabBar();
     }
 	ImGui::End();
@@ -709,4 +1126,15 @@ void GameScene::apply_ambient_occlusion_settings(const settings::AmbientOcclusio
     _game.chunk_manager().apply_mesh_settings(ChunkMeshSettings{
         .ambientOcclusionEnabled = settings.enabled
     });
+}
+
+void GameScene::sync_world_gen_draft()
+{
+    if (_worldGenDraftInitialized)
+    {
+        return;
+    }
+
+    _worldGenDraft = TerrainGenerator::instance().settings();
+    _worldGenDraftInitialized = true;
 }

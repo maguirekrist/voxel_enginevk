@@ -100,6 +100,7 @@ public:
     std::optional<ChunkDebugState> debug_state(ChunkCoord coord) const;
     std::optional<ChunkNeighborhood> build_neighborhood(ChunkCoord coord) const;
     void apply_mesh_settings(const ChunkMeshSettings& settings);
+    void regenerate_world();
     [[nodiscard]] bool ambient_occlusion_enabled() const noexcept;
     void apply_streaming_settings(const ChunkStreamingSettings& settings);
     [[nodiscard]] int view_distance() const noexcept;
