@@ -4,6 +4,7 @@
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
 #include <scenes/game_scene.h>
+#include <scenes/voxel_editor_scene.h>
 
 #include "imgui.h"
 #include "backends/imgui_impl_vulkan.h"
@@ -11,13 +12,23 @@
 void SceneRenderer::init(const SceneServices& sceneServices)
 {
 	_scenes["game"] = std::make_shared<GameScene>(sceneServices);
-	_currentScene = _scenes["game"];
+    _scenes["voxel_editor"] = std::make_shared<VoxelEditorScene>(sceneServices);
+	_currentScene = _scenes["voxel_editor"];
 }
 
 void SceneRenderer::cleanup()
 {
 	_scenes.clear();
 	_currentScene = nullptr;
+}
+
+void SceneRenderer::set_current_scene(const std::string& name)
+{
+    if (const auto it = _scenes.find(name); it != _scenes.end())
+    {
+        _currentScene = it->second;
+        _currentScene->rebuild_pipelines();
+    }
 }
 
 void SceneRenderer::render_scene(VkCommandBuffer cmd, const FrameRenderContext& frameContext)

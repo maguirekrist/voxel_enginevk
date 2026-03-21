@@ -107,6 +107,18 @@ void VulkanEngine::handle_input()
 {	
     const WindowEventState eventState = _windowSystem.poll_events([this](const SDL_Event& event)
     {
+        if (event.type == SDL_KEYDOWN && !event.key.repeat)
+        {
+            if (event.key.keysym.scancode == SDL_SCANCODE_F1)
+            {
+                _sceneRenderer.set_current_scene("game");
+            }
+            else if (event.key.keysym.scancode == SDL_SCANCODE_F2)
+            {
+                _sceneRenderer.set_current_scene("voxel_editor");
+            }
+        }
+
         _sceneRenderer.get_current_scene()->handle_input(event);
     });
 

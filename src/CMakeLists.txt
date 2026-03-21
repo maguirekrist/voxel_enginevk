@@ -67,8 +67,15 @@ add_executable(vulkan_guide
     scenes/scene_services.h
     scenes/game_scene.h
     scenes/game_scene.cpp
+    scenes/voxel_editor_scene.h
+    scenes/voxel_editor_scene.cpp
     settings/game_settings.h
     settings/game_settings.cpp
+    voxel/voxel_model.h
+    voxel/voxel_mesher.h
+    voxel/voxel_mesher.cpp
+    voxel/voxel_model_repository.h
+    voxel/voxel_model_repository.cpp
     config/config_paths.h
     config/config_paths.cpp
     config/json_document_store.h

@@ -11,6 +11,7 @@ public:
 
     void init(const SceneServices& sceneServices);
     void cleanup();
+    void set_current_scene(const std::string& name);
 
     void render_scene(VkCommandBuffer cmd, const FrameRenderContext& frameContext);
 

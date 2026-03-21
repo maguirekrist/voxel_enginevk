@@ -16,6 +16,8 @@
 #include "config/json_document_store.h"
 #include "config/world_gen_config_repository.h"
 #include "game/world.h"
+#include "voxel/voxel_mesher.h"
+#include "voxel/voxel_model_repository.h"
 #include "world/chunk_lighting.h"
 #include "world/chunk_manager.h"
 #include "world/terrain_gen.h"
@@ -464,4 +466,83 @@ TEST(SettingsManagerTest, AmbientOcclusionUpdatesOnlyRelevantSubscribers)
     EXPECT_TRUE(ambientEnabled);
     EXPECT_EQ(ambientNotifications, 2);
     EXPECT_EQ(viewDistanceNotifications, 1);
+}
+
+TEST(VoxelModelRepositoryTest, SavesAndLoadsVoxelAssetRoundTrip)
+{
+    VoxelModel model{};
+    model.assetId = "Test Ogre";
+    model.displayName = "Test Ogre";
+    model.voxelSize = 1.0f / 16.0f;
+    model.pivot = glm::vec3(0.5f, 0.0f, 0.5f);
+    model.set_voxel(VoxelCoord{ 0, 0, 0 }, VoxelColor{ 255, 0, 0, 255 });
+    model.set_voxel(VoxelCoord{ 3, 2, 1 }, VoxelColor{ 12, 34, 56, 255 });
+
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_model_repo_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const VoxelModelRepository repository(documentStore, "assets");
+
+    repository.save(model);
+    const std::optional<VoxelModel> loaded = repository.load("Test Ogre");
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->assetId, "testogre");
+    EXPECT_EQ(loaded->displayName, "Test Ogre");
+    EXPECT_FLOAT_EQ(loaded->voxelSize, model.voxelSize);
+    EXPECT_FLOAT_EQ(loaded->pivot.x, model.pivot.x);
+    ASSERT_EQ(loaded->voxel_count(), 2u);
+
+    const VoxelColor* originColor = loaded->try_get(VoxelCoord{ 0, 0, 0 });
+    ASSERT_NE(originColor, nullptr);
+    EXPECT_EQ(originColor->r, 255);
+    EXPECT_EQ(originColor->g, 0);
+    EXPECT_EQ(originColor->b, 0);
+
+    const VoxelColor* secondColor = loaded->try_get(VoxelCoord{ 3, 2, 1 });
+    ASSERT_NE(secondColor, nullptr);
+    EXPECT_EQ(secondColor->r, 12);
+    EXPECT_EQ(secondColor->g, 34);
+    EXPECT_EQ(secondColor->b, 56);
+}
+
+TEST(VoxelMesherTest, GeneratesOnlyExteriorFacesForAdjacentVoxels)
+{
+    VoxelModel model{};
+    model.voxelSize = 1.0f / 16.0f;
+    model.set_voxel(VoxelCoord{ 0, 0, 0 }, VoxelColor{ 255, 255, 255, 255 });
+    model.set_voxel(VoxelCoord{ 1, 0, 0 }, VoxelColor{ 255, 255, 255, 255 });
+
+    const std::shared_ptr<Mesh> mesh = VoxelMesher::generate_mesh(model);
+    ASSERT_NE(mesh, nullptr);
+
+    constexpr uint32_t expectedVisibleFaces = 10;
+    EXPECT_EQ(mesh->_vertices.size(), expectedVisibleFaces * 4);
+    EXPECT_EQ(mesh->_indices.size(), expectedVisibleFaces * 6);
+}
+
+TEST(VoxelModelRepositoryTest, ListsSavedVoxelAssets)
+{
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_model_list_test";
+    std::filesystem::remove_all(tempRoot);
+    const config::JsonFileDocumentStore documentStore;
+    const VoxelModelRepository repository(documentStore, tempRoot / "assets");
+
+    VoxelModel alpha{};
+    alpha.assetId = "Alpha";
+    alpha.set_voxel(VoxelCoord{ 0, 0, 0 }, VoxelColor{ 255, 255, 255, 255 });
+    repository.save(alpha);
+
+    VoxelModel beta{};
+    beta.assetId = "beta";
+    beta.set_voxel(VoxelCoord{ 1, 0, 0 }, VoxelColor{ 255, 255, 255, 255 });
+    repository.save(beta);
+
+    const std::vector<std::string> assetIds = repository.list_asset_ids();
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_EQ(assetIds.size(), 2u);
+    EXPECT_EQ(assetIds[0], "alpha");
+    EXPECT_EQ(assetIds[1], "beta");
 }

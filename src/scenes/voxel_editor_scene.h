@@ -1,0 +1,124 @@
+#pragma once
+
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "camera.h"
+#include "config/json_document_store.h"
+#include "render/mesh.h"
+#include "render/resource.h"
+#include "render/scene_render_state.h"
+#include "scene.h"
+#include "scene_services.h"
+#include "voxel/voxel_model.h"
+#include "voxel/voxel_model_repository.h"
+
+class VoxelEditorScene final : public Scene
+{
+public:
+    explicit VoxelEditorScene(const SceneServices& services);
+    ~VoxelEditorScene() override;
+
+    void update_buffers() override;
+    void update(float deltaTime) override;
+    void handle_input(const SDL_Event& event) override;
+    void handle_keystate(const Uint8* state) override;
+    void clear_input() override;
+    void draw_imgui() override;
+    void build_pipelines() override;
+    void rebuild_pipelines() override;
+    SceneRenderState& get_render_state() override;
+
+private:
+    struct CameraUBO
+    {
+        glm::mat4 projection;
+        glm::mat4 view;
+        glm::mat4 viewproject;
+    };
+
+    struct LightingUBO
+    {
+        glm::vec4 skyZenithColor;
+        glm::vec4 skyHorizonColor;
+        glm::vec4 groundColor;
+        glm::vec4 sunColor;
+        glm::vec4 moonColor;
+        glm::vec4 shadowColor;
+        glm::vec4 waterShallowColor;
+        glm::vec4 waterDeepColor;
+        glm::vec4 params1;
+        glm::vec4 params2;
+        glm::vec4 params3;
+    };
+
+    struct FogUBO
+    {
+        glm::vec3 fogColor;
+        float padding1[1];
+        glm::vec3 fogEndColor;
+        float padding2;
+        glm::vec3 fogCenter;
+        float fogRadius;
+        glm::ivec2 screenSize;
+        float padding3[2];
+        glm::mat4 invViewProject;
+    };
+
+    enum class EditAxis : uint8_t
+    {
+        X = 0,
+        Y = 1,
+        Z = 2
+    };
+
+    struct PlaneSpec
+    {
+        int width{1};
+        int height{1};
+    };
+
+    void update_uniform_buffers() const;
+    void sync_model_mesh();
+    void release_preview_mesh();
+    void update_camera();
+    void clamp_slice_index();
+    [[nodiscard]] PlaneSpec plane_spec() const;
+    void draw_editor_window();
+    void mark_model_dirty();
+    void reset_model();
+    void save_model();
+    void load_model();
+    void load_model(const std::string& assetId);
+    void refresh_saved_assets();
+    [[nodiscard]] glm::vec3 orbit_target() const;
+
+    SceneServices _services;
+    SceneRenderState _renderState;
+
+    std::shared_ptr<Resource> _cameraUboResource;
+    std::shared_ptr<Resource> _lightingResource;
+    std::shared_ptr<Resource> _fogResource;
+    std::shared_ptr<Mesh> _previewMesh;
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _previewHandle;
+
+    std::unique_ptr<Camera> _camera;
+
+    config::JsonFileDocumentStore _documentStore;
+    VoxelModelRepository _repository;
+    VoxelModel _model;
+    glm::ivec3 _gridDimensions{16, 16, 16};
+    EditAxis _editAxis{EditAxis::Z};
+    int _sliceIndex{0};
+    int _rotationQuarterTurns{0};
+    VoxelColor _paintColor{255, 64, 64, 255};
+    bool _eraseMode{false};
+    bool _meshDirty{true};
+    float _orbitYawDegrees{40.0f};
+    float _orbitPitchDegrees{24.0f};
+    float _orbitDistance{3.5f};
+    std::vector<std::string> _savedAssetIds{};
+    int _selectedSavedAssetIndex{-1};
+    std::string _statusMessage{"Ready"};
+};
