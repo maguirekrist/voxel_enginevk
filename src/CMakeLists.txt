@@ -67,6 +67,14 @@ add_executable(vulkan_guide
     scenes/game_scene.cpp
     settings/game_settings.h
     settings/game_settings.cpp
+    config/config_paths.h
+    config/config_paths.cpp
+    config/json_document_store.h
+    config/json_document_store.cpp
+    config/config_service.h
+    config/config_service.cpp
+    config/world_gen_config_repository.h
+    config/world_gen_config_repository.cpp
     render/scene_renderer.h
     render/scene_renderer.cpp
         render/render_primitives.h
@@ -104,7 +112,7 @@ add_executable(vulkan_guide
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
 
-target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}")
 target_link_libraries(vulkan_guide vkbootstrap libcuckoo vma glm tinyobjloader imgui spirv_reflect stb_image)
 target_link_libraries(vulkan_guide Vulkan::Vulkan sdl2 FastNoise TracyClient)
 

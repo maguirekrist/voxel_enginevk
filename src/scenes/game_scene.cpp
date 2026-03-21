@@ -341,6 +341,10 @@ GameScene::GameScene(const SceneServices& services): _services(services)
 	build_pipelines();
 
 	create_camera();
+    if (_services.configService != nullptr)
+    {
+        TerrainGenerator::instance().apply_settings(_services.configService->world_gen().load_or_default());
+    }
     bind_settings();
     sync_world_gen_draft();
     sync_camera_to_game(0.0f);
@@ -870,6 +874,7 @@ void GameScene::draw_debug_map()
             if (ImGui::Button("Regenerate World With Draft Settings"))
             {
                 terrainGenerator.apply_settings(_worldGenDraft);
+                _worldGenDraft = terrainGenerator.settings();
                 _game.regenerate_world();
             }
             if (!draftDirty)
@@ -877,9 +882,25 @@ void GameScene::draw_debug_map()
                 ImGui::EndDisabled();
             }
             ImGui::SameLine();
+            if (ImGui::Button("Save Draft To File"))
+            {
+                if (_services.configService != nullptr)
+                {
+                    _services.configService->world_gen().save(_worldGenDraft);
+                }
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Reload Applied Settings"))
             {
                 _worldGenDraft = appliedSettings;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Reload Saved File"))
+            {
+                if (_services.configService != nullptr)
+                {
+                    _worldGenDraft = _services.configService->world_gen().load_or_default();
+                }
             }
             ImGui::SameLine();
             if (ImGui::Button("Reset To Defaults"))

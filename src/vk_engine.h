@@ -11,6 +11,7 @@
 #include <render/scene_renderer.h>
 #include <window_system.h>
 #include <frame_clock.h>
+#include <config/config_service.h>
 
 class FunctionQueue {
 public:
@@ -68,6 +69,7 @@ public:
 
 	MeshManager _meshManager;
 	MaterialManager _materialManager;
+    config::ConfigService _configService;
 
 	VkRenderPass _renderPass;
 	VkRenderPass _offscreenPass;

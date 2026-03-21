@@ -3,6 +3,10 @@ include(GoogleTest)
 add_executable(engine_tests
     engine_tests.cpp
     ../src/settings/game_settings.cpp
+    ../src/config/config_paths.cpp
+    ../src/config/json_document_store.cpp
+    ../src/config/config_service.cpp
+    ../src/config/world_gen_config_repository.cpp
     ../src/game/world.cpp
     ../src/game/tree_structure_generator.cpp
     ../src/world/chunk_neighborhood.cpp
@@ -13,6 +17,7 @@ add_executable(engine_tests
 target_include_directories(engine_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src"
+        "${PROJECT_SOURCE_DIR}"
 )
 
 target_link_libraries(engine_tests

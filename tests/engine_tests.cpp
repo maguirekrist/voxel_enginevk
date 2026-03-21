@@ -1,6 +1,8 @@
 #include <memory>
 #include <limits>
+#include <filesystem>
 #include <ranges>
+#include <fstream>
 
 #include <gtest/gtest.h>
 
@@ -9,6 +11,8 @@
 #include "game/chunk.h"
 #include "game/tree_structure_generator.h"
 #include "settings/game_settings.h"
+#include "config/json_document_store.h"
+#include "config/world_gen_config_repository.h"
 #include "game/world.h"
 #include "world/chunk_lighting.h"
 #include "world/chunk_manager.h"
@@ -211,6 +215,64 @@ TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
         baselineB.noise.river != changedB.noise.river;
 
     EXPECT_TRUE(anyChanged);
+}
+
+TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
+{
+    TerrainGeneratorSettings settings = TerrainGenerator::default_settings();
+    settings.seed = 987654321u;
+    settings.shape.terrainFrequency = 0.0022f;
+    settings.biome.mountainHeightOffset = 63;
+    settings.surface.riverMaxDepth = 7;
+    settings.peakSplines[1].heightValue = 17.0f;
+
+    class TestJsonDocumentStore final : public config::IJsonDocumentStore
+    {
+    public:
+        explicit TestJsonDocumentStore(std::filesystem::path rootPath) : _rootPath(std::move(rootPath))
+        {
+        }
+
+        [[nodiscard]] std::optional<nlohmann::json> load(const std::filesystem::path& path) const override
+        {
+            const std::filesystem::path resolved = _rootPath / path;
+            if (!std::filesystem::exists(resolved))
+            {
+                return std::nullopt;
+            }
+
+            std::ifstream input(resolved);
+            nlohmann::json document{};
+            input >> document;
+            return document;
+        }
+
+        void save(const std::filesystem::path& path, const nlohmann::json& document) const override
+        {
+            const std::filesystem::path resolved = _rootPath / path;
+            std::filesystem::create_directories(resolved.parent_path());
+            std::ofstream output(resolved, std::ios::trunc);
+            output << document.dump(2) << '\n';
+        }
+
+    private:
+        std::filesystem::path _rootPath{};
+    };
+
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_config_repo_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const config::WorldGenConfigRepository repository(documentStore);
+    repository.save(settings);
+    const TerrainGeneratorSettings loaded = repository.load_or_default();
+    std::filesystem::remove_all(tempRoot);
+
+    EXPECT_EQ(loaded.seed, settings.seed);
+    EXPECT_FLOAT_EQ(loaded.shape.terrainFrequency, settings.shape.terrainFrequency);
+    EXPECT_EQ(loaded.biome.mountainHeightOffset, settings.biome.mountainHeightOffset);
+    EXPECT_EQ(loaded.surface.riverMaxDepth, settings.surface.riverMaxDepth);
+    ASSERT_GT(loaded.peakSplines.size(), 1);
+    EXPECT_FLOAT_EQ(loaded.peakSplines[1].heightValue, settings.peakSplines[1].heightValue);
 }
 
 TEST(TreeStructureGeneratorTest, GiantTreeBuildsTwoByTwoTrunk)

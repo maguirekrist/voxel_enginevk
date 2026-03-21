@@ -4,6 +4,7 @@
 
 class MaterialManager;
 class MeshManager;
+namespace config { class ConfigService; }
 
 struct SceneServices
 {
@@ -12,6 +13,7 @@ struct SceneServices
     VkExtent2D* windowExtent{};
     MeshManager* meshManager{};
     MaterialManager* materialManager{};
+    config::ConfigService* configService{};
 
     [[nodiscard]] VkExtent2D current_window_extent() const
     {

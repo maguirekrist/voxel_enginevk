@@ -62,7 +62,8 @@ void VulkanEngine::init()
 		.device = _device,
 		.windowExtent = &_windowExtent,
 		.meshManager = &_meshManager,
-		.materialManager = &_materialManager
+		.materialManager = &_materialManager,
+        .configService = &_configService
 	});
 
 	_isInitialized = true;
