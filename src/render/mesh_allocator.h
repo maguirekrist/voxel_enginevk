@@ -29,8 +29,8 @@ private:
     std::vector<int32_t> m_free_list;
     VmaAllocator m_allocator;
 
-    inline static constexpr VkDeviceSize VERTEX_SLAB_SIZE = 393216;
-    inline static constexpr VkDeviceSize INDEX_SLAB_SIZE = 196608;
+    inline static constexpr VkDeviceSize VERTEX_SLAB_SIZE = 1048576;
+    inline static constexpr VkDeviceSize INDEX_SLAB_SIZE = 262144;
 
     inline static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = VERTEX_SLAB_SIZE * CAPACITY;
     inline static constexpr VkDeviceSize INDEX_BUFFER_SIZE = INDEX_SLAB_SIZE * CAPACITY;
@@ -44,7 +44,8 @@ struct MeshAllocation
     int32_t slot_index = -1;
     uint32_t indices_size = 0;
     //uint32_t gen = 0;
-    VkDeviceSize slab_size = 0;
+    VkDeviceSize vertex_slab_size = 0;
+    VkDeviceSize index_slab_size = 0;
     MeshAllocator* allocator = nullptr;
 };
 

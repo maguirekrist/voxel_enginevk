@@ -45,9 +45,14 @@ void StagingBuffer::upload_mesh(std::shared_ptr<Mesh>&& mesh)
 
     auto allocation = m_meshAllocator.acquire();
 
-    if (v_size > allocation.slab_size ||  i_size > allocation.slab_size)
+    if (v_size > allocation.vertex_slab_size || i_size > allocation.index_slab_size)
     {
-        throw std::runtime_error(std::format("StagingBuffer::upload_mesh: Slab size too small, slab size of {}, vs v size: {} and i size: {}", allocation.slab_size, v_size, i_size));
+        throw std::runtime_error(std::format(
+            "StagingBuffer::upload_mesh: Slab size too small, vertex slab: {}, index slab: {}, vs v size: {} and i size: {}",
+            allocation.vertex_slab_size,
+            allocation.index_slab_size,
+            v_size,
+            i_size));
     }
 
     m_v_total_count += 1;

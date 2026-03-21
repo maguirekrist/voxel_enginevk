@@ -1,9 +1,13 @@
 #pragma once
 
 #include <vk_types.h>
-#include <functional>
+#include <memory>
+#include <unordered_map>
+#include <vector>
 
 #include "block.h"
+
+class TerrainGenerator;
 
 enum class StructureType {
 	TREE
@@ -29,9 +33,26 @@ struct StructureBlockEdit {
 struct StructureGenerationContext {
     glm::ivec2 chunkCoord{};
     glm::ivec2 chunkOrigin{};
+    const TerrainGenerator* terrainGenerator{nullptr};
 };
 
-using StructureGenerator = std::function<std::vector<StructureBlockEdit>(const StructureAnchor&, const StructureGenerationContext&)>;
+class IStructureGenerator
+{
+public:
+    virtual ~IStructureGenerator() = default;
+
+    [[nodiscard]] virtual StructureType type() const noexcept = 0;
+    [[nodiscard]] virtual std::vector<StructureBlockEdit> generate(const StructureAnchor& anchor, const StructureGenerationContext& context) const = 0;
+};
+
+class IStructurePlacementStrategy
+{
+public:
+    virtual ~IStructurePlacementStrategy() = default;
+
+    [[nodiscard]] virtual StructureType type() const noexcept = 0;
+    virtual void collect_anchors(const StructureGenerationContext& context, std::vector<StructureAnchor>& anchors) const = 0;
+};
 
 class StructureRegistry {
 public:
@@ -43,5 +64,11 @@ public:
 private:
     StructureRegistry();
 
-    std::unordered_map<StructureType, StructureGenerator> _generators;
+    struct RegisteredStructure
+    {
+        std::unique_ptr<IStructureGenerator> generator{};
+        std::unique_ptr<IStructurePlacementStrategy> placement{};
+    };
+
+    std::unordered_map<StructureType, RegisteredStructure> _structures;
 };

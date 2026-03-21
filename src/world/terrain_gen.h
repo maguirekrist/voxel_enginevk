@@ -1,19 +1,86 @@
 #pragma once
 
-#include <vk_types.h>
-#include <FastNoise/FastNoise.h>
-#include "../random.h"
+#include <memory>
+#include <mutex>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
 
-struct SplinePoint {
-    float noiseValue;
-    float heightValue;
+#include <FastNoise/FastNoise.h>
+#include <vk_types.h>
+
+#include "constants.h"
+#include "game/block.h"
+
+struct SplinePoint
+{
+    float noiseValue{};
+    float heightValue{};
 };
 
-constexpr float lerp(float startValue, float endValue, float t) {
-    return (1 - t) * startValue + t * endValue;
+constexpr float lerp(const float startValue, const float endValue, const float t)
+{
+    return (1.0f - t) * startValue + t * endValue;
 }
 
-class TerrainGenerator {
+enum class BiomeType : uint8_t
+{
+    Ocean = 0,
+    Shore = 1,
+    Plains = 2,
+    Forest = 3,
+    River = 4,
+    Mountains = 5
+};
+
+struct TerrainNoiseSample
+{
+    float continentalness{};
+    float erosion{};
+    float peaksValleys{};
+    float temperature{};
+    float humidity{};
+    float river{};
+};
+
+struct TerrainColumnSample
+{
+    int surfaceHeight{};
+    int stoneHeight{};
+    BiomeType biome{BiomeType::Plains};
+    BlockType topBlock{BlockType::GROUND};
+    BlockType fillerBlock{BlockType::GROUND};
+    bool hasRiver{false};
+    bool isBeach{false};
+    TerrainNoiseSample noise{};
+};
+
+struct ChunkTerrainData
+{
+    glm::ivec2 chunkOrigin{};
+    std::vector<TerrainColumnSample> columns{};
+
+    [[nodiscard]] const TerrainColumnSample& at(int localX, int localZ) const;
+    [[nodiscard]] TerrainColumnSample& at(int localX, int localZ);
+};
+
+struct WorldGenerationLayerContext
+{
+    glm::ivec2 chunkOrigin{};
+    uint32_t seed{};
+};
+
+class IWorldGenLayer
+{
+public:
+    virtual ~IWorldGenLayer() = default;
+
+    [[nodiscard]] virtual std::string_view name() const noexcept = 0;
+    virtual void apply(const WorldGenerationLayerContext& context, ChunkTerrainData& chunkData) const = 0;
+};
+
+class TerrainGenerator
+{
 public:
     static TerrainGenerator& instance()
     {
@@ -21,63 +88,46 @@ public:
         return instance;
     }
 
-    // void GenerateChunk(int chunkX, int chunkZ, std::vector<uint8_t>& blockData);
-    std::vector<float> GenerateHeightMap(int chunkX, int chunkZ) const;
-    float SampleHeight(int worldX, int worldZ) const;
-    //std::vector<float> GenerateDensityMap(int chunkX, int chunkZ);
-    //float SampleNoise3D(int x, int y, int z);
-    float NormalizeHeight(std::vector<float>& map, int yScale, int xScale, int x, int y);
+    [[nodiscard]] const ChunkTerrainData& GenerateChunkData(int chunkX, int chunkZ) const;
+    [[nodiscard]] std::vector<float> GenerateHeightMap(int chunkX, int chunkZ) const;
+    [[nodiscard]] TerrainColumnSample SampleColumn(int worldX, int worldZ) const;
+    [[nodiscard]] float SampleHeight(int worldX, int worldZ) const;
+    [[nodiscard]] float NormalizeHeight(std::vector<float>& map, int yScale, int xScale, int x, int y) const;
 
-    
 private:
-    TerrainGenerator() {
-        std::cout << "Creating Terrain Generator" << std::endl;
-        _seed = Random::generate(0, 1337);
-        _erosion = FastNoise::NewFromEncodedNodeTree("FwAAAAAAexQuv83MTL5mZgbAIgApXJNBZmZmvxAAbxKDOg0ACAAAAArXI0AHAAB7FC4/AAAAgD8Aw/XwQQ==");
-        _peaks = FastNoise::NewFromEncodedNodeTree("EwCamRk/IgDXo3A/zcwMQBcAuB6FPpqZqcA9Cte+w/XoQCIAexS+QK5HwUAQAIXr0UAPAAkAAABcjyJACQAAXI/CPgB7FK4/AI/C9T0=");
-        _continental = FastNoise::NewFromEncodedNodeTree("FwAK16M8w/Wov7geBb8UrkdAIgCkcA1BCtejPA0ABAAAALgeZUAIAAAAAAA/AFyPwj8=");
-    }   
+    struct ChunkCacheKey
+    {
+        int x{};
+        int z{};
 
-    ~TerrainGenerator() {
-        std::cout << "Destroying Terrain Generator" << std::endl;
-        _erosion.reset();
-        _peaks.reset();
-        _continental.reset();
-    }
+        [[nodiscard]] bool operator==(const ChunkCacheKey& other) const noexcept = default;
+    };
 
-    // Noise generators
+    struct ChunkCacheKeyHash
+    {
+        [[nodiscard]] size_t operator()(const ChunkCacheKey& key) const noexcept;
+    };
+
+    TerrainGenerator();
+    ~TerrainGenerator() = default;
+
+    [[nodiscard]] ChunkTerrainData build_chunk_data(int chunkX, int chunkZ) const;
+    [[nodiscard]] float map_height(float noise, const std::vector<SplinePoint>& splinePoints) const;
+
     FastNoise::SmartNode<> _erosion;
     FastNoise::SmartNode<> _peaks;
     FastNoise::SmartNode<> _continental;
+    FastNoise::SmartNode<> _temperature;
+    FastNoise::SmartNode<> _humidity;
+    FastNoise::SmartNode<> _river;
 
-    std::vector<SplinePoint> _erosionSplines = {
-        { -1.0f, 50.0f },
-        { 0.3f, 100.0f },
-        { 0.4f, 150.0f },
-        { 1.0f, 150.0f }
-    };
+    std::vector<SplinePoint> _erosionSplines;
+    std::vector<SplinePoint> _peakSplines;
+    std::vector<SplinePoint> _continentalSplines;
 
-    std::vector<SplinePoint> _peakSplines = {
-        { -1.0f, 0.0f },
-        { -0.6f, 20.0f },
-        { -0.2f, 30.0f },
-        { 0.0f, 30.0f },
-        { 0.2f, 120.0f },
-        { 1.0f, 150.0f }
-    };
+    uint32_t _seed{1337};
+    std::vector<std::unique_ptr<IWorldGenLayer>> _layers;
 
-    std::vector<SplinePoint> _continentalSplines = {
-        {-1.0f, 0.0f },
-        { -0.5f, 0.0f },
-        { -0.25f, 20.0f },
-        { 0.0f, 30.0f },
-        { 0.1f, 60.0f },
-        { 0.5f, 70.0f },
-        { 1.0f, 90.0f }
-    };
-
-    int _seed;
-
-    float map_height(float noise, const std::vector<SplinePoint>& splinePoints) const;
-
+    mutable std::mutex _cacheMutex;
+    mutable std::unordered_map<ChunkCacheKey, ChunkTerrainData, ChunkCacheKeyHash> _chunkCache;
 };

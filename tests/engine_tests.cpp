@@ -1,13 +1,17 @@
 #include <memory>
+#include <limits>
+#include <ranges>
 
 #include <gtest/gtest.h>
 
 #include "constants.h"
 #include "game/block.h"
 #include "game/chunk.h"
+#include "game/tree_structure_generator.h"
 #include "game/world.h"
 #include "world/chunk_lighting.h"
 #include "world/chunk_manager.h"
+#include "world/terrain_gen.h"
 
 Chunk* ChunkManager::get_chunk(const ChunkCoord) const
 {
@@ -53,6 +57,17 @@ namespace
             .southEast = make_empty_chunk({-1, -1}),
             .southWest = make_empty_chunk({1, -1})
         };
+    }
+
+    bool contains_block(
+        const std::vector<StructureBlockEdit>& edits,
+        const glm::ivec3 worldPosition,
+        const BlockType blockType)
+    {
+        return std::ranges::any_of(edits, [&](const StructureBlockEdit& edit)
+        {
+            return edit.worldPosition == worldPosition && edit.block._type == blockType;
+        });
     }
 }
 
@@ -144,4 +159,83 @@ TEST(ChunkLightingTest, LampLocalLightPropagatesAndIsBlockedBySolidWall)
     EXPECT_EQ(blocked.r, 0);
     EXPECT_EQ(blocked.g, 0);
     EXPECT_EQ(blocked.b, 0);
+}
+
+TEST(TerrainGeneratorTest, SampleColumnMatchesChunkDataAndIsDeterministic)
+{
+    TerrainGenerator& generator = TerrainGenerator::instance();
+
+    const TerrainColumnSample first = generator.SampleColumn(128, -64);
+    const TerrainColumnSample second = generator.SampleColumn(128, -64);
+    const ChunkTerrainData& chunkData = generator.GenerateChunkData(128, -64);
+    const TerrainColumnSample fromChunk = chunkData.at(0, 0);
+
+    EXPECT_EQ(first.surfaceHeight, second.surfaceHeight);
+    EXPECT_EQ(first.stoneHeight, second.stoneHeight);
+    EXPECT_EQ(first.biome, second.biome);
+    EXPECT_EQ(first.topBlock, second.topBlock);
+    EXPECT_EQ(first.fillerBlock, second.fillerBlock);
+    EXPECT_EQ(first.surfaceHeight, fromChunk.surfaceHeight);
+    EXPECT_EQ(first.biome, fromChunk.biome);
+    EXPECT_GE(first.surfaceHeight, 0);
+    EXPECT_LT(first.surfaceHeight, static_cast<int>(CHUNK_HEIGHT));
+}
+
+TEST(TreeStructureGeneratorTest, GiantTreeBuildsTwoByTwoTrunk)
+{
+    TreeStructureGenerator generator;
+    const StructureAnchor anchor{
+        .type = StructureType::TREE,
+        .worldOrigin = {32, 90, 48},
+        .seed = 424242,
+        .treeVariant = TreeVariant::Giant
+    };
+    const StructureGenerationContext context{};
+
+    const std::vector<StructureBlockEdit> edits = generator.generate(anchor, context);
+
+    EXPECT_TRUE(contains_block(edits, anchor.worldOrigin + glm::ivec3(0, 0, 0), BlockType::WOOD));
+    EXPECT_TRUE(contains_block(edits, anchor.worldOrigin + glm::ivec3(1, 0, 0), BlockType::WOOD));
+    EXPECT_TRUE(contains_block(edits, anchor.worldOrigin + glm::ivec3(0, 0, 1), BlockType::WOOD));
+    EXPECT_TRUE(contains_block(edits, anchor.worldOrigin + glm::ivec3(1, 0, 1), BlockType::WOOD));
+    EXPECT_TRUE(contains_block(edits, anchor.worldOrigin + glm::ivec3(0, 5, 0), BlockType::WOOD));
+    EXPECT_TRUE(contains_block(edits, anchor.worldOrigin + glm::ivec3(1, 5, 1), BlockType::WOOD));
+}
+
+TEST(TreeStructureGeneratorTest, OakTreePreservesFullTrunkColumn)
+{
+    TreeStructureGenerator generator;
+    const StructureAnchor anchor{
+        .type = StructureType::TREE,
+        .worldOrigin = {24, 84, 24},
+        .seed = 1337,
+        .treeVariant = TreeVariant::Oak
+    };
+    const StructureGenerationContext context{};
+
+    const std::vector<StructureBlockEdit> edits = generator.generate(anchor, context);
+    int maxLeafY = std::numeric_limits<int>::min();
+
+    for (int y = 0; y < 6; ++y)
+    {
+        const glm::ivec3 trunkPos = anchor.worldOrigin + glm::ivec3(0, y, 0);
+        const bool hasWood = contains_block(edits, trunkPos, BlockType::WOOD);
+        const bool hasLeaves = contains_block(edits, trunkPos, BlockType::LEAVES);
+
+        if (hasWood)
+        {
+            EXPECT_FALSE(hasLeaves);
+        }
+    }
+
+    for (const StructureBlockEdit& edit : edits)
+    {
+        if (edit.block._type == BlockType::LEAVES)
+        {
+            maxLeafY = std::max(maxLeafY, edit.worldPosition.y);
+        }
+    }
+
+    EXPECT_GE(maxLeafY, anchor.worldOrigin.y + 2);
+    EXPECT_LE(maxLeafY, anchor.worldOrigin.y + 8);
 }

@@ -16,30 +16,45 @@ void Chunk::reset(const ChunkCoord chunkCoord)
 void ChunkData::generate()
 {
     ZoneScopedN("Generate Chunk Data");
-    std::vector<float> chunkHeightMap = TerrainGenerator::instance().GenerateHeightMap(position.x, position.y);
+    const TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
+    const ChunkTerrainData& terrainData = terrainGenerator.GenerateChunkData(position.x, position.y);
     for(int x = 0; x < CHUNK_SIZE; x++)
     {
         for(int z = 0; z < CHUNK_SIZE; z++)
         {
-            // auto height = generator.NormalizeHeight(chunkHeightMap, CHUNK_HEIGHT, CHUNK_SIZE, x, z);
+            const TerrainColumnSample& column = terrainData.at(x, z);
             for (int y = 0; y < CHUNK_HEIGHT; y++)
             {
                 Block& block = blocks[x][y][z];
-                if (y <= chunkHeightMap[(z * CHUNK_SIZE) + x])
+                if (y > column.surfaceHeight)
                 {
-                    block._solid = true;
-                    block._type = BlockType::GROUND;
-                    block._sunlight = 0;
+                    if(y <= SEA_LEVEL) {
+                        block._solid = false;
+                        block._type = BlockType::WATER;
+                        block._sunlight = 0;
+                    }
+                    else {
+                        block._solid = false;
+                        block._type = BlockType::AIR;
+                        block._sunlight = 0;
+                    }
+                    continue;
                 }
-                else if(y <= SEA_LEVEL) {
-                    block._solid = false;
-                    block._type = BlockType::WATER;
-                    block._sunlight = 0;
+
+                block._solid = true;
+                block._sunlight = 0;
+
+                if (y == column.surfaceHeight)
+                {
+                    block._type = column.topBlock;
                 }
-                else {
-                    block._solid = false;
-                    block._type = BlockType::AIR;
-                    block._sunlight = 0;
+                else if (y >= column.stoneHeight)
+                {
+                    block._type = column.fillerBlock;
+                }
+                else
+                {
+                    block._type = BlockType::STONE;
                 }
             }
         }
@@ -47,7 +62,8 @@ void ChunkData::generate()
 
     StructureGenerationContext structureContext{
         .chunkCoord = {coord.x, coord.z},
-        .chunkOrigin = position
+        .chunkOrigin = position,
+        .terrainGenerator = &terrainGenerator
     };
     const std::vector<StructureBlockEdit> edits = StructureRegistry::instance().generate_overlapping(structureContext);
     apply_structure_edits(edits);

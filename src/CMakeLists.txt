@@ -26,6 +26,8 @@ add_executable(vulkan_guide
         game/block.cpp
         game/structure.h
         game/structure.cpp
+        game/tree_structure_generator.h
+        game/tree_structure_generator.cpp
         world/chunk_mesher.h
         world/chunk_mesher.cpp
         world/chunk_manager.h

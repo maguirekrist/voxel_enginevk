@@ -3,8 +3,10 @@ include(GoogleTest)
 add_executable(engine_tests
     engine_tests.cpp
     ../src/game/world.cpp
+    ../src/game/tree_structure_generator.cpp
     ../src/world/chunk_neighborhood.cpp
     ../src/world/chunk_lighting.cpp
+    ../src/world/terrain_gen.cpp
 )
 
 target_include_directories(engine_tests

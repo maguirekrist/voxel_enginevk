@@ -160,16 +160,18 @@ enum BlockType {
     GROUND = 1,
     WATER = 2,
     STONE = 3,
-    WOOD = 4,
-    LEAVES = 5,
-    LAMP = 6
+    SAND = 4,
+    WOOD = 5,
+    LEAVES = 6,
+    LAMP = 7
 };
 
-constexpr Color blockColor[7] = {
+constexpr Color blockColor[8] = {
     Colors::black,
     Colors::lightGreen,
     Colors::blue,
     Color{110, 110, 110},
+    Color{214, 196, 132},
     Color{110, 72, 35},
     Color{65, 160, 55},
     Color{255, 214, 120}
