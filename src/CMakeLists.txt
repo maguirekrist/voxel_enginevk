@@ -1,4 +1,3 @@
-
 # Add source to this project's executable.
 set(CMAKE_CXX_FLAGS_DEBUG, "/Zi")
 

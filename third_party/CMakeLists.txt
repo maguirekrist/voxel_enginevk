@@ -32,6 +32,9 @@ target_include_directories(tinyobjloader PUBLIC tinyobjloader)
 set(FASTNOISE2_NOISETOOL OFF CACHE BOOL "Build Noise Tool" FORCE) #example if don't need the graph tool
 add_subdirectory(FastNoise2)
 
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+add_subdirectory(SPIRV-Reflect/third_party/googletest EXCLUDE_FROM_ALL)
+
 add_subdirectory(tracy)
 
 include(FetchContent)

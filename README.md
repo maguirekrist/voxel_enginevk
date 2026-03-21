@@ -9,3 +9,20 @@
 - Full-screen post-processing effects in compute shader
 - FastNoise2 layered height map generation
 - Sunlight direction lighting and ambient occlusion pre-calculated per mesh
+
+## Testing
+
+Run the automated test suite from the repository root with:
+
+```powershell
+.\run_tests.ps1 -Release
+```
+
+You can also run the default configuration with:
+
+```powershell
+.\run_tests.ps1
+```
+
+Engineering note:
+- Run the test suite after every large initiative or systems-level change before considering the work complete.
