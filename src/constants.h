@@ -13,7 +13,6 @@ constexpr unsigned int TOTAL_BLOCKS_IN_CHUNK = CHUNK_SIZE * CHUNK_SIZE * CHUNK_H
 namespace GameConfig
 {
     constexpr int DEFAULT_VIEW_DISTANCE = 12;
-    constexpr int MAXIMUM_CHUNKS = (2 * DEFAULT_VIEW_DISTANCE + 1) * (2 * DEFAULT_VIEW_DISTANCE + 1);
     constexpr float DEFAULT_MOVE_SPEED = 40.0f;
     constexpr float DEFAULT_ROTATION_SPEED = 180.0f;
     constexpr float BLOCK_INTERACTION_DISTANCE = 8.0f;
@@ -22,6 +21,11 @@ namespace GameConfig
     constexpr float AO_MEDIUM = 0.76f;
     constexpr float AO_HEAVY = 0.66f;
     constexpr auto DEFAULT_POSITION = glm::vec3(0.0f, 120.0f, 0.0f);
+}
+
+constexpr int maximum_chunks_for_view_distance(const int viewDistance)
+{
+    return (2 * viewDistance + 1) * (2 * viewDistance + 1);
 }
 
 #ifdef NDEBUG

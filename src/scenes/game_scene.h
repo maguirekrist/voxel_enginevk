@@ -7,6 +7,7 @@
 #include "render/resource.h"
 #include "render/scene_render_state.h"
 #include "render/mesh.h"
+#include "settings/game_settings.h"
 #include "game/cube_engine.h"
 
 
@@ -47,40 +48,6 @@ private:
         glm::vec4 params3; // x=shadowStrength, y=localLightStrength
     };
 
-    struct LightingTuning
-    {
-        glm::vec3 daySkyZenith{0.58f, 0.80f, 1.0f};
-        glm::vec3 daySkyHorizon{0.96f, 0.97f, 1.0f};
-        glm::vec3 dayGround{0.60f, 0.48f, 0.36f};
-        glm::vec3 daySun{1.18f, 1.06f, 0.92f};
-        glm::vec3 dayShadow{0.78f, 0.86f, 1.0f};
-        glm::vec3 dayFog{0.74f, 0.88f, 1.0f};
-        glm::vec3 dayWaterShallow{0.42f, 0.82f, 0.95f};
-        glm::vec3 dayWaterDeep{0.12f, 0.34f, 0.58f};
-
-        glm::vec3 duskSkyHorizon{1.0f, 0.56f, 0.35f};
-        glm::vec3 duskFog{0.93f, 0.56f, 0.42f};
-
-        glm::vec3 nightSkyZenith{0.03f, 0.05f, 0.11f};
-        glm::vec3 nightSkyHorizon{0.10f, 0.08f, 0.16f};
-        glm::vec3 nightGround{0.10f, 0.08f, 0.11f};
-        glm::vec3 nightSun{0.50f, 0.56f, 0.82f};
-        glm::vec3 nightMoon{0.34f, 0.42f, 0.62f};
-        glm::vec3 nightShadow{0.14f, 0.18f, 0.30f};
-        glm::vec3 nightFog{0.06f, 0.10f, 0.18f};
-        glm::vec3 nightWaterShallow{0.10f, 0.22f, 0.30f};
-        glm::vec3 nightWaterDeep{0.02f, 0.05f, 0.10f};
-
-        float aoStrength{0.10f};
-        float shadowFloor{0.84f};
-        float hemiStrength{0.50f};
-        float skylightStrength{1.0f};
-        float shadowStrength{1.0f};
-        float localLightStrength{1.1f};
-        float waterFogStrength{0.35f};
-        float cycleDurationSeconds{180.0f};
-    };
-
     struct FogUBO {
         glm::vec3 fogColor;  // 12 bytes
         float padding1[1];   // 12 bytes of padding to align the next vec3
@@ -112,12 +79,8 @@ private:
     PlayerInputState _playerInput{};
     std::vector<dev_collections::sparse_set<RenderObject>::Handle> _chunkBoundaryHandles{};
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _targetBlockOutlineHandle{};
-    bool _showChunkBoundaries{false};
-    bool _ambientOcclusionEnabled{false};
-    bool _timeOfDayPaused{false};
-    int _viewDistanceSetting{GameConfig::DEFAULT_VIEW_DISTANCE};
-    float _timeOfDay{0.32f};
-    LightingTuning _lightingTuning{};
+    settings::SettingsManager _settings{};
+    int _viewDistanceDraft{GameConfig::DEFAULT_VIEW_DISTANCE};
 
     CubeEngine _game;
     std::unique_ptr<Camera> _camera;
@@ -130,6 +93,9 @@ private:
     void sync_target_block();
     void sync_target_block_outline();
     void sync_chunk_boundary_debug();
+    void bind_settings();
+    void apply_view_distance_settings(const settings::ViewDistanceRuntimeSettings& settings);
+    void apply_ambient_occlusion_settings(const settings::AmbientOcclusionRuntimeSettings& settings);
     void clear_target_block_outline();
     void clear_chunk_boundary_debug();
 };

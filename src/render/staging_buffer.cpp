@@ -2,18 +2,20 @@
 
 #include "vk_util.h"
 
-StagingBuffer::StagingBuffer(VmaAllocator vmaAllocator): m_write_head(nullptr), m_capacity(APPROXIMATE_BUFFER_SIZE), m_allocator(vmaAllocator), m_meshAllocator(vmaAllocator)
+StagingBuffer::StagingBuffer(VmaAllocator vmaAllocator, StagingBufferConfig config) :
+    m_write_head(nullptr),
+    m_capacity(static_cast<VkDeviceSize>(config.stagingBufferSize)),
+    m_allocator(vmaAllocator),
+    m_meshAllocator(vmaAllocator, config.meshAllocatorConfig),
+    m_config(std::move(config))
 {
-    m_stagingBuffer = vkutil::create_buffer(m_allocator, m_capacity, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                            VMA_MEMORY_USAGE_CPU_ONLY);
+    create_buffer();
     m_uploadHandles.reserve(32);
-
-    std::println("Staging Buffer created with size: {} bytes", m_capacity);
 }
 
 StagingBuffer::~StagingBuffer()
 {
-    vmaDestroyBuffer(m_allocator, m_stagingBuffer._buffer, m_stagingBuffer._allocation);
+    destroy_buffer();
 }
 
 void StagingBuffer::begin_recording()
@@ -110,4 +112,47 @@ void StagingBuffer::end_recording()
     m_uploadHandles.clear();
     m_write_head = nullptr;
     m_write_offset = 0;
+}
+
+void StagingBuffer::reconfigure(StagingBufferConfig config)
+{
+    if (!can_reconfigure())
+    {
+        throw std::runtime_error("StagingBuffer::reconfigure: staging buffer still has live allocations");
+    }
+
+    m_config = std::move(config);
+    m_capacity = static_cast<VkDeviceSize>(m_config.stagingBufferSize);
+    destroy_buffer();
+    m_meshAllocator.reconfigure(m_config.meshAllocatorConfig);
+    create_buffer();
+}
+
+bool StagingBuffer::can_reconfigure() const noexcept
+{
+    return !m_recording && m_uploadHandles.empty() && m_meshAllocator.can_reconfigure();
+}
+
+const StagingBufferConfig& StagingBuffer::config() const noexcept
+{
+    return m_config;
+}
+
+void StagingBuffer::destroy_buffer()
+{
+    if (m_stagingBuffer._buffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_stagingBuffer._buffer, m_stagingBuffer._allocation);
+        m_stagingBuffer = {};
+    }
+}
+
+void StagingBuffer::create_buffer()
+{
+    m_stagingBuffer = vkutil::create_buffer(
+        m_allocator,
+        m_capacity,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_MEMORY_USAGE_CPU_ONLY);
+    std::println("Staging Buffer created with size: {} bytes", m_capacity);
 }

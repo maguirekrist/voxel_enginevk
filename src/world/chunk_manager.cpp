@@ -124,8 +124,9 @@ void ChunkManager::enqueue_block_edit(const BlockEdit& edit)
     _worldEditQueue.enqueue(edit);
 }
 
-void ChunkManager::set_ambient_occlusion_enabled(const bool enabled)
+void ChunkManager::apply_mesh_settings(const ChunkMeshSettings& settings)
 {
+    const bool enabled = settings.ambientOcclusionEnabled;
     if (_ambientOcclusionEnabled == enabled)
     {
         return;
@@ -153,8 +154,9 @@ bool ChunkManager::ambient_occlusion_enabled() const noexcept
     return _ambientOcclusionEnabled;
 }
 
-void ChunkManager::set_view_distance(const int viewDistance)
+void ChunkManager::apply_streaming_settings(const ChunkStreamingSettings& settings)
 {
+    const int viewDistance = settings.viewDistance;
     const int clampedViewDistance = std::max(1, viewDistance);
     if (_viewDistance == clampedViewDistance)
     {

@@ -31,16 +31,6 @@ void ChunkRenderRegistry::sync(
             continue;
         }
 
-        meshManager.UploadQueue.enqueue(readyEvent.meshData->mesh);
-        if (!readyEvent.meshData->waterMesh->_vertices.empty())
-        {
-            meshManager.UploadQueue.enqueue(readyEvent.meshData->waterMesh);
-        }
-        if (!readyEvent.meshData->glowMesh->_vertices.empty())
-        {
-            meshManager.UploadQueue.enqueue(readyEvent.meshData->glowMesh);
-        }
-
         _pendingByChunk[readyEvent.chunk] = PendingChunkRender{
             .chunk = readyEvent.chunk,
             .generationId = readyEvent.generationId,
@@ -52,22 +42,24 @@ void ChunkRenderRegistry::sync(
                 !readyEvent.meshData->waterMesh->_vertices.empty(),
             .hasGlowTransparentMesh = readyEvent.meshData != nullptr &&
                 readyEvent.meshData->glowMesh != nullptr &&
-                !readyEvent.meshData->glowMesh->_vertices.empty()
+                !readyEvent.meshData->glowMesh->_vertices.empty(),
+            .uploadRequested = false
         };
     }
 
-    finalize_pending_renders(chunkManager, materialManager, renderState);
+    finalize_pending_renders(chunkManager, meshManager, materialManager, renderState);
 }
 
 void ChunkRenderRegistry::finalize_pending_renders(
     ChunkManager& chunkManager,
+    MeshManager& meshManager,
     MaterialManager& materialManager,
     SceneRenderState& renderState)
 {
     std::vector<Chunk*> completedChunks{};
     completedChunks.reserve(_pendingByChunk.size());
 
-    for (const auto& [chunk, pending] : _pendingByChunk)
+    for (auto& [chunk, pending] : _pendingByChunk)
     {
         if (chunk == nullptr)
         {
@@ -79,6 +71,26 @@ void ChunkRenderRegistry::finalize_pending_renders(
         {
             completedChunks.push_back(chunk);
             continue;
+        }
+
+        if (!pending.uploadRequested)
+        {
+            if (!meshManager.accepts_uploads())
+            {
+                continue;
+            }
+
+            meshManager.UploadQueue.enqueue(pending.meshData->mesh);
+            if (pending.hasWaterTransparentMesh)
+            {
+                meshManager.UploadQueue.enqueue(pending.meshData->waterMesh);
+            }
+            if (pending.hasGlowTransparentMesh)
+            {
+                meshManager.UploadQueue.enqueue(pending.meshData->glowMesh);
+            }
+
+            pending.uploadRequested = true;
         }
 
         const bool opaqueReady = pending.meshData != nullptr &&

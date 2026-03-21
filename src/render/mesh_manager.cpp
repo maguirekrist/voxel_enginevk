@@ -2,6 +2,7 @@
 #include <vk_initializers.h>
 #include <tracy/Tracy.hpp>
 #include <tiny_obj_loader.h>
+#include <algorithm>
 
 #include "mesh_release_queue.h"
 
@@ -24,10 +25,28 @@ void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamil
 	VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(m_uploadContext._commandPool, 1);
 	VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_uploadContext._commandBuffer));
 
-	m_stagingBuffer = std::make_unique<StagingBuffer>(m_allocator);
+	m_activeBudget = make_mesh_budget(settings::ViewDistanceRuntimeSettings{});
+	m_stagingBuffer = std::make_unique<StagingBuffer>(m_allocator, make_staging_buffer_config(m_activeBudget));
 
 	//Start transfer thread
 	//m_transferThread = std::thread(&MeshManager::handle_transfers, this);
+}
+
+void MeshManager::apply_view_distance_settings(const settings::ViewDistanceRuntimeSettings& settings)
+{
+    const MeshBudget requested = make_mesh_budget(settings);
+    if (requested.slotCapacity == m_activeBudget.slotCapacity)
+    {
+        return;
+    }
+
+    m_pendingBudget = requested;
+    try_apply_pending_budget();
+}
+
+bool MeshManager::accepts_uploads() const noexcept
+{
+    return !m_pendingBudget.has_value();
 }
 
 
@@ -67,6 +86,8 @@ void MeshManager::unload_garbage()
     {
         render::enqueue_mesh_release(std::move(mesh));
     }
+
+    try_apply_pending_budget();
 }
 
 // void MeshManager::upload_mesh(std::shared_ptr<Mesh>&& mesh) const
@@ -212,6 +233,7 @@ void MeshManager::immediate_submit(std::function<void(VkCommandBuffer cmd)> &&fu
 void MeshManager::handle_transfers()
 {
 	ZoneScopedN("Handle Upload meshes");
+    try_apply_pending_budget();
 	m_stagingBuffer->begin_recording();
 	std::shared_ptr<Mesh> uploadMesh;
 	while (UploadQueue.try_dequeue(uploadMesh))
@@ -222,4 +244,42 @@ void MeshManager::handle_transfers()
 	immediate_submit(m_stagingBuffer->build_submission());
 
 	m_stagingBuffer->end_recording();
+}
+
+void MeshManager::try_apply_pending_budget()
+{
+    if (!m_pendingBudget.has_value() || m_stagingBuffer == nullptr)
+    {
+        return;
+    }
+
+    if (!m_stagingBuffer->can_reconfigure())
+    {
+        return;
+    }
+
+    m_stagingBuffer->reconfigure(make_staging_buffer_config(m_pendingBudget.value()));
+    m_activeBudget = m_pendingBudget.value();
+    m_pendingBudget.reset();
+}
+
+MeshManager::MeshBudget MeshManager::make_mesh_budget(const settings::ViewDistanceRuntimeSettings& settings)
+{
+    constexpr size_t debugMeshHeadroom = 128;
+    const size_t maximumResidentChunks = static_cast<size_t>(std::max(1, settings.maximumResidentChunks));
+    return MeshBudget{
+        .viewDistance = settings.viewDistance,
+        .maximumResidentChunks = maximumResidentChunks,
+        .slotCapacity = (maximumResidentChunks * 2) + debugMeshHeadroom
+    };
+}
+
+StagingBufferConfig MeshManager::make_staging_buffer_config(const MeshBudget& budget)
+{
+    return StagingBufferConfig{
+        .stagingBufferSize = approximate_staging_buffer_size(budget.viewDistance),
+        .meshAllocatorConfig = MeshAllocatorConfig{
+            .slotCapacity = budget.slotCapacity
+        }
+    };
 }

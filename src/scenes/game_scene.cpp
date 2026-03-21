@@ -26,9 +26,8 @@ GameScene::GameScene(const SceneServices& services): _services(services)
 	build_pipelines();
 
 	create_camera();
+    bind_settings();
     sync_camera_to_game(0.0f);
-    _ambientOcclusionEnabled = _game.chunk_manager().ambient_occlusion_enabled();
-    _viewDistanceSetting = _game.chunk_manager().view_distance();
 
 	std::println("GameScene created!");
 }
@@ -74,9 +73,14 @@ void GameScene::update(const float deltaTime)
     _playerInput.lookDeltaX = 0.0f;
     _playerInput.lookDeltaY = 0.0f;
 	_game.update(deltaTime);
-    if (!_timeOfDayPaused)
+    auto& dayNight = _settings.persistence().dayNight;
+    if (!dayNight.paused)
     {
-        _timeOfDay = std::fmod(_timeOfDay + (deltaTime / std::max(_lightingTuning.cycleDurationSeconds, 1.0f)), 1.0f);
+        _settings.mutate([deltaTime](settings::GameSettingsPersistence& persistence)
+        {
+            const float cycleDuration = std::max(persistence.dayNight.tuning.cycleDurationSeconds, 1.0f);
+            persistence.dayNight.timeOfDay = std::fmod(persistence.dayNight.timeOfDay + (deltaTime / cycleDuration), 1.0f);
+        });
     }
     sync_camera_to_game(deltaTime);
     sync_target_block();
@@ -88,7 +92,10 @@ void GameScene::handle_input(const SDL_Event& event)
         case SDL_KEYDOWN:
             if (!event.key.repeat && event.key.keysym.scancode == SDL_SCANCODE_G)
             {
-                _showChunkBoundaries = !_showChunkBoundaries;
+                _settings.mutate([](settings::GameSettingsPersistence& persistence)
+                {
+                    persistence.debug.showChunkBoundaries = !persistence.debug.showChunkBoundaries;
+                });
             }
             break;
 		case SDL_MOUSEBUTTONDOWN:
@@ -301,7 +308,7 @@ void GameScene::draw_debug_map()
                 ImGui::Text("Player Local Position: x: %d, z: %d, y: %d", local_pos.x, local_pos.z, local_pos.y);
             }
 
-            const int viewDistance = _game.chunk_manager().view_distance();
+            const int viewDistance = _settings.persistence().world.viewDistance;
             const int max_chunks = (viewDistance * 2) + 1;
             if (ImGui::BeginTable("MyGrid", max_chunks))
             {
@@ -366,45 +373,112 @@ void GameScene::draw_debug_map()
 
         if (ImGui::BeginTabItem("Settings"))
         {
-            ImGui::Checkbox("Show Chunk Boundaries (G)", &_showChunkBoundaries);
-            if (ImGui::Checkbox("Ambient Occlusion", &_ambientOcclusionEnabled))
+            const settings::GameSettingsPersistence& persistence = _settings.persistence();
+
+            bool showChunkBoundaries = persistence.debug.showChunkBoundaries;
+            if (ImGui::Checkbox("Show Chunk Boundaries (G)", &showChunkBoundaries))
             {
-                _game.chunk_manager().set_ambient_occlusion_enabled(_ambientOcclusionEnabled);
+                _settings.mutate([showChunkBoundaries](settings::GameSettingsPersistence& updated)
+                {
+                    updated.debug.showChunkBoundaries = showChunkBoundaries;
+                });
             }
-            if (ImGui::SliderInt("View Distance", &_viewDistanceSetting, 1, 20))
+
+            bool ambientOcclusionEnabled = persistence.world.ambientOcclusionEnabled;
+            if (ImGui::Checkbox("Ambient Occlusion", &ambientOcclusionEnabled))
             {
-                _game.chunk_manager().set_view_distance(_viewDistanceSetting);
-                _viewDistanceSetting = _game.chunk_manager().view_distance();
+                _settings.mutate([ambientOcclusionEnabled](settings::GameSettingsPersistence& updated)
+                {
+                    updated.world.ambientOcclusionEnabled = ambientOcclusionEnabled;
+                });
             }
-            ImGui::Checkbox("Pause Day/Night Clock", &_timeOfDayPaused);
-            ImGui::SliderFloat("Time Of Day", &_timeOfDay, 0.0f, 1.0f);
-            ImGui::SliderFloat("Cycle Seconds", &_lightingTuning.cycleDurationSeconds, 10.0f, 600.0f);
-            ImGui::SliderFloat("Shadow Floor", &_lightingTuning.shadowFloor, 0.0f, 1.2f);
-            ImGui::SliderFloat("Skylight Shadow Strength", &_lightingTuning.shadowStrength, 0.2f, 3.0f);
-            ImGui::SliderFloat("Local Light Strength", &_lightingTuning.localLightStrength, 0.0f, 2.5f);
-            ImGui::SliderFloat("Hemi Strength", &_lightingTuning.hemiStrength, 0.0f, 1.0f);
-            ImGui::SliderFloat("Skylight Strength", &_lightingTuning.skylightStrength, 0.0f, 1.5f);
-            ImGui::SliderFloat("AO Strength", &_lightingTuning.aoStrength, 0.0f, 0.5f);
-            ImGui::SliderFloat("Water Fog Strength", &_lightingTuning.waterFogStrength, 0.0f, 1.0f);
-            ImGui::ColorEdit3("Day Sky Zenith", &(_lightingTuning.daySkyZenith.x));
-            ImGui::ColorEdit3("Day Sky Horizon", &(_lightingTuning.daySkyHorizon.x));
-            ImGui::ColorEdit3("Day Ground", &(_lightingTuning.dayGround.x));
-            ImGui::ColorEdit3("Day Sun", &(_lightingTuning.daySun.x));
-            ImGui::ColorEdit3("Day Shadow", &(_lightingTuning.dayShadow.x));
-            ImGui::ColorEdit3("Day Fog", &(_lightingTuning.dayFog.x));
-            ImGui::ColorEdit3("Day Water Shallow", &(_lightingTuning.dayWaterShallow.x));
-            ImGui::ColorEdit3("Day Water Deep", &(_lightingTuning.dayWaterDeep.x));
-            ImGui::ColorEdit3("Dusk Horizon", &(_lightingTuning.duskSkyHorizon.x));
-            ImGui::ColorEdit3("Dusk Fog", &(_lightingTuning.duskFog.x));
-            ImGui::ColorEdit3("Night Sky Zenith", &(_lightingTuning.nightSkyZenith.x));
-            ImGui::ColorEdit3("Night Sky Horizon", &(_lightingTuning.nightSkyHorizon.x));
-            ImGui::ColorEdit3("Night Ground", &(_lightingTuning.nightGround.x));
-            ImGui::ColorEdit3("Night Sun", &(_lightingTuning.nightSun.x));
-            ImGui::ColorEdit3("Night Moon", &(_lightingTuning.nightMoon.x));
-            ImGui::ColorEdit3("Night Shadow", &(_lightingTuning.nightShadow.x));
-            ImGui::ColorEdit3("Night Fog", &(_lightingTuning.nightFog.x));
-            ImGui::ColorEdit3("Night Water Shallow", &(_lightingTuning.nightWaterShallow.x));
-            ImGui::ColorEdit3("Night Water Deep", &(_lightingTuning.nightWaterDeep.x));
+
+            ImGui::SliderInt("View Distance", &_viewDistanceDraft, 1, 20);
+            const bool viewDistanceDirty = _viewDistanceDraft != persistence.world.viewDistance;
+            if (!viewDistanceDirty)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::Button("Apply View Distance"))
+            {
+                const int requestedViewDistance = _viewDistanceDraft;
+                _settings.mutate([requestedViewDistance](settings::GameSettingsPersistence& updated)
+                {
+                    updated.world.viewDistance = requestedViewDistance;
+                });
+            }
+            if (!viewDistanceDirty)
+            {
+                ImGui::EndDisabled();
+            }
+            ImGui::SameLine();
+            if (!viewDistanceDirty)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::Button("Reset View Distance"))
+            {
+                _viewDistanceDraft = persistence.world.viewDistance;
+            }
+            if (!viewDistanceDirty)
+            {
+                ImGui::EndDisabled();
+            }
+
+            bool pauseClock = persistence.dayNight.paused;
+            if (ImGui::Checkbox("Pause Day/Night Clock", &pauseClock))
+            {
+                _settings.mutate([pauseClock](settings::GameSettingsPersistence& updated)
+                {
+                    updated.dayNight.paused = pauseClock;
+                });
+            }
+
+            float timeOfDay = persistence.dayNight.timeOfDay;
+            if (ImGui::SliderFloat("Time Of Day", &timeOfDay, 0.0f, 1.0f))
+            {
+                _settings.mutate([timeOfDay](settings::GameSettingsPersistence& updated)
+                {
+                    updated.dayNight.timeOfDay = timeOfDay;
+                });
+            }
+
+            auto tuning = persistence.dayNight.tuning;
+            bool tuningChanged = false;
+            tuningChanged |= ImGui::SliderFloat("Cycle Seconds", &tuning.cycleDurationSeconds, 10.0f, 600.0f);
+            tuningChanged |= ImGui::SliderFloat("Shadow Floor", &tuning.shadowFloor, 0.0f, 1.2f);
+            tuningChanged |= ImGui::SliderFloat("Skylight Shadow Strength", &tuning.shadowStrength, 0.2f, 3.0f);
+            tuningChanged |= ImGui::SliderFloat("Local Light Strength", &tuning.localLightStrength, 0.0f, 2.5f);
+            tuningChanged |= ImGui::SliderFloat("Hemi Strength", &tuning.hemiStrength, 0.0f, 1.0f);
+            tuningChanged |= ImGui::SliderFloat("Skylight Strength", &tuning.skylightStrength, 0.0f, 1.5f);
+            tuningChanged |= ImGui::SliderFloat("AO Strength", &tuning.aoStrength, 0.0f, 0.5f);
+            tuningChanged |= ImGui::SliderFloat("Water Fog Strength", &tuning.waterFogStrength, 0.0f, 1.0f);
+            tuningChanged |= ImGui::ColorEdit3("Day Sky Zenith", &(tuning.daySkyZenith.x));
+            tuningChanged |= ImGui::ColorEdit3("Day Sky Horizon", &(tuning.daySkyHorizon.x));
+            tuningChanged |= ImGui::ColorEdit3("Day Ground", &(tuning.dayGround.x));
+            tuningChanged |= ImGui::ColorEdit3("Day Sun", &(tuning.daySun.x));
+            tuningChanged |= ImGui::ColorEdit3("Day Shadow", &(tuning.dayShadow.x));
+            tuningChanged |= ImGui::ColorEdit3("Day Fog", &(tuning.dayFog.x));
+            tuningChanged |= ImGui::ColorEdit3("Day Water Shallow", &(tuning.dayWaterShallow.x));
+            tuningChanged |= ImGui::ColorEdit3("Day Water Deep", &(tuning.dayWaterDeep.x));
+            tuningChanged |= ImGui::ColorEdit3("Dusk Horizon", &(tuning.duskSkyHorizon.x));
+            tuningChanged |= ImGui::ColorEdit3("Dusk Fog", &(tuning.duskFog.x));
+            tuningChanged |= ImGui::ColorEdit3("Night Sky Zenith", &(tuning.nightSkyZenith.x));
+            tuningChanged |= ImGui::ColorEdit3("Night Sky Horizon", &(tuning.nightSkyHorizon.x));
+            tuningChanged |= ImGui::ColorEdit3("Night Ground", &(tuning.nightGround.x));
+            tuningChanged |= ImGui::ColorEdit3("Night Sun", &(tuning.nightSun.x));
+            tuningChanged |= ImGui::ColorEdit3("Night Moon", &(tuning.nightMoon.x));
+            tuningChanged |= ImGui::ColorEdit3("Night Shadow", &(tuning.nightShadow.x));
+            tuningChanged |= ImGui::ColorEdit3("Night Fog", &(tuning.nightFog.x));
+            tuningChanged |= ImGui::ColorEdit3("Night Water Shallow", &(tuning.nightWaterShallow.x));
+            tuningChanged |= ImGui::ColorEdit3("Night Water Deep", &(tuning.nightWaterDeep.x));
+            if (tuningChanged)
+            {
+                _settings.mutate([tuning](settings::GameSettingsPersistence& updated)
+                {
+                    updated.dayNight.tuning = tuning;
+                });
+            }
             ImGui::EndTabItem();
         }
 
@@ -416,17 +490,19 @@ void GameScene::draw_debug_map()
 void GameScene::update_fog_ubo() const
 {
 	FogUBO fogUBO{};
-    const float angle = _timeOfDay * glm::two_pi<float>();
+    const settings::GameSettingsPersistence& persistence = _settings.persistence();
+    const settings::LightingTuningSettings& tuning = persistence.dayNight.tuning;
+    const float angle = persistence.dayNight.timeOfDay * glm::two_pi<float>();
     const float sunHeight = std::sin(angle);
     const float dayFactor = std::clamp((sunHeight + 0.2f) / 1.1f, 0.0f, 1.0f);
-    const glm::vec3& dayFog = _lightingTuning.dayFog;
-    const glm::vec3& duskFog = _lightingTuning.duskFog;
-    const glm::vec3& nightFog = _lightingTuning.nightFog;
+    const glm::vec3& dayFog = tuning.dayFog;
+    const glm::vec3& duskFog = tuning.duskFog;
+    const glm::vec3& nightFog = tuning.nightFog;
 	fogUBO.fogColor = glm::mix(glm::mix(nightFog, duskFog, std::clamp(1.0f - std::abs(sunHeight), 0.0f, 1.0f)), dayFog, dayFactor);
 	fogUBO.fogEndColor = glm::mix(fogUBO.fogColor * 0.82f, fogUBO.fogColor * 1.12f, dayFactor);
 
 	fogUBO.fogCenter = _game.snapshot().player.position;
-	fogUBO.fogRadius = (CHUNK_SIZE * _game.chunk_manager().view_distance()) - 60.0f;
+	fogUBO.fogRadius = _settings.view_distance_runtime_settings().fogRadius;
 	const VkExtent2D windowExtent = _services.current_window_extent();
 	fogUBO.screenSize = glm::ivec2(windowExtent.width, windowExtent.height);
 	fogUBO.invViewProject = glm::inverse(_camera->_projection * _camera->_view);
@@ -439,23 +515,25 @@ void GameScene::update_fog_ubo() const
 
 void GameScene::update_lighting_ubo() const
 {
-    const float angle = _timeOfDay * glm::two_pi<float>();
+    const settings::GameSettingsPersistence& persistence = _settings.persistence();
+    const settings::LightingTuningSettings& tuning = persistence.dayNight.tuning;
+    const float angle = persistence.dayNight.timeOfDay * glm::two_pi<float>();
     const float sunHeight = std::sin(angle);
     const float dayFactor = std::clamp((sunHeight + 0.2f) / 1.1f, 0.0f, 1.0f);
     const float duskFactor = std::clamp(1.0f - std::abs(sunHeight), 0.0f, 1.0f) * (1.0f - dayFactor);
 
     LightingUBO lighting{};
-    lighting.skyZenithColor = glm::vec4(glm::mix(_lightingTuning.nightSkyZenith, _lightingTuning.daySkyZenith, dayFactor), 1.0f);
-    lighting.skyHorizonColor = glm::vec4(glm::mix(_lightingTuning.nightSkyHorizon, glm::mix(_lightingTuning.duskSkyHorizon, _lightingTuning.daySkyHorizon, dayFactor), std::max(dayFactor, duskFactor)), 1.0f);
-    lighting.groundColor = glm::vec4(glm::mix(_lightingTuning.nightGround, _lightingTuning.dayGround, dayFactor), 1.0f);
-    lighting.sunColor = glm::vec4(glm::mix(_lightingTuning.nightSun, _lightingTuning.daySun, std::max(dayFactor, duskFactor)), 1.0f);
-    lighting.moonColor = glm::vec4(_lightingTuning.nightMoon, 1.0f);
-    lighting.shadowColor = glm::vec4(glm::mix(_lightingTuning.nightShadow, _lightingTuning.dayShadow, dayFactor), 1.0f);
-    lighting.waterShallowColor = glm::vec4(glm::mix(_lightingTuning.nightWaterShallow, _lightingTuning.dayWaterShallow, dayFactor), 1.0f);
-    lighting.waterDeepColor = glm::vec4(glm::mix(_lightingTuning.nightWaterDeep, _lightingTuning.dayWaterDeep, dayFactor), 1.0f);
-    lighting.params1 = glm::vec4(_timeOfDay, sunHeight, dayFactor, _ambientOcclusionEnabled ? _lightingTuning.aoStrength : 0.0f);
-    lighting.params2 = glm::vec4(_lightingTuning.shadowFloor, _lightingTuning.hemiStrength, _lightingTuning.skylightStrength, _lightingTuning.waterFogStrength);
-    lighting.params3 = glm::vec4(_lightingTuning.shadowStrength, _lightingTuning.localLightStrength, 0.0f, 0.0f);
+    lighting.skyZenithColor = glm::vec4(glm::mix(tuning.nightSkyZenith, tuning.daySkyZenith, dayFactor), 1.0f);
+    lighting.skyHorizonColor = glm::vec4(glm::mix(tuning.nightSkyHorizon, glm::mix(tuning.duskSkyHorizon, tuning.daySkyHorizon, dayFactor), std::max(dayFactor, duskFactor)), 1.0f);
+    lighting.groundColor = glm::vec4(glm::mix(tuning.nightGround, tuning.dayGround, dayFactor), 1.0f);
+    lighting.sunColor = glm::vec4(glm::mix(tuning.nightSun, tuning.daySun, std::max(dayFactor, duskFactor)), 1.0f);
+    lighting.moonColor = glm::vec4(tuning.nightMoon, 1.0f);
+    lighting.shadowColor = glm::vec4(glm::mix(tuning.nightShadow, tuning.dayShadow, dayFactor), 1.0f);
+    lighting.waterShallowColor = glm::vec4(glm::mix(tuning.nightWaterShallow, tuning.dayWaterShallow, dayFactor), 1.0f);
+    lighting.waterDeepColor = glm::vec4(glm::mix(tuning.nightWaterDeep, tuning.dayWaterDeep, dayFactor), 1.0f);
+    lighting.params1 = glm::vec4(persistence.dayNight.timeOfDay, sunHeight, dayFactor, persistence.world.ambientOcclusionEnabled ? tuning.aoStrength : 0.0f);
+    lighting.params2 = glm::vec4(tuning.shadowFloor, tuning.hemiStrength, tuning.skylightStrength, tuning.waterFogStrength);
+    lighting.params3 = glm::vec4(tuning.shadowStrength, tuning.localLightStrength, 0.0f, 0.0f);
 
     void* data;
     vmaMapMemory(_services.allocator, _lightingResource->value.buffer._allocation, &data);
@@ -535,7 +613,7 @@ void GameScene::sync_target_block_outline()
 void GameScene::sync_chunk_boundary_debug()
 {
     clear_chunk_boundary_debug();
-    if (!_showChunkBoundaries)
+    if (!_settings.persistence().debug.showChunkBoundaries)
     {
         return;
     }
@@ -549,7 +627,7 @@ void GameScene::sync_chunk_boundary_debug()
     const auto debugMaterial = _services.materialManager->get_material("chunkboundary");
     const GameSnapshot& snapshot = _game.snapshot();
     const ChunkCoord playerChunk = snapshot.currentChunk.value_or(World::get_chunk_coordinates(snapshot.player.position));
-    const int viewDistance = _game.chunk_manager().view_distance();
+    const int viewDistance = _settings.persistence().world.viewDistance;
     _chunkBoundaryHandles.reserve(static_cast<size_t>((viewDistance * 2 + 1) * (viewDistance * 2 + 1)));
 
     for (int chunkZ = playerChunk.z - viewDistance; chunkZ <= playerChunk.z + viewDistance; ++chunkZ)
@@ -590,4 +668,45 @@ void GameScene::clear_target_block_outline()
         _renderState.opaqueObjects.remove(_targetBlockOutlineHandle.value());
         _targetBlockOutlineHandle.reset();
     }
+}
+
+void GameScene::bind_settings()
+{
+    _settings.bind_view_distance_handler([this](const settings::ViewDistanceRuntimeSettings& settings)
+    {
+        apply_view_distance_settings(settings);
+    });
+    _settings.bind_ambient_occlusion_handler([this](const settings::AmbientOcclusionRuntimeSettings& settings)
+    {
+        apply_ambient_occlusion_settings(settings);
+    });
+}
+
+void GameScene::apply_view_distance_settings(const settings::ViewDistanceRuntimeSettings& settings)
+{
+    _viewDistanceDraft = settings.viewDistance;
+    _chunkRenderRegistry.clear(_renderState);
+    clear_chunk_boundary_debug();
+    clear_target_block_outline();
+    _outlinedBlockWorldPos.reset();
+    if (_chunkBoundaryMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_chunkBoundaryMesh));
+    }
+    if (_targetBlockOutlineMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_targetBlockOutlineMesh));
+    }
+
+    _services.meshManager->apply_view_distance_settings(settings);
+    _game.chunk_manager().apply_streaming_settings(ChunkStreamingSettings{
+        .viewDistance = settings.viewDistance
+    });
+}
+
+void GameScene::apply_ambient_occlusion_settings(const settings::AmbientOcclusionRuntimeSettings& settings)
+{
+    _game.chunk_manager().apply_mesh_settings(ChunkMeshSettings{
+        .ambientOcclusionEnabled = settings.enabled
+    });
 }

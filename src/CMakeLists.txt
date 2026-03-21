@@ -65,6 +65,8 @@ add_executable(vulkan_guide
     scenes/scene_services.h
     scenes/game_scene.h
     scenes/game_scene.cpp
+    settings/game_settings.h
+    settings/game_settings.cpp
     render/scene_renderer.h
     render/scene_renderer.cpp
         render/render_primitives.h

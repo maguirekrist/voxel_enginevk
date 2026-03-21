@@ -8,6 +8,7 @@
 #include "game/block.h"
 #include "game/chunk.h"
 #include "game/tree_structure_generator.h"
+#include "settings/game_settings.h"
 #include "game/world.h"
 #include "world/chunk_lighting.h"
 #include "world/chunk_manager.h"
@@ -238,4 +239,59 @@ TEST(TreeStructureGeneratorTest, OakTreePreservesFullTrunkColumn)
 
     EXPECT_GE(maxLeafY, anchor.worldOrigin.y + 2);
     EXPECT_LE(maxLeafY, anchor.worldOrigin.y + 8);
+}
+
+TEST(SettingsManagerTest, ViewDistanceHandlersReceiveDerivedRuntimeValues)
+{
+    settings::SettingsManager manager;
+    settings::ViewDistanceRuntimeSettings last{};
+    int notifications = 0;
+
+    manager.bind_view_distance_handler([&](const settings::ViewDistanceRuntimeSettings& runtime)
+    {
+        last = runtime;
+        ++notifications;
+    });
+
+    EXPECT_EQ(notifications, 1);
+    EXPECT_EQ(last.viewDistance, GameConfig::DEFAULT_VIEW_DISTANCE);
+    EXPECT_EQ(last.maximumResidentChunks, maximum_chunks_for_view_distance(GameConfig::DEFAULT_VIEW_DISTANCE));
+
+    const bool changed = manager.mutate([](settings::GameSettingsPersistence& persistence)
+    {
+        persistence.world.viewDistance = 18;
+    });
+
+    EXPECT_TRUE(changed);
+    EXPECT_EQ(notifications, 2);
+    EXPECT_EQ(last.viewDistance, 18);
+    EXPECT_EQ(last.maximumResidentChunks, maximum_chunks_for_view_distance(18));
+}
+
+TEST(SettingsManagerTest, AmbientOcclusionUpdatesOnlyRelevantSubscribers)
+{
+    settings::SettingsManager manager;
+    int viewDistanceNotifications = 0;
+    int ambientNotifications = 0;
+    bool ambientEnabled = false;
+
+    manager.bind_view_distance_handler([&](const settings::ViewDistanceRuntimeSettings&)
+    {
+        ++viewDistanceNotifications;
+    });
+    manager.bind_ambient_occlusion_handler([&](const settings::AmbientOcclusionRuntimeSettings& runtime)
+    {
+        ambientEnabled = runtime.enabled;
+        ++ambientNotifications;
+    });
+
+    const bool changed = manager.mutate([](settings::GameSettingsPersistence& persistence)
+    {
+        persistence.world.ambientOcclusionEnabled = true;
+    });
+
+    EXPECT_TRUE(changed);
+    EXPECT_TRUE(ambientEnabled);
+    EXPECT_EQ(ambientNotifications, 2);
+    EXPECT_EQ(viewDistanceNotifications, 1);
 }

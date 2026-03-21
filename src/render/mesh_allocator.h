@@ -6,6 +6,13 @@
 
 struct MeshAllocation;
 
+struct MeshAllocatorConfig
+{
+    size_t slotCapacity{static_cast<size_t>((maximum_chunks_for_view_distance(GameConfig::DEFAULT_VIEW_DISTANCE) * 2) + 128)};
+    VkDeviceSize vertexSlabSize{1048576};
+    VkDeviceSize indexSlabSize{262144};
+};
+
 struct MeshSlot
 {
     VkDeviceSize vertex_offset;
@@ -14,28 +21,25 @@ struct MeshSlot
 
 class MeshAllocator {
 public:
-
-    explicit MeshAllocator(VmaAllocator allocator);
+    explicit MeshAllocator(VmaAllocator allocator, MeshAllocatorConfig config = {});
     ~MeshAllocator();
 
     MeshAllocation acquire();
     void free(MeshAllocation allocation);
+    void reconfigure(MeshAllocatorConfig config);
+    [[nodiscard]] bool can_reconfigure() const noexcept;
+    [[nodiscard]] const MeshAllocatorConfig& config() const noexcept;
 
     AllocatedBuffer m_indexBuffer{};
     AllocatedBuffer m_vertexBuffer{};
 private:
-    inline static constexpr VkDeviceSize DEBUG_MESH_HEADROOM = 128;
-    inline static constexpr VkDeviceSize CAPACITY = (GameConfig::MAXIMUM_CHUNKS * 2) + DEBUG_MESH_HEADROOM;
     std::vector<int32_t> m_free_list;
     VmaAllocator m_allocator;
-
-    inline static constexpr VkDeviceSize VERTEX_SLAB_SIZE = 1048576;
-    inline static constexpr VkDeviceSize INDEX_SLAB_SIZE = 262144;
-
-    inline static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = VERTEX_SLAB_SIZE * CAPACITY;
-    inline static constexpr VkDeviceSize INDEX_BUFFER_SIZE = INDEX_SLAB_SIZE * CAPACITY;
+    MeshAllocatorConfig m_config{};
 
     [[nodiscard]] MeshSlot get_slot(size_t index) const;
+    void destroy_buffers();
+    void create_buffers();
 };
 
 struct MeshAllocation

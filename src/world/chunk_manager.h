@@ -43,6 +43,16 @@ struct MapRange
     }
 };
 
+struct ChunkStreamingSettings
+{
+    int viewDistance{GameConfig::DEFAULT_VIEW_DISTANCE};
+};
+
+struct ChunkMeshSettings
+{
+    bool ambientOcclusionEnabled{false};
+};
+
 class ChunkManager {
 public:
     struct ChunkRenderResetEvent
@@ -89,9 +99,9 @@ public:
     Chunk* get_chunk(ChunkCoord coord) const;
     std::optional<ChunkDebugState> debug_state(ChunkCoord coord) const;
     std::optional<ChunkNeighborhood> build_neighborhood(ChunkCoord coord) const;
-    void set_ambient_occlusion_enabled(bool enabled);
+    void apply_mesh_settings(const ChunkMeshSettings& settings);
     [[nodiscard]] bool ambient_occlusion_enabled() const noexcept;
-    void set_view_distance(int viewDistance);
+    void apply_streaming_settings(const ChunkStreamingSettings& settings);
     [[nodiscard]] int view_distance() const noexcept;
     bool try_dequeue_render_reset(ChunkRenderResetEvent& event);
     bool try_dequeue_render_ready(ChunkRenderReadyEvent& event);

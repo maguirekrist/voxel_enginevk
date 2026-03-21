@@ -42,6 +42,7 @@ private:
         std::shared_ptr<ChunkMeshData> meshData{};
         bool hasWaterTransparentMesh{false};
         bool hasGlowTransparentMesh{false};
+        bool uploadRequested{false};
     };
 
     std::unordered_map<Chunk*, ChunkRenderHandles> _handlesByChunk;
@@ -50,6 +51,7 @@ private:
     void remove_chunk(Chunk* chunk, SceneRenderState& renderState);
     void finalize_pending_renders(
         ChunkManager& chunkManager,
+        MeshManager& meshManager,
         MaterialManager& materialManager,
         SceneRenderState& renderState);
 };

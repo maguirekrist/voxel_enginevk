@@ -2,6 +2,7 @@ include(GoogleTest)
 
 add_executable(engine_tests
     engine_tests.cpp
+    ../src/settings/game_settings.cpp
     ../src/game/world.cpp
     ../src/game/tree_structure_generator.cpp
     ../src/world/chunk_neighborhood.cpp
