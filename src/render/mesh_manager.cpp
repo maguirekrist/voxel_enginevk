@@ -6,6 +6,11 @@
 
 #include "mesh_release_queue.h"
 
+namespace
+{
+    constexpr MeshAllocationStrategy DefaultMeshAllocationStrategy = MeshAllocationStrategy::VariableSuballocation;
+}
+
 void MeshManager::init(VkDevice device, VmaAllocator allocator, const QueueFamily& queue)
 {
 	m_device = device;
@@ -136,7 +141,7 @@ void MeshManager::unload_mesh(std::shared_ptr<Mesh>&& mesh) const
 	ZoneScopedN("unload_mesh()");
 	// vmaDestroyBuffer(m_allocator, mesh->_vertexBuffer._buffer, mesh->_vertexBuffer._allocation);
 	// vmaDestroyBuffer(m_allocator, mesh->_indexBuffer._buffer, mesh->_indexBuffer._allocation);
-	m_stagingBuffer->m_meshAllocator.free(mesh->_allocation);
+	m_stagingBuffer->mesh_allocator().free(mesh->_allocation);
 	mesh->_isActive.store(false, std::memory_order::release);
 }
 
@@ -279,6 +284,7 @@ StagingBufferConfig MeshManager::make_staging_buffer_config(const MeshBudget& bu
     return StagingBufferConfig{
         .stagingBufferSize = approximate_staging_buffer_size(budget.viewDistance),
         .meshAllocatorConfig = MeshAllocatorConfig{
+            .strategy = DefaultMeshAllocationStrategy,
             .slotCapacity = budget.slotCapacity
         }
     };

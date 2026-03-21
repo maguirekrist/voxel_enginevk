@@ -6,9 +6,9 @@ StagingBuffer::StagingBuffer(VmaAllocator vmaAllocator, StagingBufferConfig conf
     m_write_head(nullptr),
     m_capacity(static_cast<VkDeviceSize>(config.stagingBufferSize)),
     m_allocator(vmaAllocator),
-    m_meshAllocator(vmaAllocator, config.meshAllocatorConfig),
     m_config(std::move(config))
 {
+    m_meshAllocator = create_mesh_allocator(vmaAllocator, m_config.meshAllocatorConfig);
     create_buffer();
     m_uploadHandles.reserve(32);
 }
@@ -45,17 +45,7 @@ void StagingBuffer::upload_mesh(std::shared_ptr<Mesh>&& mesh)
     m_write_offset += i_size;
     m_write_head = static_cast<char*>(m_write_head) + i_size;
 
-    auto allocation = m_meshAllocator.acquire();
-
-    if (v_size > allocation.vertex_slab_size || i_size > allocation.index_slab_size)
-    {
-        throw std::runtime_error(std::format(
-            "StagingBuffer::upload_mesh: Slab size too small, vertex slab: {}, index slab: {}, vs v size: {} and i size: {}",
-            allocation.vertex_slab_size,
-            allocation.index_slab_size,
-            v_size,
-            i_size));
-    }
+    auto allocation = m_meshAllocator->acquire(v_size, i_size);
 
     m_v_total_count += 1;
     m_v_total_size += v_size;
@@ -65,7 +55,7 @@ void StagingBuffer::upload_mesh(std::shared_ptr<Mesh>&& mesh)
     // std::println("average v size: {}", m_v_total_size / m_v_total_count);
     // std::println("average i size: {}", m_i_total_size / m_i_total_count);
 
-    allocation.indices_size = static_cast<uint32_t>(mesh->_indices.size());
+    allocation.indicesSize = static_cast<uint32_t>(mesh->_indices.size());
     mesh->_allocation = allocation;
 
     //Clear out mesh memory
@@ -89,16 +79,18 @@ std::function<void(VkCommandBuffer cmd)> StagingBuffer::build_submission() const
         {
             //USE Mesh Allocator
             VkBufferCopy vertex_copy;
-            vertex_copy.dstOffset = handle.mesh->_allocation.slot.vertex_offset;
+            vertex_copy.dstOffset = handle.mesh->_allocation.vertexOffset;
             vertex_copy.srcOffset = handle.vertexOffset;
             vertex_copy.size = handle.vertexSize;
-            vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer, m_meshAllocator.m_vertexBuffer._buffer, 1, &vertex_copy);
+            const VkBuffer vertexBuffer = m_meshAllocator->vertex_buffer_handle();
+            vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer, vertexBuffer, 1, &vertex_copy);
 
             VkBufferCopy index_copy;
-            index_copy.dstOffset = handle.mesh->_allocation.slot.index_offset;
+            index_copy.dstOffset = handle.mesh->_allocation.indexOffset;
             index_copy.srcOffset = handle.indexOffset;
             index_copy.size = handle.indexSize;
-            vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer,m_meshAllocator.m_indexBuffer._buffer, 1, &index_copy);
+            const VkBuffer indexBuffer = m_meshAllocator->index_buffer_handle();
+            vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer, indexBuffer, 1, &index_copy);
 
             handle.mesh->_isActive.store(true, std::memory_order::relaxed);
         }
@@ -124,18 +116,28 @@ void StagingBuffer::reconfigure(StagingBufferConfig config)
     m_config = std::move(config);
     m_capacity = static_cast<VkDeviceSize>(m_config.stagingBufferSize);
     destroy_buffer();
-    m_meshAllocator.reconfigure(m_config.meshAllocatorConfig);
+    m_meshAllocator->reconfigure(m_config.meshAllocatorConfig);
     create_buffer();
 }
 
 bool StagingBuffer::can_reconfigure() const noexcept
 {
-    return !m_recording && m_uploadHandles.empty() && m_meshAllocator.can_reconfigure();
+    return !m_recording && m_uploadHandles.empty() && m_meshAllocator != nullptr && m_meshAllocator->can_reconfigure();
 }
 
 const StagingBufferConfig& StagingBuffer::config() const noexcept
 {
     return m_config;
+}
+
+IMeshAllocator& StagingBuffer::mesh_allocator()
+{
+    return *m_meshAllocator;
+}
+
+const IMeshAllocator& StagingBuffer::mesh_allocator() const
+{
+    return *m_meshAllocator;
 }
 
 void StagingBuffer::destroy_buffer()

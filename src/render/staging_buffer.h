@@ -54,7 +54,8 @@ public:
     [[nodiscard]] bool can_reconfigure() const noexcept;
     [[nodiscard]] const StagingBufferConfig& config() const noexcept;
 
-    MeshAllocator m_meshAllocator;
+    IMeshAllocator& mesh_allocator();
+    [[nodiscard]] const IMeshAllocator& mesh_allocator() const;
 private:
     void* m_write_head;
     VkDeviceSize m_write_offset = 0;
@@ -66,6 +67,7 @@ private:
     AllocatedBuffer m_stagingBuffer{};
     std::vector<UploadHandle> m_uploadHandles{};
     StagingBufferConfig m_config{};
+    std::unique_ptr<IMeshAllocator> m_meshAllocator{};
 
     uint64_t m_v_total_size = 0;
     uint64_t m_i_total_size = 0;

@@ -23,7 +23,6 @@ void SceneRenderer::cleanup()
 void SceneRenderer::render_scene(VkCommandBuffer cmd, const FrameRenderContext& frameContext)
 {
 	ZoneScopedN("Render Scene");
-	m_last_allocator = nullptr;
     _currentScene->update_buffers();
     SceneRenderState& renderState = _currentScene->get_render_state();
 
@@ -255,13 +254,15 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
 	// 	0
 	// );
 
-	VkDeviceSize vbOff = object.mesh->_allocation.slot.vertex_offset;
-	VkDeviceSize ibOff =  object.mesh->_allocation.slot.index_offset;
+	VkDeviceSize vbOff = object.mesh->_allocation.vertexOffset;
+	VkDeviceSize ibOff = object.mesh->_allocation.indexOffset;
+    const VkBuffer vertexBuffer = object.mesh->_allocation.allocator->vertex_buffer_handle();
+    const VkBuffer indexBuffer = object.mesh->_allocation.allocator->index_buffer_handle();
 
-	vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_allocation.allocator->m_vertexBuffer._buffer, &vbOff);
-	vkCmdBindIndexBuffer(cmd, object.mesh->_allocation.allocator->m_indexBuffer._buffer, ibOff, VK_INDEX_TYPE_UINT32);
+	vkCmdBindVertexBuffers(cmd, 0, 1, &vertexBuffer, &vbOff);
+	vkCmdBindIndexBuffer(cmd, indexBuffer, ibOff, VK_INDEX_TYPE_UINT32);
 
-	vkCmdDrawIndexed(cmd,object.mesh->_allocation.indices_size, 1, 0, 0, 0);
+	vkCmdDrawIndexed(cmd, object.mesh->_allocation.indicesSize, 1, 0, 0, 0);
 }
 
 void SceneRenderer::draw_objects(VkCommandBuffer cmd, const std::vector<RenderObject>& objects)
