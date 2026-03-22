@@ -3,28 +3,25 @@
 #include <optional>
 
 #include "camera.h"
+#include "player_input_state.h"
+#include "player_entity.h"
 #include "world.h"
 #include <components/game_object.h>
 #include <components/player_input_component.h>
 #include <world/chunk_manager.h>
 
-struct PlayerInputState
-{
-    bool moveForward{false};
-    bool moveBackward{false};
-    bool moveLeft{false};
-    bool moveRight{false};
-    float lookDeltaX{0.0f};
-    float lookDeltaY{0.0f};
-};
-
 struct PlayerSnapshot
 {
     glm::vec3 position{GameConfig::DEFAULT_POSITION};
-    glm::vec3 front{1.0f, 0.0f, 0.0f};
+    glm::vec3 velocity{0.0f};
+    glm::vec3 facing{1.0f, 0.0f, 0.0f};
+    glm::vec3 cameraTarget{GameConfig::DEFAULT_POSITION};
+    glm::vec3 cameraForward{1.0f, 0.0f, 0.0f};
     glm::vec3 up{0.0f, 1.0f, 0.0f};
-    float yaw{0.0f};
-    float pitch{0.0f};
+    float bodyYaw{0.0f};
+    float cameraYaw{0.0f};
+    float cameraPitch{0.0f};
+    bool grounded{false};
 };
 
 struct GameSnapshot
@@ -45,16 +42,18 @@ public:
     [[nodiscard]] const GameSnapshot& snapshot() const;
     [[nodiscard]] const Chunk* get_chunk(ChunkCoord coord) const;
     [[nodiscard]] const Block* get_block(const glm::vec3& worldPos) const;
-    [[nodiscard]] std::optional<RaycastResult> raycast_target_block(float maxDistance);
+    [[nodiscard]] std::optional<RaycastResult> raycast_target_block(const glm::vec3& origin, const glm::vec3& direction, float maxDistance);
     void apply_block_edit(const BlockEdit& edit);
     void regenerate_world();
     [[nodiscard]] ChunkManager& chunk_manager();
     [[nodiscard]] const ChunkManager& chunk_manager() const;
+    [[nodiscard]] const PlayerEntity* player() const noexcept;
 
 private:
     ChunkManager _chunkManager;
     World _world{ _chunkManager };
-    std::unique_ptr<GameObject> _player;
+    WorldCollision _worldCollision{ _world };
+    std::unique_ptr<PlayerEntity> _player;
     PlayerInputState _playerInput{};
     GameSnapshot _snapshot{};
 

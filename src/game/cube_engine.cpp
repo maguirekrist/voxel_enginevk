@@ -25,8 +25,9 @@ void CubeEngine::update(const float deltaTime)
         return;
     }
 
-    _player->update(deltaTime);
+    _player->tick(deltaTime);
     apply_player_input();
+    _player->simulate(deltaTime, _worldCollision);
 
     _chunkManager.update_player_position(_player->_position);
     _current_chunk = _world.get_chunk(_player->_position);
@@ -50,14 +51,9 @@ const Block* CubeEngine::get_block(const glm::vec3& worldPos) const
     return _world.get_block(worldPos);
 }
 
-std::optional<RaycastResult> CubeEngine::raycast_target_block(const float maxDistance)
+std::optional<RaycastResult> CubeEngine::raycast_target_block(const glm::vec3& origin, const glm::vec3& direction, const float maxDistance)
 {
-    if (_player == nullptr)
-    {
-        return std::nullopt;
-    }
-
-    return Camera::get_target_block(_world, *_player, maxDistance);
+    return Camera::get_target_block(_world, origin, direction, maxDistance);
 }
 
 void CubeEngine::apply_block_edit(const BlockEdit& edit)
@@ -82,52 +78,14 @@ const ChunkManager& CubeEngine::chunk_manager() const
 
 void CubeEngine::create_player()
 {
-    auto player = std::make_unique<GameObject>(GameConfig::DEFAULT_POSITION);
-    auto& playerRef = *player;
-    playerRef.Add<PlayerInputComponent>([this](const glm::vec3& pos) -> bool
-    {
-        const auto block = _world.get_block(pos);
-        if (block != nullptr)
-        {
-            return block->_solid;
-        }
-        return false;
-    });
-
+    auto player = std::make_unique<PlayerEntity>(GameConfig::DEFAULT_POSITION);
     _player = std::move(player);
 }
 
 void CubeEngine::apply_player_input()
 {
-    auto& input = _player->Get<PlayerInputComponent>();
-
-    if (_playerInput.lookDeltaX != 0.0f || _playerInput.lookDeltaY != 0.0f)
-    {
-        input.handle_mouse_move(*_player, _playerInput.lookDeltaX, _playerInput.lookDeltaY);
-    }
-
-    if (_playerInput.moveForward)
-    {
-        input.move_forward(*_player);
-    }
-
-    if (_playerInput.moveBackward)
-    {
-        input.move_backward(*_player);
-    }
-
-    if (_playerInput.moveLeft)
-    {
-        input.move_left(*_player);
-    }
-
-    if (_playerInput.moveRight)
-    {
-        input.move_right(*_player);
-    }
-
-    _playerInput.lookDeltaX = 0.0f;
-    _playerInput.lookDeltaY = 0.0f;
+    _player->apply_input(_playerInput);
+    _playerInput = PlayerInputState{};
 }
 
 void CubeEngine::refresh_snapshot()
@@ -139,11 +97,21 @@ void CubeEngine::refresh_snapshot()
 
     _snapshot.player = PlayerSnapshot{
         .position = _player->_position,
-        .front = _player->_front,
+        .velocity = _player->movement().velocity,
+        .facing = _player->body_facing(),
+        .cameraTarget = _player->camera_target(),
+        .cameraForward = _player->camera_forward(),
         .up = _player->_up,
-        .yaw = _player->_yaw,
-        .pitch = _player->_pitch
+        .bodyYaw = _player->body_yaw_degrees(),
+        .cameraYaw = _player->camera_yaw_degrees(),
+        .cameraPitch = _player->camera_pitch_degrees(),
+        .grounded = _player->movement().grounded
     };
     _snapshot.currentChunk = _current_chunk != nullptr ? std::optional<ChunkCoord>{_current_chunk->_data->coord} : std::nullopt;
     _snapshot.hasCurrentBlock = _current_block != nullptr;
+}
+
+const PlayerEntity* CubeEngine::player() const noexcept
+{
+    return _player.get();
 }

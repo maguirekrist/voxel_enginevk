@@ -94,6 +94,7 @@ private:
     config::JsonFileDocumentStore _voxelDocumentStore{};
     VoxelModelRepository _voxelRepository;
     VoxelAssetManager _voxelAssetManager;
+    VoxelRenderRegistry _playerVoxelRenderRegistry;
     VoxelRenderRegistry _voxelRenderRegistry;
     world_lighting::DynamicLightRegistry _dynamicLightRegistry;
     SceneRenderState _renderState;
@@ -122,9 +123,11 @@ private:
     glm::vec3 _playerTorchColor{1.0f, 0.82f, 0.52f};
     std::optional<world_lighting::DynamicLightRegistry::LightId> _playerTorchLightId{};
     std::unique_ptr<world_lighting::WorldLightSampler> _worldLightSampler;
+    std::optional<VoxelRenderRegistry::InstanceId> _playerVoxelInstanceId{};
 
     void create_camera();
     void sync_camera_to_game(float deltaTime);
+    void sync_player_render_instance();
     void sync_runtime_lights();
     void sync_target_block();
     void sync_target_block_outline();

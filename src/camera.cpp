@@ -17,8 +17,13 @@ void Camera::update(const float dt)
 
 std::optional<RaycastResult> Camera::get_target_block(World& world, GameObject& player, const float maxDistance)
 {
-    glm::vec3 rayStart = player._position;
-    glm::vec3 rayDir = glm::normalize(player._front);
+    return get_target_block(world, player._position, player._front, maxDistance);
+}
+
+std::optional<RaycastResult> Camera::get_target_block(World& world, const glm::vec3& origin, const glm::vec3& direction, const float maxDistance)
+{
+    glm::vec3 rayStart = origin;
+    glm::vec3 rayDir = glm::normalize(direction);
 
     glm::vec3 stepSize = glm::sign(rayDir);
     glm::vec3 tDelta = glm::abs(1.0f / rayDir);

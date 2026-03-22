@@ -381,6 +381,7 @@ GameScene::~GameScene()
     clear_target_block_outline();
     clear_chunk_boundary_debug();
     _chunkDecorationRenderRegistry.clear(_renderState);
+    _playerVoxelRenderRegistry.clear(_renderState);
     _voxelRenderRegistry.clear(_renderState);
 	_chunkRenderRegistry.clear(_renderState);
     if (_chunkBoundaryMesh != nullptr)
@@ -397,6 +398,7 @@ GameScene::~GameScene()
 void GameScene::update_buffers() {
 	ZoneScopedN("Draw Chunks & Objects");
     sync_runtime_lights();
+    sync_player_render_instance();
 	_chunkRenderRegistry.sync(
 		_game.chunk_manager(),
 		*_services.meshManager,
@@ -412,6 +414,7 @@ void GameScene::update_buffers() {
         *_services.materialManager,
         _worldLightSampler.get(),
         _renderState);
+    _playerVoxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, _renderState, _worldLightSampler.get());
     _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, _renderState, _worldLightSampler.get());
     sync_target_block_outline();
     sync_chunk_boundary_debug();
@@ -458,6 +461,10 @@ void GameScene::handle_input(const SDL_Event& event)
                 {
                     persistence.debug.showChunkBoundaries = !persistence.debug.showChunkBoundaries;
                 });
+            }
+            else if (!event.key.repeat && event.key.keysym.scancode == SDL_SCANCODE_SPACE)
+            {
+                _playerInput.jumpPressed = true;
             }
             break;
 		case SDL_MOUSEBUTTONDOWN:
@@ -1161,17 +1168,43 @@ void GameScene::sync_runtime_lights()
 void GameScene::sync_camera_to_game(const float deltaTime)
 {
     const PlayerSnapshot& player = _game.snapshot().player;
-    _camera->_position = player.position;
-    _camera->_front = player.front;
+    constexpr float ThirdPersonDistance = 5.0f;
+    const glm::vec3 target = player.cameraTarget;
+    const glm::vec3 cameraOffset = -player.cameraForward * ThirdPersonDistance;
+    _camera->_position = target + cameraOffset;
+    _camera->_front = glm::normalize(target - _camera->_position);
     _camera->_up = player.up;
-    _camera->_yaw = player.yaw;
-    _camera->_pitch = player.pitch;
+    _camera->_yaw = player.cameraYaw;
+    _camera->_pitch = player.cameraPitch;
     _camera->update(deltaTime);
+}
+
+void GameScene::sync_player_render_instance()
+{
+    const PlayerEntity* const player = _game.player();
+    if (player == nullptr)
+    {
+        return;
+    }
+
+    const std::optional<VoxelRenderInstance> renderInstance = build_voxel_render_instance(player->render_component(), _voxelAssetManager);
+    if (!renderInstance.has_value())
+    {
+        return;
+    }
+
+    if (!_playerVoxelInstanceId.has_value())
+    {
+        _playerVoxelInstanceId = _playerVoxelRenderRegistry.add_instance(renderInstance.value());
+        return;
+    }
+
+    (void)_playerVoxelRenderRegistry.update_instance(_playerVoxelInstanceId.value(), renderInstance.value());
 }
 
 void GameScene::sync_target_block()
 {
-    _targetBlock = _game.raycast_target_block(GameConfig::BLOCK_INTERACTION_DISTANCE);
+    _targetBlock = _game.raycast_target_block(_camera->_position, _camera->_front, GameConfig::BLOCK_INTERACTION_DISTANCE);
 }
 
 void GameScene::sync_target_block_outline()

@@ -44,6 +44,7 @@ glm::mat4 VoxelRenderInstance::model_matrix() const
     glm::mat4 result = glm::translate(glm::mat4(1.0f), position);
     result *= glm::mat4_cast(rotation);
     result = glm::scale(result, glm::vec3(scale));
+    result *= glm::translate(glm::mat4(1.0f), -renderAnchorOffset);
     return result;
 }
 

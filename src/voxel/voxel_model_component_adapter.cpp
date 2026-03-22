@@ -20,6 +20,7 @@ std::optional<VoxelRenderInstance> build_voxel_render_instance(
         .position = component.position,
         .rotation = component.rotation,
         .scale = component.scale,
+        .renderAnchorOffset = component.renderAnchorOffset,
         .layer = RenderLayer::Opaque,
         .lightingMode = component.lightingMode,
         .lightSampleOffset = component.lightSampleOffset,

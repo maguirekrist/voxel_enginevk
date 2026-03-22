@@ -34,7 +34,7 @@ constexpr bool USE_VALIDATION_LAYERS = false;
 constexpr bool USE_VALIDATION_LAYERS = true;
 #endif
 constexpr bool USE_IMGUI = true;
-constexpr int MAX_COMPONENTS = 1;
+constexpr int MAX_COMPONENTS = 8;
 
 constexpr int DEFAULT_WINDOW_WIDTH = 2000;
 constexpr int DEFAULT_WINDOW_HEIGHT = 1000;

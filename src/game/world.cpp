@@ -71,7 +71,7 @@ glm::ivec3 World::get_local_coordinates(const glm::vec3 &worldPos)
 {
     return {
         wrap_to_chunk_axis(floor_to_int(worldPos.x), CHUNK_SIZE),
-        wrap_to_chunk_axis(floor_to_int(worldPos.y), CHUNK_HEIGHT),
+        floor_to_int(worldPos.y),
         wrap_to_chunk_axis(floor_to_int(worldPos.z), CHUNK_SIZE)
     };
 }

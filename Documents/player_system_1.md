@@ -579,20 +579,37 @@ Unit tests to add:
 
 ## Live Todo
 
-- [ ] Introduce `Entity` base abstraction on top of `GameObject`
-- [ ] Add `PlayerEntity`
-- [ ] Move player ownership in `CubeEngine` from generic `GameObject` to `PlayerEntity`
-- [ ] Define player body bounds and movement state
-- [ ] Add gravity/jump tuning
-- [ ] Add world AABB-vs-solid-block collision query system
-- [ ] Replace point-probe collision with axis-separated AABB resolution
-- [ ] Refactor input to intent-driven RPG movement
-- [ ] Add `Space` jump support
-- [ ] Separate third-person camera state from player state
-- [ ] Make `GameScene` camera follow the player in third-person
-- [ ] Add runtime voxel render path for player asset id `player`
-- [ ] Expose player snapshot data needed for camera/render/debug
-- [ ] Add unit tests for movement, gravity, and collision
+- [x] Introduce `Entity` base abstraction on top of `GameObject`
+- [x] Add `PlayerEntity`
+- [x] Move player ownership in `CubeEngine` from generic `GameObject` to `PlayerEntity`
+- [x] Define player body bounds and movement state
+- [x] Add gravity/jump tuning
+- [x] Add world AABB-vs-solid-block collision query system
+- [x] Replace point-probe collision with axis-separated AABB resolution
+- [x] Refactor input to intent-driven RPG movement
+- [x] Add `Space` jump support
+- [x] Separate third-person camera state from player state
+- [x] Make `GameScene` camera follow the player in third-person
+- [x] Add runtime voxel render path for player asset id `player`
+- [x] Expose player snapshot data needed for camera/render/debug
+- [x] Add unit tests for movement, gravity, and collision
+
+## Implementation Notes
+
+Implemented in the current pass:
+
+- Added [entity.h](C:/Users/magui/source/repos/voxel_enginevk/src/game/entity.h)
+- Added [player_entity.h](C:/Users/magui/source/repos/voxel_enginevk/src/game/player_entity.h)
+- Added [world_collision.h](C:/Users/magui/source/repos/voxel_enginevk/src/game/world_collision.h)
+- Separated camera follow from player simulation in [game_scene.cpp](C:/Users/magui/source/repos/voxel_enginevk/src/scenes/game_scene.cpp)
+- Switched gameplay player ownership in [cube_engine.cpp](C:/Users/magui/source/repos/voxel_enginevk/src/game/cube_engine.cpp) to `PlayerEntity`
+- Added player voxel runtime rendering using asset id `player`
+
+Remaining follow-up work beyond this phase:
+
+- camera-vs-world obstruction handling for the third-person camera
+- richer slope/step-up handling if terrain traversal needs to feel smoother
+- replacing old unused first-person input code paths such as `PlayerInputComponent` after the new controller path has settled
 
 ## Recommended First Slice
 
@@ -609,4 +626,3 @@ Reason:
 
 - if player simulation is still first-person/free-fly underneath, the third-person camera is just cosmetic
 - the simulation model must become correct first
-

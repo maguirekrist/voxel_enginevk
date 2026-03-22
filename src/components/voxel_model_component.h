@@ -14,6 +14,7 @@ struct VoxelModelComponent final : Component
     glm::vec3 position{0.0f};
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
     float scale{1.0f};
+    glm::vec3 renderAnchorOffset{0.0f};
     LightingMode lightingMode{LightingMode::SampledRuntime};
     glm::vec3 lightSampleOffset{0.0f};
     uint32_t lightAffectMask{0xFFFFFFFFu};

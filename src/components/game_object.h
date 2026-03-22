@@ -47,6 +47,8 @@ public:
     template <std::derived_from<Component> T>
     T& Get();
     template <std::derived_from<Component> T>
+    const T& Get() const;
+    template <std::derived_from<Component> T>
     [[nodiscard]] bool Has() const;
 
     std::array<std::unique_ptr<Component>, MAX_COMPONENTS> _components;
@@ -93,6 +95,29 @@ T& GameObject::Get()
     }
 
     return static_cast<T&>(*base);
+}
+
+template <std::derived_from<Component> T>
+const T& GameObject::Get() const
+{
+    const std::size_t idx = component_slot<T>();
+    if (idx >= MAX_COMPONENTS)
+    {
+        throw std::runtime_error("Too many components");
+    }
+
+    if (!_components[idx])
+    {
+        throw std::runtime_error("Component not found");
+    }
+
+    const Component* base = _components[idx].get();
+    if (!base)
+    {
+        throw std::runtime_error("Component not found");
+    }
+
+    return static_cast<const T&>(*base);
 }
 
 template <std::derived_from<Component> T>

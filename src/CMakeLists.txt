@@ -26,6 +26,12 @@ add_executable(vulkan_guide
         game/block.cpp
         game/structure.h
         game/structure.cpp
+        game/entity.h
+        game/player_input_state.h
+        game/player_entity.h
+        game/player_entity.cpp
+        game/world_collision.h
+        game/world_collision.cpp
         game/decoration.h
         game/decoration.cpp
         game/cloud_structure_generator.h

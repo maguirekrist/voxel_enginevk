@@ -15,7 +15,9 @@
 #include "game/chunk.h"
 #include "game/cloud_structure_generator.h"
 #include "game/decoration.h"
+#include "game/player_entity.h"
 #include "game/tree_structure_generator.h"
+#include "game/world_collision.h"
 #include "render/render_primitives.h"
 #include "settings/game_settings.h"
 #include "config/game_settings_config_repository.h"
@@ -140,6 +142,27 @@ TEST(WorldCoordinatesTest, WrapsPositiveAndNegativeCoordinatesCorrectly)
     const glm::ivec2 negativeOrigin = World::get_chunk_origin(glm::vec3(-1.0f, 0.0f, -1.0f));
     EXPECT_EQ(negativeOrigin.x, -static_cast<int>(CHUNK_SIZE));
     EXPECT_EQ(negativeOrigin.y, -static_cast<int>(CHUNK_SIZE));
+
+    const glm::ivec3 negativeY = World::get_local_coordinates(glm::vec3(2.0f, -1.0f, 2.0f));
+    EXPECT_EQ(negativeY.y, -1);
+}
+
+TEST(WorldCollisionTest, IntersectsSolidBlocksEnumeratesOverlappingVoxelRange)
+{
+    const AABB bounds{
+        .min = glm::vec3(1.2f, 3.0f, 4.2f),
+        .max = glm::vec3(1.8f, 4.7f, 4.8f)
+    };
+
+    EXPECT_TRUE(WorldCollision::intersects_solid_blocks(bounds, [](const glm::ivec3& blockPos) -> bool
+    {
+        return blockPos == glm::ivec3(1, 3, 4);
+    }));
+
+    EXPECT_FALSE(WorldCollision::intersects_solid_blocks(bounds, [](const glm::ivec3& blockPos) -> bool
+    {
+        return blockPos == glm::ivec3(2, 3, 4);
+    }));
 }
 
 TEST(ChunkLightingTest, SkylightDistinguishesOpenSkyFromRoofedCells)
@@ -343,6 +366,19 @@ TEST(VoxelRenderInstanceTest, AttachmentWorldTransformUsesAttachmentPositionRela
     EXPECT_NEAR(worldOrigin.x, 3.0f, 0.0001f);
     EXPECT_NEAR(worldOrigin.y, 2.0f, 0.0001f);
     EXPECT_NEAR(worldOrigin.z, 0.0f, 0.0001f);
+}
+
+TEST(PlayerEntityTest, WorldBoundsUseFeetPositionAsBase)
+{
+    PlayerEntity player{ glm::vec3(4.0f, 10.0f, -2.0f) };
+    const AABB bounds = player.world_bounds();
+
+    EXPECT_NEAR(bounds.min.x, 3.65f, 0.0001f);
+    EXPECT_NEAR(bounds.min.y, 10.0f, 0.0001f);
+    EXPECT_NEAR(bounds.min.z, -2.35f, 0.0001f);
+    EXPECT_NEAR(bounds.max.x, 4.35f, 0.0001f);
+    EXPECT_NEAR(bounds.max.y, 11.8f, 0.0001f);
+    EXPECT_NEAR(bounds.max.z, -1.65f, 0.0001f);
 }
 
 TEST(DecorationPlacementTest, ForestFlowersRequireForestBiome)

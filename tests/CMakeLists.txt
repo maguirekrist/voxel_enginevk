@@ -10,6 +10,8 @@ add_executable(engine_tests
     ../src/config/world_gen_config_repository.cpp
     ../src/game/chunk.cpp
     ../src/game/world.cpp
+    ../src/game/player_entity.cpp
+    ../src/game/world_collision.cpp
     ../src/game/decoration.cpp
     ../src/game/structure.cpp
     ../src/game/cloud_structure_generator.cpp
