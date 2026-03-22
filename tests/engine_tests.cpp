@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/quaternion_trigonometric.hpp>
 
 #include "constants.h"
 #include "game/block.h"
@@ -19,7 +20,9 @@
 #include "config/world_gen_config_repository.h"
 #include "game/world.h"
 #include "voxel/voxel_mesher.h"
+#include "voxel/voxel_asset_manager.h"
 #include "voxel/voxel_picking.h"
+#include "voxel/voxel_render_instance.h"
 #include "voxel/voxel_model_repository.h"
 #include "world/chunk_lighting.h"
 #include "world/chunk_manager.h"
@@ -224,6 +227,51 @@ TEST(TerrainGeneratorTest, SampleColumnMatchesChunkDataAndIsDeterministic)
     EXPECT_EQ(first.biome, fromChunk.biome);
     EXPECT_GE(first.surfaceHeight, 0);
     EXPECT_LT(first.surfaceHeight, static_cast<int>(CHUNK_HEIGHT));
+}
+
+TEST(VoxelRenderInstanceTest, ModelMatrixAppliesPositionRotationAndScaleToPivotCenteredMesh)
+{
+    auto asset = std::make_shared<VoxelRuntimeAsset>();
+    asset->model.pivot = glm::vec3(1.0f, 0.0f, 0.0f);
+
+    const VoxelRenderInstance instance{
+        .asset = asset,
+        .position = glm::vec3(10.0f, 4.0f, -2.0f),
+        .rotation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f)),
+        .scale = 2.0f
+    };
+
+    const glm::vec3 worldPoint = instance.world_point_from_asset_local(glm::vec3(3.0f, 1.0f, 0.0f));
+    EXPECT_NEAR(worldPoint.x, 10.0f, 0.0001f);
+    EXPECT_NEAR(worldPoint.y, 6.0f, 0.0001f);
+    EXPECT_NEAR(worldPoint.z, -6.0f, 0.0001f);
+}
+
+TEST(VoxelRenderInstanceTest, AttachmentWorldTransformUsesAttachmentPositionRelativeToPivot)
+{
+    auto asset = std::make_shared<VoxelRuntimeAsset>();
+    asset->model.pivot = glm::vec3(0.5f, 0.5f, 0.5f);
+    asset->model.attachments.push_back(VoxelAttachment{
+        .name = "grip",
+        .position = glm::vec3(1.5f, 0.5f, 0.5f),
+        .forward = glm::vec3(1.0f, 0.0f, 0.0f),
+        .up = glm::vec3(0.0f, 1.0f, 0.0f)
+    });
+
+    const VoxelRenderInstance instance{
+        .asset = asset,
+        .position = glm::vec3(3.0f, 2.0f, 1.0f),
+        .rotation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f)),
+        .scale = 1.0f
+    };
+
+    const std::optional<glm::mat4> attachmentTransform = instance.attachment_world_transform("grip");
+    ASSERT_TRUE(attachmentTransform.has_value());
+
+    const glm::vec3 worldOrigin = glm::vec3(attachmentTransform.value()[3]);
+    EXPECT_NEAR(worldOrigin.x, 3.0f, 0.0001f);
+    EXPECT_NEAR(worldOrigin.y, 2.0f, 0.0001f);
+    EXPECT_NEAR(worldOrigin.z, 0.0f, 0.0001f);
 }
 
 TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
@@ -478,6 +526,12 @@ TEST(VoxelModelRepositoryTest, SavesAndLoadsVoxelAssetRoundTrip)
     model.displayName = "Test Ogre";
     model.voxelSize = 1.0f / 16.0f;
     model.pivot = glm::vec3(0.5f, 0.0f, 0.5f);
+    model.attachments.push_back(VoxelAttachment{
+        .name = "right_hand",
+        .position = glm::vec3(3.5f, 5.0f, 1.0f),
+        .forward = glm::vec3(1.0f, 0.0f, 0.0f),
+        .up = glm::vec3(0.0f, 1.0f, 0.0f)
+    });
     model.set_voxel(VoxelCoord{ 0, 0, 0 }, VoxelColor{ 255, 0, 0, 255 });
     model.set_voxel(VoxelCoord{ 3, 2, 1 }, VoxelColor{ 12, 34, 56, 255 });
 
@@ -495,6 +549,10 @@ TEST(VoxelModelRepositoryTest, SavesAndLoadsVoxelAssetRoundTrip)
     EXPECT_EQ(loaded->displayName, "Test Ogre");
     EXPECT_FLOAT_EQ(loaded->voxelSize, model.voxelSize);
     EXPECT_FLOAT_EQ(loaded->pivot.x, model.pivot.x);
+    ASSERT_EQ(loaded->attachments.size(), 1u);
+    EXPECT_EQ(loaded->attachments[0].name, "right_hand");
+    EXPECT_FLOAT_EQ(loaded->attachments[0].position.x, 3.5f);
+    EXPECT_FLOAT_EQ(loaded->attachments[0].position.y, 5.0f);
     ASSERT_EQ(loaded->voxel_count(), 2u);
 
     const VoxelColor* originColor = loaded->try_get(VoxelCoord{ 0, 0, 0 });
@@ -508,6 +566,46 @@ TEST(VoxelModelRepositoryTest, SavesAndLoadsVoxelAssetRoundTrip)
     EXPECT_EQ(secondColor->r, 12);
     EXPECT_EQ(secondColor->g, 34);
     EXPECT_EQ(secondColor->b, 56);
+}
+
+TEST(VoxelAssetManagerTest, LoadsAndCachesRuntimeAssets)
+{
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_runtime_asset_manager_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const VoxelModelRepository repository(documentStore, "assets");
+
+    VoxelModel model{};
+    model.assetId = "Sword";
+    model.displayName = "Sword";
+    model.pivot = glm::vec3(0.5f, 0.5f, 0.5f);
+    model.attachments.push_back(VoxelAttachment{
+        .name = "grip",
+        .position = glm::vec3(0.5f, 1.0f, 0.5f),
+        .forward = glm::vec3(0.0f, 1.0f, 0.0f),
+        .up = glm::vec3(1.0f, 0.0f, 0.0f)
+    });
+    model.set_voxel(VoxelCoord{ 0, 0, 0 }, VoxelColor{ 255, 255, 255, 255 });
+    model.set_voxel(VoxelCoord{ 0, 1, 0 }, VoxelColor{ 255, 255, 255, 255 });
+    repository.save(model);
+
+    VoxelAssetManager manager(repository);
+    const std::shared_ptr<VoxelRuntimeAsset> firstLoad = manager.load_or_get("Sword");
+    const std::shared_ptr<VoxelRuntimeAsset> secondLoad = manager.load_or_get("sword");
+
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_NE(firstLoad, nullptr);
+    ASSERT_NE(secondLoad, nullptr);
+    EXPECT_EQ(firstLoad.get(), secondLoad.get());
+    EXPECT_EQ(manager.loaded_asset_count(), 1u);
+    EXPECT_EQ(firstLoad->assetId, "sword");
+    ASSERT_TRUE(firstLoad->bounds.valid);
+    ASSERT_NE(firstLoad->mesh, nullptr);
+    EXPECT_FALSE(firstLoad->mesh->_indices.empty());
+    ASSERT_EQ(firstLoad->attachments.size(), 1u);
+    EXPECT_TRUE(firstLoad->attachments.contains("grip"));
+    EXPECT_FLOAT_EQ(firstLoad->attachments.at("grip").position.y, 1.0f);
 }
 
 TEST(VoxelMesherTest, GeneratesOnlyExteriorFacesForAdjacentVoxels)

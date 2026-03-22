@@ -164,8 +164,26 @@ struct VoxelRenderInstance
 
 ### Asset Space
 
-- Local coordinates authored in voxel units scaled by `voxelSize`.
+- Local coordinates are authored in asset-local voxel space scaled by `voxelSize`.
+- Asset-local coordinates may be signed.
+- `0,0,0` is the asset-space origin, not a guarantee that geometry exists there.
+- It is valid for `0,0,0` to be empty space.
 - Pivot is applied here.
+
+### Origin vs Pivot
+
+- `origin`
+  - The asset-local coordinate system origin.
+  - This is the basis for voxel coordinates, sockets, and transforms.
+  - It is not required to contain a voxel.
+- `pivot`
+  - The explicit local-space point used as the transform center for the asset.
+  - Rotations and scaling should revolve around this point.
+  - In the first editor pass, users may choose a voxel and the pivot can be set to that voxel center.
+  - The persisted representation should remain a `vec3`, not just a voxel index, so the format can later support sub-voxel pivots without redesign.
+- `socket/anchor`
+  - A named local-space attachment point.
+  - Independent from the asset pivot.
 
 ### Socket Space
 
@@ -234,13 +252,15 @@ Exit criteria:
 
 ## Phase 4: Attachment Authoring Support
 
+- Add editor support for setting the model pivot from a selected voxel.
+- Add editor visualization for the current pivot with a dedicated indicator render.
 - Add editor support for creating/editing attachment sockets.
 - Visualize sockets and local axes in the voxel editor.
 - Persist sockets in asset files.
 
 Exit criteria:
 
-- Designers can author runtime attachment points without editing JSON manually.
+- Designers can author pivots and runtime attachment points without editing JSON manually.
 
 ## Phase 5: Skeleton-Ready Refinement
 
@@ -307,13 +327,34 @@ This gives immediate runtime value without overcommitting to the full assembly s
 
 ## Worklist
 
-- [ ] Add attachment/socket metadata to voxel asset domain.
-- [ ] Persist attachments in repository load/save.
-- [ ] Add runtime asset package type.
-- [ ] Add runtime asset cache/manager.
+- [ ] Explicitly support signed voxel-local coordinates in editor/runtime workflows.
+- [ ] Add pivot metadata authoring to `VoxelModel`.
+- [ ] Add editor action to set pivot from selected voxel.
+- [ ] Add pivot indicator rendering in voxel editor.
+- [x] Add attachment/socket metadata to voxel asset domain.
+- [x] Persist attachments in repository load/save.
+- [x] Add runtime asset package type.
+- [x] Add runtime asset cache/manager.
 - [ ] Add shared mesh upload lifecycle for runtime voxel assets.
-- [ ] Add runtime voxel render instance submission.
+- [x] Add shared mesh upload lifecycle for runtime voxel assets.
+- [x] Add runtime voxel render instance submission.
 - [ ] Add single-asset gameplay component.
 - [ ] Add first multi-part assembly component.
-- [ ] Add transform composition tests.
-- [ ] Add one `GameScene` runtime demo entity using voxel assets.
+- [x] Add transform composition tests.
+- [x] Add one `GameScene` runtime demo entity using voxel assets.
+
+## Current Status
+
+- Implemented asset-level attachment metadata on `VoxelModel`.
+- Repository now persists attachment metadata alongside pivot and voxels.
+- Added `VoxelRuntimeAsset` as the immutable runtime package boundary.
+- Added `VoxelAssetManager` to load/cache shared runtime voxel assets by asset id.
+- Generalized mesh render submission to use full per-object model transforms instead of chunk-only XZ translation.
+- Added `VoxelRenderInstance` for shared-asset runtime transforms.
+- Added `VoxelRenderRegistry` for reusable voxel instance submission and shared mesh upload handling.
+- Added a `GameScene` runtime voxel prop demo path that loads a saved asset id and spawns multiple shared-mesh world props near the player.
+- Added tests for:
+  - attachment round-trip persistence
+  - runtime asset cache reuse and mesh generation
+  - instance pivot/local-to-world transform correctness
+  - attachment transform composition

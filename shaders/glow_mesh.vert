@@ -18,12 +18,12 @@ layout(set = 0, binding = 0) uniform CameraUBO {
 
 layout ( push_constant ) uniform constants
 {
-    ivec2 translate;
+    mat4 modelMatrix;
 } PushConstants;
 
 void main()
 {
-    vec3 center = vec3(vPosition.x + PushConstants.translate.x, vPosition.y, vPosition.z + PushConstants.translate.y);
+    vec3 center = vec3(PushConstants.modelMatrix * vec4(vPosition, 1.0f));
     vec3 cameraRight = vec3(ubo.view[0][0], ubo.view[1][0], ubo.view[2][0]);
     vec3 cameraUp = vec3(ubo.view[0][1], ubo.view[1][1], ubo.view[2][1]);
     vec2 corner = vNormal.xy;

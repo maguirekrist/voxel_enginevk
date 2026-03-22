@@ -2,6 +2,8 @@
 
 #include <vector>
 
+#include <glm/ext/matrix_transform.hpp>
+
 #include "material_manager.h"
 #include "mesh_manager.h"
 
@@ -114,7 +116,10 @@ void ChunkRenderRegistry::finalize_pending_renders(
         handles.opaque = renderState.opaqueObjects.insert(RenderObject{
             .mesh = pending.meshData->mesh,
             .material = materialManager.get_material("defaultmesh"),
-            .xzPos = glm::ivec2(pending.data->position.x, pending.data->position.y),
+            .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
+                static_cast<float>(pending.data->position.x),
+                0.0f,
+                static_cast<float>(pending.data->position.y))),
             .layer = RenderLayer::Opaque
         });
         handles.hasOpaque = true;
@@ -124,7 +129,10 @@ void ChunkRenderRegistry::finalize_pending_renders(
             handles.waterTransparent = renderState.transparentObjects.insert(RenderObject{
                 .mesh = pending.meshData->waterMesh,
                 .material = materialManager.get_material("watermesh"),
-                .xzPos = glm::ivec2(pending.data->position.x, pending.data->position.y),
+                .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
+                    static_cast<float>(pending.data->position.x),
+                    0.0f,
+                    static_cast<float>(pending.data->position.y))),
                 .layer = RenderLayer::Transparent
             });
             handles.hasWaterTransparent = true;
@@ -135,7 +143,10 @@ void ChunkRenderRegistry::finalize_pending_renders(
             handles.glowTransparent = renderState.transparentObjects.insert(RenderObject{
                 .mesh = pending.meshData->glowMesh,
                 .material = materialManager.get_material("glowmesh"),
-                .xzPos = glm::ivec2(pending.data->position.x, pending.data->position.y),
+                .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
+                    static_cast<float>(pending.data->position.x),
+                    0.0f,
+                    static_cast<float>(pending.data->position.y))),
                 .layer = RenderLayer::Transparent
             });
             handles.hasGlowTransparent = true;

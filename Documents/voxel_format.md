@@ -78,6 +78,9 @@ Planned JSON shape:
 ## Extension Points For Skeleton Work
 
 - Pivot/origin is part of the asset now.
+- Asset local origin and pivot are not the same thing:
+  - `0,0,0` is the asset-space origin and may be empty space.
+  - `pivot` is the explicit local-space transform center.
 - Future work should add named attachment sockets and eventually bone/part references instead of baking them into raw voxel data.
 - The voxel asset should stay independent from animation state so one model can feed many runtime rig instances.
 
@@ -94,8 +97,9 @@ Planned JSON shape:
 - [x] Add focused tests for voxel repository round-trip and mesh visibility rules.
 - [x] Run build/tests and update this worklist with outcomes and follow-up items.
 - [ ] Add editor affordances for multi-voxel box fills, eyedropper/color history, and pivot editing.
-- [ ] Add runtime-facing voxel model instances/components separate from the editor preview path.
-- [ ] Add sockets / attachment metadata for future skeleton integration.
+- [ ] Add editor affordances for setting the model pivot from a selected voxel and rendering a pivot indicator.
+- [x] Add runtime-facing voxel model instance path separate from the editor preview path.
+- [x] Add sockets / attachment metadata groundwork for future skeleton integration.
 
 ## Notes During Implementation
 
@@ -103,5 +107,7 @@ Planned JSON shape:
 - Chunk AO and lighting do not need to be copied into the first voxel mesher pass; keep the asset pipeline deterministic first.
 - Keep the mesh output and repository interfaces decoupled so future import/export tooling can reuse them outside the live editor.
 - Current verification status:
-  - `cmake --build build --config Debug` succeeded on March 21, 2026.
-  - `ctest --output-on-failure -C Debug` passed with 14 / 14 tests on March 21, 2026.
+  - `cmake --build build --config Debug --target vulkan_guide` succeeded on March 22, 2026.
+  - `cmake --build build --config Debug --target engine_tests` succeeded on March 22, 2026.
+  - `engine_tests.exe --gtest_list_tests` includes runtime attachment/cache coverage on March 22, 2026.
+  - `ctest --output-on-failure -C Debug` passed 29/29 on March 22, 2026.

@@ -1,9 +1,12 @@
 #include "game_scene.h"
 #include "vk_engine.h"
 #include <array>
+#include <cstring>
 #include <format>
 #include <limits>
 #include <ranges>
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/quaternion_trigonometric.hpp>
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
 #include "backends/imgui_impl_sdl2.h"
@@ -333,7 +336,10 @@ namespace
 }
 
 
-GameScene::GameScene(const SceneServices& services): _services(services)
+GameScene::GameScene(const SceneServices& services):
+    _voxelRepository(_voxelDocumentStore),
+    _voxelAssetManager(_voxelRepository),
+    _services(services)
 {
     const ResourceBackendContext resourceBackend{
         .device = _services.device,
@@ -371,6 +377,7 @@ GameScene::~GameScene()
 {
     clear_target_block_outline();
     clear_chunk_boundary_debug();
+    _voxelRenderRegistry.clear(_renderState);
 	_chunkRenderRegistry.clear(_renderState);
     if (_chunkBoundaryMesh != nullptr)
     {
@@ -390,6 +397,7 @@ void GameScene::update_buffers() {
 		*_services.meshManager,
 		*_services.materialManager,
 		_renderState);
+    _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, _renderState);
     sync_target_block_outline();
     sync_chunk_boundary_debug();
 	update_uniform_buffer();
@@ -419,6 +427,10 @@ void GameScene::update(const float deltaTime)
     }
     sync_camera_to_game(deltaTime);
     sync_target_block();
+    if (!_runtimeVoxelDemoInitialized || _runtimeVoxelDemoDirty)
+    {
+        rebuild_runtime_voxel_demo();
+    }
 }
 
 void GameScene::handle_input(const SDL_Event& event)
@@ -521,7 +533,7 @@ void GameScene::build_pipelines()
 	.build_constant = [](const RenderObject& obj) -> ObjectPushConstants
 		{
 			ObjectPushConstants push{};
-			push.chunk_translate = obj.xzPos;
+			push.modelMatrix = obj.transform;
 			return push;
 		}
 	};
@@ -703,6 +715,38 @@ void GameScene::draw_debug_map()
 
                 ImGui::EndTable();
             }
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("Voxel Props"))
+        {
+            char assetIdBuffer[128]{};
+            strncpy_s(assetIdBuffer, _runtimeVoxelAssetId.c_str(), _TRUNCATE);
+            if (ImGui::InputText("Asset Id", assetIdBuffer, IM_ARRAYSIZE(assetIdBuffer)))
+            {
+                _runtimeVoxelAssetId = assetIdBuffer;
+            }
+
+            ImGui::TextWrapped("Loads a saved voxel asset and spawns a small shared-mesh prop cluster on terrain near the player.");
+            ImGui::Text("Repository Path: %s", _voxelRepository.resolve_path(_runtimeVoxelAssetId).string().c_str());
+            ImGui::Text("Loaded Assets: %llu", static_cast<unsigned long long>(_voxelAssetManager.loaded_asset_count()));
+            ImGui::Text("Active Instances: %llu", static_cast<unsigned long long>(_voxelRenderRegistry.instance_count()));
+
+            if (ImGui::Button("Load Demo Props"))
+            {
+                _runtimeVoxelDemoDirty = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Clear Demo Props"))
+            {
+                _voxelRenderRegistry.clear(_renderState);
+                _runtimeVoxelDemoInitialized = true;
+                _runtimeVoxelDemoDirty = false;
+                _runtimeVoxelStatus = "Cleared runtime voxel prop demo instances.";
+            }
+
+            ImGui::Separator();
+            ImGui::TextWrapped("%s", _runtimeVoxelStatus.c_str());
             ImGui::EndTabItem();
         }
 
@@ -1095,7 +1139,10 @@ void GameScene::sync_target_block_outline()
     _targetBlockOutlineHandle = _renderState.opaqueObjects.insert(RenderObject{
         .mesh = _targetBlockOutlineMesh,
         .material = _services.materialManager->get_material("chunkboundary"),
-        .xzPos = chunkOrigin,
+        .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
+            static_cast<float>(chunkOrigin.x),
+            0.0f,
+            static_cast<float>(chunkOrigin.y))),
         .layer = RenderLayer::Opaque
     });
 }
@@ -1134,11 +1181,69 @@ void GameScene::sync_chunk_boundary_debug()
             _chunkBoundaryHandles.push_back(_renderState.opaqueObjects.insert(RenderObject{
             .mesh = _chunkBoundaryMesh,
             .material = debugMaterial,
-            .xzPos = glm::ivec2(chunk->_data->position.x, chunk->_data->position.y),
+            .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
+                static_cast<float>(chunk->_data->position.x),
+                0.0f,
+                static_cast<float>(chunk->_data->position.y))),
             .layer = RenderLayer::Opaque
         }));
         }
     }
+}
+
+void GameScene::rebuild_runtime_voxel_demo()
+{
+    _runtimeVoxelDemoInitialized = true;
+    _runtimeVoxelDemoDirty = false;
+    _voxelRenderRegistry.clear(_renderState);
+
+    const std::shared_ptr<VoxelRuntimeAsset> asset = _voxelAssetManager.load_or_get(_runtimeVoxelAssetId);
+    if (asset == nullptr)
+    {
+        _runtimeVoxelStatus = std::format(
+            "Could not load voxel asset '{}'. Save a model in the voxel editor first.",
+            _runtimeVoxelAssetId);
+        return;
+    }
+
+    static constexpr std::array<glm::ivec2, 5> offsets{
+        glm::ivec2{-3, 2},
+        glm::ivec2{-1, 3},
+        glm::ivec2{1, 2},
+        glm::ivec2{3, 3},
+        glm::ivec2{0, 5}
+    };
+
+    for (size_t index = 0; index < offsets.size(); ++index)
+    {
+        const float yawDegrees = 22.5f + (static_cast<float>(index) * 37.0f);
+        (void)_voxelRenderRegistry.add_instance(VoxelRenderInstance{
+            .asset = asset,
+            .position = runtime_voxel_demo_position(offsets[index]),
+            .rotation = glm::angleAxis(glm::radians(yawDegrees), glm::vec3(0.0f, 1.0f, 0.0f)),
+            .scale = 1.0f,
+            .layer = RenderLayer::Opaque,
+            .visible = true
+        });
+    }
+
+    _runtimeVoxelStatus = std::format(
+        "Loaded '{}' as {} shared-mesh runtime prop instance(s).",
+        asset->assetId,
+        offsets.size());
+}
+
+glm::vec3 GameScene::runtime_voxel_demo_position(const glm::ivec2& offset) const
+{
+    const PlayerSnapshot& player = _game.snapshot().player;
+    const int worldX = static_cast<int>(std::floor(player.position.x)) + offset.x;
+    const int worldZ = static_cast<int>(std::floor(player.position.z)) + offset.y;
+    const TerrainColumnSample column = TerrainGenerator::instance().SampleColumn(worldX, worldZ);
+
+    return glm::vec3(
+        static_cast<float>(worldX) + 0.5f,
+        static_cast<float>(column.surfaceHeight + 1),
+        static_cast<float>(worldZ) + 0.5f);
 }
 
 void GameScene::clear_chunk_boundary_debug()

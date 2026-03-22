@@ -8,8 +8,12 @@
 #include "render/scene_render_state.h"
 #include "render/mesh.h"
 #include "settings/game_settings.h"
+#include "config/json_document_store.h"
 #include "game/cube_engine.h"
 #include "world/terrain_gen.h"
+#include "voxel/voxel_asset_manager.h"
+#include "voxel/voxel_model_repository.h"
+#include "voxel/voxel_render_registry.h"
 
 
 class GameScene final : public Scene {
@@ -76,6 +80,10 @@ private:
     std::shared_ptr<Mesh> _chunkBoundaryMesh;
     std::shared_ptr<Mesh> _targetBlockOutlineMesh;
     ChunkRenderRegistry _chunkRenderRegistry;
+    config::JsonFileDocumentStore _voxelDocumentStore{};
+    VoxelModelRepository _voxelRepository;
+    VoxelAssetManager _voxelAssetManager;
+    VoxelRenderRegistry _voxelRenderRegistry;
     SceneRenderState _renderState;
     SceneServices _services;
     PlayerInputState _playerInput{};
@@ -92,12 +100,18 @@ private:
 
     std::optional<RaycastResult> _targetBlock;
     std::optional<glm::ivec3> _outlinedBlockWorldPos;
+    std::string _runtimeVoxelAssetId{"flower"};
+    std::string _runtimeVoxelStatus{"Voxel prop demo not loaded yet."};
+    bool _runtimeVoxelDemoInitialized{false};
+    bool _runtimeVoxelDemoDirty{true};
 
     void create_camera();
     void sync_camera_to_game(float deltaTime);
     void sync_target_block();
     void sync_target_block_outline();
     void sync_chunk_boundary_debug();
+    void rebuild_runtime_voxel_demo();
+    [[nodiscard]] glm::vec3 runtime_voxel_demo_position(const glm::ivec2& offset) const;
     void bind_settings();
     void apply_view_distance_settings(const settings::ViewDistanceRuntimeSettings& settings);
     void apply_ambient_occlusion_settings(const settings::AmbientOcclusionRuntimeSettings& settings);

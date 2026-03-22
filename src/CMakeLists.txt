@@ -72,6 +72,13 @@ add_executable(vulkan_guide
     settings/game_settings.h
     settings/game_settings.cpp
     voxel/voxel_model.h
+    voxel/voxel_runtime_asset.h
+    voxel/voxel_asset_manager.h
+    voxel/voxel_asset_manager.cpp
+    voxel/voxel_render_instance.h
+    voxel/voxel_render_instance.cpp
+    voxel/voxel_render_registry.h
+    voxel/voxel_render_registry.cpp
     voxel/voxel_mesher.h
     voxel/voxel_mesher.cpp
     voxel/voxel_picking.h

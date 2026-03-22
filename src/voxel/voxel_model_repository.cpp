@@ -7,7 +7,7 @@
 
 namespace
 {
-    constexpr int VoxelModelVersion = 1;
+    constexpr int VoxelModelVersion = 2;
     constexpr std::string_view VoxelModelFileSuffix = ".vxm.json";
 
     std::string sanitize_asset_id(std::string_view rawAssetId)
@@ -72,9 +72,39 @@ namespace
             node.value("z", fallback.z));
     }
 
+    nlohmann::json attachment_to_json(const VoxelAttachment& attachment)
+    {
+        return {
+            { "name", attachment.name },
+            { "position", vec3_to_json(attachment.position) },
+            { "forward", vec3_to_json(attachment.forward) },
+            { "up", vec3_to_json(attachment.up) }
+        };
+    }
+
+    VoxelAttachment attachment_from_json(const nlohmann::json& node)
+    {
+        VoxelAttachment attachment{};
+        attachment.name = node.value("name", attachment.name);
+        if (node.contains("position") && node.at("position").is_object())
+        {
+            attachment.position = vec3_from_json(node.at("position"), attachment.position);
+        }
+        if (node.contains("forward") && node.at("forward").is_object())
+        {
+            attachment.forward = vec3_from_json(node.at("forward"), attachment.forward);
+        }
+        if (node.contains("up") && node.at("up").is_object())
+        {
+            attachment.up = vec3_from_json(node.at("up"), attachment.up);
+        }
+        return attachment;
+    }
+
     nlohmann::json serialize(const VoxelModel& model)
     {
         nlohmann::json voxels = nlohmann::json::array();
+        nlohmann::json attachments = nlohmann::json::array();
 
         for (const auto& [coord, color] : model.voxels())
         {
@@ -86,12 +116,18 @@ namespace
             });
         }
 
+        for (const VoxelAttachment& attachment : model.attachments)
+        {
+            attachments.push_back(attachment_to_json(attachment));
+        }
+
         return {
             { "version", VoxelModelVersion },
             { "assetId", model.assetId },
             { "displayName", model.displayName },
             { "voxelSize", model.voxelSize },
             { "pivot", vec3_to_json(model.pivot) },
+            { "attachments", std::move(attachments) },
             { "voxels", std::move(voxels) }
         };
     }
@@ -106,6 +142,24 @@ namespace
         if (document.contains("pivot") && document.at("pivot").is_object())
         {
             model.pivot = vec3_from_json(document.at("pivot"), model.pivot);
+        }
+
+        if (document.contains("attachments") && document.at("attachments").is_array())
+        {
+            for (const auto& attachmentNode : document.at("attachments"))
+            {
+                if (!attachmentNode.is_object())
+                {
+                    continue;
+                }
+
+                VoxelAttachment attachment = attachment_from_json(attachmentNode);
+                if (attachment.name.empty())
+                {
+                    continue;
+                }
+                model.attachments.push_back(std::move(attachment));
+            }
         }
 
         if (document.contains("voxels") && document.at("voxels").is_array())

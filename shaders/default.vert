@@ -13,11 +13,11 @@ layout(set = 0, binding = 0) uniform CameraUBO {
 
 layout ( push_constant ) uniform constants
 {
-    ivec2 translate;
+    mat4 modelMatrix;
 } PushConstants;
 
 void main() {
-    vec3 worldPosition = vec3(vPosition.x + PushConstants.translate.x, vPosition.y, vPosition.z + PushConstants.translate.y);
+    vec3 worldPosition = vec3(PushConstants.modelMatrix * vec4(vPosition, 1.0f));
 	gl_Position = ubo.viewproject * vec4(worldPosition, 1.0f);
 	outColor = vColor;
 }

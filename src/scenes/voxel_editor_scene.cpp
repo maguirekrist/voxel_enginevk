@@ -243,7 +243,7 @@ void VoxelEditorScene::build_pipelines()
         .build_constant = [](const RenderObject& object) -> ObjectPushConstants
         {
             ObjectPushConstants push{};
-            push.chunk_translate = object.xzPos;
+            push.modelMatrix = object.transform;
             return push;
         }
     };
@@ -365,7 +365,7 @@ void VoxelEditorScene::sync_model_mesh()
     _previewHandle = _renderState.opaqueObjects.insert(RenderObject{
         .mesh = _previewMesh,
         .material = _services.materialManager->get_material("defaultmesh"),
-        .xzPos = glm::ivec2(0),
+        .transform = glm::mat4(1.0f),
         .layer = RenderLayer::Opaque
     });
 
@@ -434,7 +434,7 @@ void VoxelEditorScene::sync_hover_outline()
     _outlineHandle = _renderState.transparentObjects.insert(RenderObject{
         .mesh = _outlineMesh,
         .material = _services.materialManager->get_material("editorpreview"),
-        .xzPos = glm::ivec2(0),
+        .transform = glm::mat4(1.0f),
         .layer = RenderLayer::Transparent
     });
 }

@@ -12,13 +12,13 @@ enum class RenderLayer {
 };
 
 struct ObjectPushConstants {
-    glm::ivec2 chunk_translate;
+    glm::mat4 modelMatrix{1.0f};
 };
 
 struct RenderObject {
     std::shared_ptr<Mesh> mesh;
     std::shared_ptr<Material> material;
-    glm::ivec2 xzPos;
+    glm::mat4 transform{1.0f};
     RenderLayer layer;
     //dev_collections::sparse_set<RenderObject>::Handle handle;
 };

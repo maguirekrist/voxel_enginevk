@@ -29,6 +29,12 @@ void StagingBuffer::upload_mesh(std::shared_ptr<Mesh>&& mesh)
     if (!m_recording) { throw std::runtime_error("StagingBuffer::upload_mesh: Not recording"); }
     auto v_size = mesh->_vertices.size() * sizeof(Vertex);
     auto i_size = mesh->_indices.size() * sizeof(uint32_t);
+
+    if (v_size == 0 || i_size == 0)
+    {
+        return;
+    }
+
     const VkDeviceSize needed = m_write_offset + (v_size + i_size);
 
     if (needed > m_capacity)
@@ -78,19 +84,25 @@ std::function<void(VkCommandBuffer cmd)> StagingBuffer::build_submission() const
         for (const auto& handle : m_uploadHandles)
         {
             //USE Mesh Allocator
-            VkBufferCopy vertex_copy;
-            vertex_copy.dstOffset = handle.mesh->_allocation.vertexOffset;
-            vertex_copy.srcOffset = handle.vertexOffset;
-            vertex_copy.size = handle.vertexSize;
-            const VkBuffer vertexBuffer = m_meshAllocator->vertex_buffer_handle();
-            vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer, vertexBuffer, 1, &vertex_copy);
+            if (handle.vertexSize > 0)
+            {
+                VkBufferCopy vertex_copy;
+                vertex_copy.dstOffset = handle.mesh->_allocation.vertexOffset;
+                vertex_copy.srcOffset = handle.vertexOffset;
+                vertex_copy.size = handle.vertexSize;
+                const VkBuffer vertexBuffer = m_meshAllocator->vertex_buffer_handle();
+                vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer, vertexBuffer, 1, &vertex_copy);
+            }
 
-            VkBufferCopy index_copy;
-            index_copy.dstOffset = handle.mesh->_allocation.indexOffset;
-            index_copy.srcOffset = handle.indexOffset;
-            index_copy.size = handle.indexSize;
-            const VkBuffer indexBuffer = m_meshAllocator->index_buffer_handle();
-            vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer, indexBuffer, 1, &index_copy);
+            if (handle.indexSize > 0)
+            {
+                VkBufferCopy index_copy;
+                index_copy.dstOffset = handle.mesh->_allocation.indexOffset;
+                index_copy.srcOffset = handle.indexOffset;
+                index_copy.size = handle.indexSize;
+                const VkBuffer indexBuffer = m_meshAllocator->index_buffer_handle();
+                vkCmdCopyBuffer(cmd, this->m_stagingBuffer._buffer, indexBuffer, 1, &index_copy);
+            }
 
             handle.mesh->_isActive.store(true, std::memory_order::relaxed);
         }

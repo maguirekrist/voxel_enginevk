@@ -12,6 +12,8 @@ add_executable(engine_tests
     ../src/game/structure.cpp
     ../src/game/cloud_structure_generator.cpp
     ../src/game/tree_structure_generator.cpp
+    ../src/voxel/voxel_asset_manager.cpp
+    ../src/voxel/voxel_render_instance.cpp
     ../src/voxel/voxel_mesher.cpp
     ../src/voxel/voxel_picking.cpp
     ../src/voxel/voxel_model_repository.cpp

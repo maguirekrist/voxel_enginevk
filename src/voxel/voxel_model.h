@@ -2,8 +2,11 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
+#include <ranges>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -84,6 +87,16 @@ struct VoxelBounds
     }
 };
 
+struct VoxelAttachment
+{
+    std::string name{};
+    glm::vec3 position{0.0f};
+    glm::vec3 forward{1.0f, 0.0f, 0.0f};
+    glm::vec3 up{0.0f, 1.0f, 0.0f};
+
+    auto operator<=>(const VoxelAttachment&) const = default;
+};
+
 class VoxelModel
 {
 public:
@@ -93,6 +106,7 @@ public:
     std::string displayName{"Untitled"};
     float voxelSize{1.0f / 16.0f};
     glm::vec3 pivot{0.0f, 0.0f, 0.0f};
+    std::vector<VoxelAttachment> attachments{};
 
     [[nodiscard]] bool contains(const VoxelCoord& coord) const
     {
@@ -166,6 +180,15 @@ public:
         }
 
         return result;
+    }
+
+    [[nodiscard]] const VoxelAttachment* find_attachment(const std::string_view name) const
+    {
+        const auto it = std::ranges::find_if(attachments, [&](const VoxelAttachment& attachment)
+        {
+            return attachment.name == name;
+        });
+        return it != attachments.end() ? &(*it) : nullptr;
     }
 
 private:

@@ -110,13 +110,25 @@ void VulkanEngine::handle_input()
     {
         if (event.type == SDL_KEYDOWN && !event.key.repeat)
         {
+            auto switch_scene = [this](const char* sceneName)
+            {
+                const std::shared_ptr<Scene> activeScene = _sceneRenderer.get_current_scene();
+                if (activeScene == nullptr)
+                {
+                    return;
+                }
+
+                vkDeviceWaitIdle(_device);
+                _sceneRenderer.set_current_scene(sceneName);
+            };
+
             if (event.key.keysym.scancode == SDL_SCANCODE_F1)
             {
-                _sceneRenderer.set_current_scene("game");
+                switch_scene("game");
             }
             else if (event.key.keysym.scancode == SDL_SCANCODE_F2)
             {
-                _sceneRenderer.set_current_scene("voxel_editor");
+                switch_scene("voxel_editor");
             }
         }
 

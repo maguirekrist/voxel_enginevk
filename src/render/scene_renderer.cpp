@@ -26,6 +26,10 @@ void SceneRenderer::set_current_scene(const std::string& name)
 {
     if (const auto it = _scenes.find(name); it != _scenes.end())
     {
+        if (_currentScene == it->second)
+        {
+            return;
+        }
         _currentScene = it->second;
         _currentScene->rebuild_pipelines();
     }
@@ -214,11 +218,6 @@ void SceneRenderer::draw_object(const VkCommandBuffer cmd, const RenderObject& o
 	object.material->descriptorSets.data(),
 	0,
 	nullptr);
-
-
-	// ObjectPushConstants constants{};
-	// constants.chunk_translate = object.xzPos;
-	// vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ObjectPushConstants), &constants);
 
 
     for(const auto& pConstant : object.material->pushConstants)
