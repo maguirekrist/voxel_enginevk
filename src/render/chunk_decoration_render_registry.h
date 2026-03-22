@@ -10,6 +10,7 @@
 class ChunkManager;
 class MaterialManager;
 class MeshManager;
+namespace world_lighting { class WorldLightSampler; }
 
 class ChunkDecorationRenderRegistry
 {
@@ -28,6 +29,7 @@ public:
         VoxelAssetManager& assetManager,
         MeshManager& meshManager,
         MaterialManager& materialManager,
+        const world_lighting::WorldLightSampler* worldLightSampler,
         SceneRenderState& renderState);
 
     void clear(SceneRenderState& renderState);

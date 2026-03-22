@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <optional>
 #include <string>
 #include <vector>
@@ -42,6 +43,8 @@ private:
 
     struct LightingUBO
     {
+        static constexpr size_t MaxDynamicLights = 8;
+
         glm::vec4 skyZenithColor;
         glm::vec4 skyHorizonColor;
         glm::vec4 groundColor;
@@ -53,6 +56,10 @@ private:
         glm::vec4 params1;
         glm::vec4 params2;
         glm::vec4 params3;
+        glm::vec4 params4;
+        std::array<glm::vec4, MaxDynamicLights> dynamicLightPositionRadius{};
+        std::array<glm::vec4, MaxDynamicLights> dynamicLightColorIntensity{};
+        std::array<glm::uvec4, MaxDynamicLights> dynamicLightMetadata{};
     };
 
     struct FogUBO

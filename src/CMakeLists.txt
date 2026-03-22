@@ -43,6 +43,10 @@ add_executable(vulkan_guide
         world/chunk_neighborhood.cpp
         world/chunk_lighting.h
         world/chunk_lighting.cpp
+        world/dynamic_light_registry.h
+        world/dynamic_light_registry.cpp
+        world/world_light_sampler.h
+        world/world_light_sampler.cpp
         world/chunk_dirty_tracker.h
         world/chunk_dirty_tracker.cpp
         world/world_edit_queue.h

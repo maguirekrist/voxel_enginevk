@@ -16,6 +16,7 @@
 #include "game/cloud_structure_generator.h"
 #include "game/decoration.h"
 #include "game/tree_structure_generator.h"
+#include "render/render_primitives.h"
 #include "settings/game_settings.h"
 #include "config/game_settings_config_repository.h"
 #include "config/json_document_store.h"
@@ -27,9 +28,11 @@
 #include "voxel/voxel_picking.h"
 #include "voxel/voxel_render_instance.h"
 #include "voxel/voxel_model_repository.h"
+#include "world/dynamic_light_registry.h"
 #include "world/chunk_lighting.h"
 #include "world/chunk_manager.h"
 #include "world/terrain_gen.h"
+#include "world/world_light_sampler.h"
 
 Chunk* ChunkManager::get_chunk(const ChunkCoord) const
 {
@@ -211,6 +214,70 @@ TEST(ChunkLightingTest, LampLocalLightPropagatesAndIsBlockedBySolidWall)
     EXPECT_EQ(blocked.r, 0);
     EXPECT_EQ(blocked.g, 0);
     EXPECT_EQ(blocked.b, 0);
+}
+
+TEST(WorldLightSamplerTest, SamplesBakedLightFromLitChunkData)
+{
+    ChunkData chunk{
+        .coord = ChunkCoord{0, 0},
+        .position = glm::ivec2(0, 0)
+    };
+
+    chunk.blocks[3][9][4] = Block{
+        ._solid = false,
+        ._sunlight = 12,
+        ._type = BlockType::AIR,
+        ._localLight = LocalLight{ .r = 6, .g = 3, .b = 0 }
+    };
+
+    const world_lighting::SampledWorldLight sampled = world_lighting::sample_baked_world_light(
+        chunk,
+        glm::vec3(3.2f, 9.6f, 4.4f));
+
+    EXPECT_NEAR(sampled.bakedSunlight, 12.0f / static_cast<float>(MAX_LIGHT_LEVEL), 0.0001f);
+    EXPECT_NEAR(sampled.bakedLocalLight.r, 6.0f / static_cast<float>(MAX_LIGHT_LEVEL), 0.0001f);
+    EXPECT_NEAR(sampled.bakedLocalLight.g, 3.0f / static_cast<float>(MAX_LIGHT_LEVEL), 0.0001f);
+    EXPECT_NEAR(sampled.bakedLocalLight.b, 0.0f, 0.0001f);
+}
+
+TEST(WorldLightSamplerTest, SamplesDynamicLightsWithAffectMaskFiltering)
+{
+    const std::array lights{
+        world_lighting::DynamicPointLight{
+            .id = 1,
+            .position = glm::vec3(0.0f, 0.0f, 0.0f),
+            .color = glm::vec3(1.0f, 0.5f, 0.25f),
+            .intensity = 1.0f,
+            .radius = 4.0f,
+            .affectMask = world_lighting::AffectProps,
+            .active = true
+        },
+        world_lighting::DynamicPointLight{
+            .id = 2,
+            .position = glm::vec3(10.0f, 0.0f, 0.0f),
+            .color = glm::vec3(0.0f, 1.0f, 0.0f),
+            .intensity = 3.0f,
+            .radius = 2.0f,
+            .affectMask = world_lighting::AffectWorld,
+            .active = true
+        }
+    };
+
+    const glm::vec3 sampledProps = world_lighting::sample_dynamic_point_lights(
+        lights,
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        world_lighting::AffectProps);
+    EXPECT_GT(sampledProps.r, 0.0f);
+    EXPECT_GT(sampledProps.g, 0.0f);
+    EXPECT_GT(sampledProps.b, 0.0f);
+
+    const glm::vec3 sampledWorld = world_lighting::sample_dynamic_point_lights(
+        lights,
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        world_lighting::AffectWorld);
+    EXPECT_NEAR(sampledWorld.r, 0.0f, 0.0001f);
+    EXPECT_NEAR(sampledWorld.g, 0.0f, 0.0001f);
+    EXPECT_NEAR(sampledWorld.b, 0.0f, 0.0001f);
 }
 
 TEST(TerrainGeneratorTest, SampleColumnMatchesChunkDataAndIsDeterministic)

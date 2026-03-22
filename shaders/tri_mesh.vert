@@ -11,6 +11,8 @@ layout (location = 1) out vec3 outNormal;
 layout (location = 2) out vec3 outWorldPosition;
 layout (location = 3) out vec2 outLighting;
 layout (location = 4) out vec3 outLocalLight;
+layout (location = 5) out vec4 outSampledLocalLightAndSunlight;
+layout (location = 6) out vec4 outSampledDynamicLightAndMode;
 
 layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 projection;
@@ -29,6 +31,8 @@ layout(set = 0, binding = 0) uniform CameraUBO {
 layout ( push_constant ) uniform constants
 {
     mat4 modelMatrix;
+    vec4 sampledLocalLightAndSunlight;
+    vec4 sampledDynamicLightAndMode;
 } PushConstants;
 
 
@@ -41,4 +45,6 @@ void main()
     outWorldPosition = worldPosition;
     outLighting = vLighting;
     outLocalLight = vLocalLight;
+    outSampledLocalLightAndSunlight = PushConstants.sampledLocalLightAndSunlight;
+    outSampledDynamicLightAndMode = PushConstants.sampledDynamicLightAndMode;
 }

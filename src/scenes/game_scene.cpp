@@ -371,6 +371,7 @@ GameScene::GameScene(const SceneServices& services):
     bind_settings();
     sync_world_gen_draft();
     sync_camera_to_game(0.0f);
+    _worldLightSampler = std::make_unique<world_lighting::WorldLightSampler>(_game.chunk_manager(), _dynamicLightRegistry);
 
 	std::println("GameScene created!");
 }
@@ -395,6 +396,7 @@ GameScene::~GameScene()
 
 void GameScene::update_buffers() {
 	ZoneScopedN("Draw Chunks & Objects");
+    sync_runtime_lights();
 	_chunkRenderRegistry.sync(
 		_game.chunk_manager(),
 		*_services.meshManager,
@@ -408,8 +410,9 @@ void GameScene::update_buffers() {
         _voxelAssetManager,
         *_services.meshManager,
         *_services.materialManager,
+        _worldLightSampler.get(),
         _renderState);
-    _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, _renderState);
+    _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, _renderState, _worldLightSampler.get());
     sync_target_block_outline();
     sync_chunk_boundary_debug();
 	update_uniform_buffer();
@@ -546,6 +549,8 @@ void GameScene::build_pipelines()
 		{
 			ObjectPushConstants push{};
 			push.modelMatrix = obj.transform;
+            push.sampledLocalLightAndSunlight = glm::vec4(obj.sampledLight.localLight, obj.sampledLight.sunlight);
+            push.sampledDynamicLightAndMode = glm::vec4(obj.sampledLight.dynamicLight, static_cast<float>(obj.lightingMode));
 			return push;
 		}
 	};
@@ -745,6 +750,11 @@ void GameScene::draw_debug_map()
             ImGui::Text("Active Instances: %llu", static_cast<unsigned long long>(_voxelRenderRegistry.instance_count()));
             ImGui::Text("Chunk Decoration Chunks: %llu", static_cast<unsigned long long>(_chunkDecorationRenderRegistry.active_chunk_count()));
             ImGui::Text("Chunk Decoration Instances: %llu", static_cast<unsigned long long>(_chunkDecorationRenderRegistry.active_instance_count()));
+            ImGui::Text("Dynamic Lights: %llu", static_cast<unsigned long long>(_dynamicLightRegistry.active_light_count()));
+            ImGui::Checkbox("Player Torch Light", &_playerTorchLightEnabled);
+            ImGui::SliderFloat("Torch Radius", &_playerTorchRadius, 1.0f, 18.0f, "%.1f");
+            ImGui::SliderFloat("Torch Intensity", &_playerTorchIntensity, 0.1f, 4.0f, "%.2f");
+            ImGui::ColorEdit3("Torch Color", &_playerTorchColor.x);
 
             if (ImGui::Button("Load Demo Props"))
             {
@@ -1081,7 +1091,18 @@ void GameScene::update_lighting_ubo() const
     lighting.waterDeepColor = glm::vec4(glm::mix(tuning.nightWaterDeep, tuning.dayWaterDeep, dayFactor), 1.0f);
     lighting.params1 = glm::vec4(persistence.dayNight.timeOfDay, sunHeight, dayFactor, persistence.world.ambientOcclusionEnabled ? tuning.aoStrength : 0.0f);
     lighting.params2 = glm::vec4(tuning.shadowFloor, tuning.hemiStrength, tuning.skylightStrength, tuning.waterFogStrength);
-    lighting.params3 = glm::vec4(tuning.shadowStrength, tuning.localLightStrength, 0.0f, 0.0f);
+    const auto& dynamicLights = _dynamicLightRegistry.snapshot();
+    const size_t dynamicLightCount = std::min(dynamicLights.size(), LightingUBO::MaxDynamicLights);
+    lighting.params3 = glm::vec4(tuning.shadowStrength, tuning.localLightStrength, static_cast<float>(dynamicLightCount), 0.0f);
+    lighting.params4 = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+
+    for (size_t index = 0; index < dynamicLightCount; ++index)
+    {
+        const world_lighting::DynamicPointLight& light = dynamicLights[index];
+        lighting.dynamicLightPositionRadius[index] = glm::vec4(light.position, light.radius);
+        lighting.dynamicLightColorIntensity[index] = glm::vec4(light.color, light.intensity);
+        lighting.dynamicLightMetadata[index] = glm::uvec4(light.affectMask, light.active ? 1u : 0u, 0u, 0u);
+    }
 
     void* data;
     vmaMapMemory(_services.allocator, _lightingResource->value.buffer._allocation, &data);
@@ -1104,6 +1125,37 @@ void GameScene::update_uniform_buffer() const
 void GameScene::create_camera()
 {
 	_camera = std::make_unique<Camera>(GameConfig::DEFAULT_POSITION, _services.current_window_extent());
+}
+
+void GameScene::sync_runtime_lights()
+{
+    if (!_playerTorchLightEnabled)
+    {
+        if (_playerTorchLightId.has_value())
+        {
+            _dynamicLightRegistry.remove(_playerTorchLightId.value());
+            _playerTorchLightId.reset();
+        }
+        return;
+    }
+
+    const glm::vec3 lightPosition = _game.snapshot().player.position + glm::vec3(0.0f, 0.3f, 0.0f);
+    const world_lighting::DynamicPointLight playerTorch{
+        .position = lightPosition,
+        .color = _playerTorchColor,
+        .intensity = _playerTorchIntensity,
+        .radius = _playerTorchRadius,
+        .affectMask = world_lighting::AffectAll,
+        .active = true
+    };
+
+    if (!_playerTorchLightId.has_value())
+    {
+        _playerTorchLightId = _dynamicLightRegistry.create(playerTorch);
+        return;
+    }
+
+    _dynamicLightRegistry.update(_playerTorchLightId.value(), playerTorch);
 }
 
 void GameScene::sync_camera_to_game(const float deltaTime)
@@ -1157,7 +1209,8 @@ void GameScene::sync_target_block_outline()
             static_cast<float>(chunkOrigin.x),
             0.0f,
             static_cast<float>(chunkOrigin.y))),
-        .layer = RenderLayer::Opaque
+        .layer = RenderLayer::Opaque,
+        .lightingMode = LightingMode::Unlit
     });
 }
 
@@ -1199,7 +1252,8 @@ void GameScene::sync_chunk_boundary_debug()
                 static_cast<float>(chunk->_data->position.x),
                 0.0f,
                 static_cast<float>(chunk->_data->position.y))),
-            .layer = RenderLayer::Opaque
+            .layer = RenderLayer::Opaque,
+            .lightingMode = LightingMode::Unlit
         }));
         }
     }

@@ -19,6 +19,8 @@ layout(set = 0, binding = 0) uniform CameraUBO {
 layout ( push_constant ) uniform constants
 {
     mat4 modelMatrix;
+    vec4 sampledLocalLightAndSunlight;
+    vec4 sampledDynamicLightAndMode;
 } PushConstants;
 
 void main()

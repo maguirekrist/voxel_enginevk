@@ -21,6 +21,9 @@ std::optional<VoxelRenderInstance> build_voxel_render_instance(
         .rotation = component.rotation,
         .scale = component.scale,
         .layer = RenderLayer::Opaque,
+        .lightingMode = component.lightingMode,
+        .lightSampleOffset = component.lightSampleOffset,
+        .lightAffectMask = component.lightAffectMask,
         .visible = component.visible
     };
 }

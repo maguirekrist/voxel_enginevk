@@ -488,3 +488,25 @@ That gives the engine a scalable path for:
 - voxel entities
 - equipped torches
 - future moving emissive gameplay objects
+
+## Implementation Status
+
+Completed in the current engine slice:
+
+- [x] Added `DynamicLightRegistry`
+- [x] Added `WorldLightSampler`
+- [x] Added baked world-light sampling from lit chunk data
+- [x] Added runtime dynamic point-light sampling with affect masks
+- [x] Added `LightingMode` to render objects
+- [x] Added sampled-light payload plumbing for runtime voxel render instances
+- [x] Extended `tri_mesh` to distinguish baked chunk, sampled runtime, baked-plus-dynamic, and unlit paths
+- [x] Wired chunk terrain to `BakedPlusDynamic`
+- [x] Wired runtime voxel props/decorations to sampled runtime lighting
+- [x] Added a `GameScene` player torch dynamic-light debug path for validation
+- [x] Added unit coverage for baked and dynamic light sampling
+
+Still future work:
+
+- [ ] Route lighting through higher-level entity/component systems beyond the current voxel model component path
+- [ ] Add richer authored/runtime light ownership outside `GameScene` debug controls
+- [ ] Add optional multi-sample lighting strategies for large voxel assemblies

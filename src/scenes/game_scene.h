@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include "camera.h"
 #include "scene.h"
 #include "scene_services.h"
@@ -12,6 +13,8 @@
 #include "config/json_document_store.h"
 #include "game/cube_engine.h"
 #include "world/terrain_gen.h"
+#include "world/dynamic_light_registry.h"
+#include "world/world_light_sampler.h"
 #include "voxel/voxel_asset_manager.h"
 #include "voxel/voxel_model_repository.h"
 #include "voxel/voxel_render_registry.h"
@@ -42,6 +45,8 @@ private:
     };
 
     struct LightingUBO {
+        static constexpr size_t MaxDynamicLights = 8;
+
         glm::vec4 skyZenithColor;
         glm::vec4 skyHorizonColor;
         glm::vec4 groundColor;
@@ -52,7 +57,11 @@ private:
         glm::vec4 waterDeepColor;
         glm::vec4 params1; // x=timeOfDay, y=sunHeight, z=dayFactor, w=aoStrength
         glm::vec4 params2; // x=shadowFloor, y=hemiStrength, z=skylightStrength, w=waterFogStrength
-        glm::vec4 params3; // x=shadowStrength, y=localLightStrength
+        glm::vec4 params3; // x=shadowStrength, y=localLightStrength, z=dynamicLightCount
+        glm::vec4 params4; // x=dynamicLightStrength
+        std::array<glm::vec4, MaxDynamicLights> dynamicLightPositionRadius{};
+        std::array<glm::vec4, MaxDynamicLights> dynamicLightColorIntensity{};
+        std::array<glm::uvec4, MaxDynamicLights> dynamicLightMetadata{};
     };
 
     struct FogUBO {
@@ -86,6 +95,7 @@ private:
     VoxelModelRepository _voxelRepository;
     VoxelAssetManager _voxelAssetManager;
     VoxelRenderRegistry _voxelRenderRegistry;
+    world_lighting::DynamicLightRegistry _dynamicLightRegistry;
     SceneRenderState _renderState;
     SceneServices _services;
     PlayerInputState _playerInput{};
@@ -106,9 +116,16 @@ private:
     std::string _runtimeVoxelStatus{"Voxel prop demo not loaded yet."};
     bool _runtimeVoxelDemoInitialized{false};
     bool _runtimeVoxelDemoDirty{true};
+    bool _playerTorchLightEnabled{true};
+    float _playerTorchRadius{7.5f};
+    float _playerTorchIntensity{1.0f};
+    glm::vec3 _playerTorchColor{1.0f, 0.82f, 0.52f};
+    std::optional<world_lighting::DynamicLightRegistry::LightId> _playerTorchLightId{};
+    std::unique_ptr<world_lighting::WorldLightSampler> _worldLightSampler;
 
     void create_camera();
     void sync_camera_to_game(float deltaTime);
+    void sync_runtime_lights();
     void sync_target_block();
     void sync_target_block_outline();
     void sync_chunk_boundary_debug();

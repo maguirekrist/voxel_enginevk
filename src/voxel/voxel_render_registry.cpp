@@ -4,6 +4,7 @@
 
 #include "render/material_manager.h"
 #include "render/mesh_manager.h"
+#include "world/world_light_sampler.h"
 
 VoxelRenderRegistry::InstanceId VoxelRenderRegistry::add_instance(const VoxelRenderInstance& instance)
 {
@@ -70,7 +71,11 @@ void VoxelRenderRegistry::clear(SceneRenderState& renderState)
     _entries.clear();
 }
 
-void VoxelRenderRegistry::sync(MeshManager& meshManager, MaterialManager& materialManager, SceneRenderState& renderState)
+void VoxelRenderRegistry::sync(
+    MeshManager& meshManager,
+    MaterialManager& materialManager,
+    SceneRenderState& renderState,
+    const world_lighting::WorldLightSampler* const worldLightSampler)
 {
     const auto defaultMaterial = materialManager.get_material("defaultmesh");
     std::unordered_set<Mesh*> queuedMeshes{};
@@ -83,6 +88,18 @@ void VoxelRenderRegistry::sync(MeshManager& meshManager, MaterialManager& materi
         {
             remove_render_object(entry, renderState);
             continue;
+        }
+
+        if (worldLightSampler != nullptr && entry.instance.lightingMode == LightingMode::SampledRuntime)
+        {
+            const world_lighting::SampledWorldLight sampledLight = worldLightSampler->sample(
+                entry.instance.light_sample_world_position(),
+                entry.instance.lightAffectMask);
+            entry.instance.sampledLight = SampledLightPayload{
+                .localLight = sampledLight.bakedLocalLight,
+                .sunlight = sampledLight.bakedSunlight,
+                .dynamicLight = sampledLight.dynamicLight
+            };
         }
 
         Mesh* const meshPtr = entry.instance.asset->mesh.get();
@@ -104,7 +121,9 @@ void VoxelRenderRegistry::sync(MeshManager& meshManager, MaterialManager& materi
                 .mesh = entry.instance.asset->mesh,
                 .material = defaultMaterial,
                 .transform = entry.instance.model_matrix(),
-                .layer = entry.instance.layer
+                .layer = entry.instance.layer,
+                .lightingMode = entry.instance.lightingMode,
+                .sampledLight = entry.instance.sampledLight
             });
             entry.submittedLayer = entry.instance.layer;
             continue;
@@ -122,6 +141,8 @@ void VoxelRenderRegistry::sync(MeshManager& meshManager, MaterialManager& materi
         renderObject->material = defaultMaterial;
         renderObject->transform = entry.instance.model_matrix();
         renderObject->layer = entry.instance.layer;
+        renderObject->lightingMode = entry.instance.lightingMode;
+        renderObject->sampledLight = entry.instance.sampledLight;
     }
 }
 

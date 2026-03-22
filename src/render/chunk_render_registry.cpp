@@ -120,7 +120,8 @@ void ChunkRenderRegistry::finalize_pending_renders(
                 static_cast<float>(pending.data->position.x),
                 0.0f,
                 static_cast<float>(pending.data->position.y))),
-            .layer = RenderLayer::Opaque
+            .layer = RenderLayer::Opaque,
+            .lightingMode = LightingMode::BakedPlusDynamic
         });
         handles.hasOpaque = true;
 
@@ -133,7 +134,8 @@ void ChunkRenderRegistry::finalize_pending_renders(
                     static_cast<float>(pending.data->position.x),
                     0.0f,
                     static_cast<float>(pending.data->position.y))),
-                .layer = RenderLayer::Transparent
+                .layer = RenderLayer::Transparent,
+                .lightingMode = LightingMode::BakedChunk
             });
             handles.hasWaterTransparent = true;
         }
@@ -147,7 +149,8 @@ void ChunkRenderRegistry::finalize_pending_renders(
                     static_cast<float>(pending.data->position.x),
                     0.0f,
                     static_cast<float>(pending.data->position.y))),
-                .layer = RenderLayer::Transparent
+                .layer = RenderLayer::Transparent,
+                .lightingMode = LightingMode::Unlit
             });
             handles.hasGlowTransparent = true;
         }

@@ -10,6 +10,7 @@
 
 class MaterialManager;
 class MeshManager;
+namespace world_lighting { class WorldLightSampler; }
 
 class VoxelRenderRegistry
 {
@@ -22,7 +23,11 @@ public:
     [[nodiscard]] const VoxelRenderInstance* get_instance(InstanceId id) const;
     bool remove_instance(InstanceId id, SceneRenderState& renderState);
     void clear(SceneRenderState& renderState);
-    void sync(MeshManager& meshManager, MaterialManager& materialManager, SceneRenderState& renderState);
+    void sync(
+        MeshManager& meshManager,
+        MaterialManager& materialManager,
+        SceneRenderState& renderState,
+        const world_lighting::WorldLightSampler* worldLightSampler = nullptr);
     [[nodiscard]] size_t instance_count() const noexcept;
 
 private:

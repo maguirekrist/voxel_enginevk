@@ -58,6 +58,12 @@ glm::vec3 VoxelRenderInstance::world_point_from_asset_local(const glm::vec3& ass
     return glm::vec3(model_matrix() * glm::vec4(pivotRelativePoint, 1.0f));
 }
 
+glm::vec3 VoxelRenderInstance::light_sample_world_position() const
+{
+    const glm::vec3 rotatedOffset = rotation * (lightSampleOffset * scale);
+    return position + rotatedOffset;
+}
+
 std::optional<glm::mat4> VoxelRenderInstance::attachment_world_transform(const std::string_view attachmentName) const
 {
     if (asset == nullptr)

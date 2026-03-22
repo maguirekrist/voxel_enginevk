@@ -244,6 +244,8 @@ void VoxelEditorScene::build_pipelines()
         {
             ObjectPushConstants push{};
             push.modelMatrix = object.transform;
+            push.sampledLocalLightAndSunlight = glm::vec4(object.sampledLight.localLight, object.sampledLight.sunlight);
+            push.sampledDynamicLightAndMode = glm::vec4(object.sampledLight.dynamicLight, static_cast<float>(object.lightingMode));
             return push;
         }
     };
@@ -314,9 +316,12 @@ void VoxelEditorScene::update_uniform_buffers() const
     lighting.sunColor = glm::vec4(1.0f, 0.96f, 0.86f, 1.0f);
     lighting.moonColor = glm::vec4(0.18f, 0.20f, 0.28f, 1.0f);
     lighting.shadowColor = glm::vec4(0.16f, 0.18f, 0.21f, 1.0f);
+    lighting.waterShallowColor = glm::vec4(0.18f, 0.28f, 0.36f, 1.0f);
+    lighting.waterDeepColor = glm::vec4(0.08f, 0.14f, 0.20f, 1.0f);
     lighting.params1 = glm::vec4(0.32f, 1.0f, 1.0f, 0.0f);
     lighting.params2 = glm::vec4(0.10f, 0.80f, 1.0f, 0.0f);
     lighting.params3 = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+    lighting.params4 = glm::vec4(0.0f);
 
     void* lightingData = nullptr;
     vmaMapMemory(_services.allocator, _lightingResource->value.buffer._allocation, &lightingData);
