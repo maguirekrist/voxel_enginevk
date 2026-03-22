@@ -342,6 +342,8 @@ This gives immediate runtime value without overcommitting to the full assembly s
 - [ ] Add first multi-part assembly component.
 - [x] Add transform composition tests.
 - [x] Add one `GameScene` runtime demo entity using voxel assets.
+- [x] Add chunk-owned world decoration placement phase for voxel props.
+- [x] Add visible-chunk voxel decoration render submission.
 
 ## Current Status
 
@@ -353,8 +355,12 @@ This gives immediate runtime value without overcommitting to the full assembly s
 - Added `VoxelRenderInstance` for shared-asset runtime transforms.
 - Added `VoxelRenderRegistry` for reusable voxel instance submission and shared mesh upload handling.
 - Added a `GameScene` runtime voxel prop demo path that loads a saved asset id and spawns multiple shared-mesh world props near the player.
+- Added `VoxelModelComponent` groundwork plus a component-to-render-instance adapter.
+- Added a world-decoration generation pass after structure placement with forest-only flower placement.
+- Added `ChunkDecorationRenderRegistry` so chunk-owned voxel decorations stream in/out with visible chunks.
 - Added tests for:
   - attachment round-trip persistence
   - runtime asset cache reuse and mesh generation
   - instance pivot/local-to-world transform correctness
   - attachment transform composition
+  - decoration biome gating and blocked-column clearance rules

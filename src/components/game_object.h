@@ -8,6 +8,7 @@
 #include <array>
 #include <memory>
 #include <stdexcept>
+#include <vector>
 
 #include "constants.h"
 #include "glm/vec3.hpp"

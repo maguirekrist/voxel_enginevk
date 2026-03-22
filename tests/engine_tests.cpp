@@ -1,4 +1,5 @@
 #include <memory>
+#include <cmath>
 #include <limits>
 #include <filesystem>
 #include <ranges>
@@ -13,12 +14,14 @@
 #include "game/block.h"
 #include "game/chunk.h"
 #include "game/cloud_structure_generator.h"
+#include "game/decoration.h"
 #include "game/tree_structure_generator.h"
 #include "settings/game_settings.h"
 #include "config/game_settings_config_repository.h"
 #include "config/json_document_store.h"
 #include "config/world_gen_config_repository.h"
 #include "game/world.h"
+#include "render/chunk_decoration_render_registry.h"
 #include "voxel/voxel_mesher.h"
 #include "voxel/voxel_asset_manager.h"
 #include "voxel/voxel_picking.h"
@@ -117,6 +120,7 @@ namespace
             return edit.worldPosition == worldPosition && edit.block._type == blockType;
         });
     }
+
 }
 
 TEST(WorldCoordinatesTest, WrapsPositiveAndNegativeCoordinatesCorrectly)
@@ -272,6 +276,97 @@ TEST(VoxelRenderInstanceTest, AttachmentWorldTransformUsesAttachmentPositionRela
     EXPECT_NEAR(worldOrigin.x, 3.0f, 0.0001f);
     EXPECT_NEAR(worldOrigin.y, 2.0f, 0.0001f);
     EXPECT_NEAR(worldOrigin.z, 0.0f, 0.0001f);
+}
+
+TEST(DecorationPlacementTest, ForestFlowersRequireForestBiome)
+{
+    EXPECT_TRUE(decoration::is_forest_flower_biome(BiomeType::Forest));
+    EXPECT_FALSE(decoration::is_forest_flower_biome(BiomeType::Plains));
+    EXPECT_FALSE(decoration::is_forest_flower_biome(BiomeType::River));
+}
+
+TEST(DecorationPlacementTest, SurfaceDecorationRequiresGroundAndAirClearance)
+{
+    ChunkData chunk{
+        .coord = ChunkCoord{0, 0},
+        .position = glm::ivec2(0, 0)
+    };
+
+    for (int x = 0; x < CHUNK_SIZE; ++x)
+    {
+        for (int y = 0; y < CHUNK_HEIGHT; ++y)
+        {
+            for (int z = 0; z < CHUNK_SIZE; ++z)
+            {
+                chunk.blocks[x][y][z] = Block{
+                    ._solid = false,
+                    ._sunlight = 0,
+                    ._type = static_cast<uint8_t>(BlockType::AIR)
+                };
+            }
+        }
+    }
+
+    chunk.blocks[2][10][3] = Block{
+        ._solid = true,
+        ._sunlight = 0,
+        ._type = static_cast<uint8_t>(BlockType::GROUND)
+    };
+
+    const TerrainColumnSample forestColumn{
+        .surfaceHeight = 10,
+        .stoneHeight = 8,
+        .biome = BiomeType::Forest,
+        .topBlock = BlockType::GROUND,
+        .fillerBlock = BlockType::GROUND
+    };
+
+    EXPECT_TRUE(decoration::can_place_surface_decoration(chunk, forestColumn, glm::ivec3(2, 10, 3), 2));
+
+    chunk.blocks[2][11][3] = Block{
+        ._solid = true,
+        ._sunlight = 0,
+        ._type = static_cast<uint8_t>(BlockType::WOOD)
+    };
+    EXPECT_FALSE(decoration::can_place_surface_decoration(chunk, forestColumn, glm::ivec3(2, 10, 3), 2));
+
+    chunk.blocks[2][11][3] = Block{
+        ._solid = false,
+        ._sunlight = 0,
+        ._type = static_cast<uint8_t>(BlockType::AIR)
+    };
+    chunk.blocks[2][10][3] = Block{
+        ._solid = true,
+        ._sunlight = 0,
+        ._type = static_cast<uint8_t>(BlockType::SAND)
+    };
+    EXPECT_FALSE(decoration::can_place_surface_decoration(chunk, forestColumn, glm::ivec3(2, 10, 3), 2));
+}
+
+TEST(ChunkDecorationRenderRegistryTest, RebuildsWhenGeneratedChunkDataReplacesPlaceholderData)
+{
+    Chunk chunk{ ChunkCoord{0, 0} };
+    chunk._gen.store(7, std::memory_order::release);
+    chunk._state.store(ChunkState::Generated, std::memory_order::release);
+
+    const ChunkDecorationRenderRegistry::ChunkDecorationEntryState placeholderEntry{
+        .chunk = &chunk,
+        .data = chunk._data.get(),
+        .generationId = 7
+    };
+
+    EXPECT_FALSE(ChunkDecorationRenderRegistry::requires_rebuild(&placeholderEntry, chunk));
+
+    auto generatedData = std::make_shared<ChunkData>(ChunkCoord{0, 0}, glm::ivec2(0, 0));
+    generatedData->voxelDecorations.push_back(VoxelDecorationPlacement{
+        .assetId = "flower",
+        .worldPosition = glm::vec3(0.5f, 8.0f, 0.5f),
+        .rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+        .scale = 1.0f
+    });
+    chunk._data = generatedData;
+
+    EXPECT_TRUE(ChunkDecorationRenderRegistry::requires_rebuild(&placeholderEntry, chunk));
 }
 
 TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)

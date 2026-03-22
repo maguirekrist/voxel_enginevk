@@ -4,6 +4,7 @@
 #include "scene.h"
 #include "scene_services.h"
 #include "render/chunk_render_registry.h"
+#include "render/chunk_decoration_render_registry.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
 #include "render/mesh.h"
@@ -80,6 +81,7 @@ private:
     std::shared_ptr<Mesh> _chunkBoundaryMesh;
     std::shared_ptr<Mesh> _targetBlockOutlineMesh;
     ChunkRenderRegistry _chunkRenderRegistry;
+    ChunkDecorationRenderRegistry _chunkDecorationRenderRegistry;
     config::JsonFileDocumentStore _voxelDocumentStore{};
     VoxelModelRepository _voxelRepository;
     VoxelAssetManager _voxelAssetManager;

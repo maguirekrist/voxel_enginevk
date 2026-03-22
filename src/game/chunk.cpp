@@ -67,6 +67,13 @@ void ChunkData::generate()
     };
     const std::vector<StructureBlockEdit> edits = StructureRegistry::instance().generate_overlapping(structureContext);
     apply_structure_edits(edits);
+
+    const DecorationGenerationContext decorationContext{
+        .chunkOrigin = position,
+        .terrainGenerator = &terrainGenerator,
+        .chunkData = this
+    };
+    voxelDecorations = DecorationRegistry::instance().generate_for_chunk(decorationContext);
 }
 
 void ChunkData::apply_structure_edits(const std::span<const StructureBlockEdit> edits)

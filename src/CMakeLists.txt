@@ -26,6 +26,8 @@ add_executable(vulkan_guide
         game/block.cpp
         game/structure.h
         game/structure.cpp
+        game/decoration.h
+        game/decoration.cpp
         game/cloud_structure_generator.h
         game/cloud_structure_generator.cpp
         game/tree_structure_generator.h
@@ -75,6 +77,8 @@ add_executable(vulkan_guide
     voxel/voxel_runtime_asset.h
     voxel/voxel_asset_manager.h
     voxel/voxel_asset_manager.cpp
+    voxel/voxel_model_component_adapter.h
+    voxel/voxel_model_component_adapter.cpp
     voxel/voxel_render_instance.h
     voxel/voxel_render_instance.cpp
     voxel/voxel_render_registry.h
@@ -108,6 +112,7 @@ add_executable(vulkan_guide
         physics/aabb.h
         components/player_input_component.cpp
         components/player_input_component.h
+        components/voxel_model_component.h
         components/game_object.h
         components/component.h
         world/thread_pool.cpp
@@ -124,6 +129,8 @@ add_executable(vulkan_guide
         render/mesh.h
         render/chunk_render_registry.cpp
         render/chunk_render_registry.h
+        render/chunk_decoration_render_registry.cpp
+        render/chunk_decoration_render_registry.h
         render/scene_render_state.h
         render/mesh_release_queue.cpp
         render/mesh_release_queue.h

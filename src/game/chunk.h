@@ -3,6 +3,7 @@
 #include <constants.h>
 #include <format>
 #include "block.h"
+#include "decoration.h"
 #include "structure.h"
 #include "render/mesh.h"
 
@@ -82,6 +83,7 @@ struct ChunkData
     ChunkCoord coord{0, 0};
     glm::ivec2 position{0, 0};
     ChunkBlocks blocks{};
+    std::vector<VoxelDecorationPlacement> voxelDecorations{};
 
     void generate();
     void apply_structure_edits(std::span<const StructureBlockEdit> edits);

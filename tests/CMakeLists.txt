@@ -8,7 +8,9 @@ add_executable(engine_tests
     ../src/config/config_service.cpp
     ../src/config/game_settings_config_repository.cpp
     ../src/config/world_gen_config_repository.cpp
+    ../src/game/chunk.cpp
     ../src/game/world.cpp
+    ../src/game/decoration.cpp
     ../src/game/structure.cpp
     ../src/game/cloud_structure_generator.cpp
     ../src/game/tree_structure_generator.cpp
@@ -17,6 +19,7 @@ add_executable(engine_tests
     ../src/voxel/voxel_mesher.cpp
     ../src/voxel/voxel_picking.cpp
     ../src/voxel/voxel_model_repository.cpp
+    ../src/render/mesh_release_queue.cpp
     ../src/world/chunk_neighborhood.cpp
     ../src/world/chunk_lighting.cpp
     ../src/world/terrain_gen.cpp

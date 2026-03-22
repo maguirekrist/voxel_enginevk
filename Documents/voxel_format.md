@@ -100,6 +100,8 @@ Planned JSON shape:
 - [ ] Add editor affordances for setting the model pivot from a selected voxel and rendering a pivot indicator.
 - [x] Add runtime-facing voxel model instance path separate from the editor preview path.
 - [x] Add sockets / attachment metadata groundwork for future skeleton integration.
+- [x] Add a post-structure world-decoration pass for chunk-owned voxel props.
+- [x] Add visible-chunk runtime submission for world decorations (forest flowers).
 
 ## Notes During Implementation
 
@@ -109,5 +111,5 @@ Planned JSON shape:
 - Current verification status:
   - `cmake --build build --config Debug --target vulkan_guide` succeeded on March 22, 2026.
   - `cmake --build build --config Debug --target engine_tests` succeeded on March 22, 2026.
-  - `engine_tests.exe --gtest_list_tests` includes runtime attachment/cache coverage on March 22, 2026.
-  - `ctest --output-on-failure -C Debug` passed 29/29 on March 22, 2026.
+  - `engine_tests.exe --gtest_list_tests` includes runtime attachment/cache and decoration coverage on March 22, 2026.
+  - `ctest --output-on-failure -C Debug` passed 31/31 on March 22, 2026.

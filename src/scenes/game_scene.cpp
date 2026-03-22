@@ -12,6 +12,8 @@
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "render/mesh_release_queue.h"
+#include "components/voxel_model_component.h"
+#include "voxel/voxel_model_component_adapter.h"
 
 namespace
 {
@@ -377,6 +379,7 @@ GameScene::~GameScene()
 {
     clear_target_block_outline();
     clear_chunk_boundary_debug();
+    _chunkDecorationRenderRegistry.clear(_renderState);
     _voxelRenderRegistry.clear(_renderState);
 	_chunkRenderRegistry.clear(_renderState);
     if (_chunkBoundaryMesh != nullptr)
@@ -397,6 +400,15 @@ void GameScene::update_buffers() {
 		*_services.meshManager,
 		*_services.materialManager,
 		_renderState);
+    const ChunkCoord centerChunk = _game.snapshot().currentChunk.value_or(World::get_chunk_coordinates(_game.snapshot().player.position));
+    _chunkDecorationRenderRegistry.sync(
+        _game.chunk_manager(),
+        centerChunk,
+        _settings.persistence().world.viewDistance,
+        _voxelAssetManager,
+        *_services.meshManager,
+        *_services.materialManager,
+        _renderState);
     _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, _renderState);
     sync_target_block_outline();
     sync_chunk_boundary_debug();
@@ -731,6 +743,8 @@ void GameScene::draw_debug_map()
             ImGui::Text("Repository Path: %s", _voxelRepository.resolve_path(_runtimeVoxelAssetId).string().c_str());
             ImGui::Text("Loaded Assets: %llu", static_cast<unsigned long long>(_voxelAssetManager.loaded_asset_count()));
             ImGui::Text("Active Instances: %llu", static_cast<unsigned long long>(_voxelRenderRegistry.instance_count()));
+            ImGui::Text("Chunk Decoration Chunks: %llu", static_cast<unsigned long long>(_chunkDecorationRenderRegistry.active_chunk_count()));
+            ImGui::Text("Chunk Decoration Instances: %llu", static_cast<unsigned long long>(_chunkDecorationRenderRegistry.active_instance_count()));
 
             if (ImGui::Button("Load Demo Props"))
             {
@@ -1197,8 +1211,7 @@ void GameScene::rebuild_runtime_voxel_demo()
     _runtimeVoxelDemoDirty = false;
     _voxelRenderRegistry.clear(_renderState);
 
-    const std::shared_ptr<VoxelRuntimeAsset> asset = _voxelAssetManager.load_or_get(_runtimeVoxelAssetId);
-    if (asset == nullptr)
+    if (_voxelAssetManager.find_loaded(_runtimeVoxelAssetId) == nullptr && _voxelAssetManager.load_or_get(_runtimeVoxelAssetId) == nullptr)
     {
         _runtimeVoxelStatus = std::format(
             "Could not load voxel asset '{}'. Save a model in the voxel editor first.",
@@ -1217,19 +1230,25 @@ void GameScene::rebuild_runtime_voxel_demo()
     for (size_t index = 0; index < offsets.size(); ++index)
     {
         const float yawDegrees = 22.5f + (static_cast<float>(index) * 37.0f);
-        (void)_voxelRenderRegistry.add_instance(VoxelRenderInstance{
-            .asset = asset,
-            .position = runtime_voxel_demo_position(offsets[index]),
-            .rotation = glm::angleAxis(glm::radians(yawDegrees), glm::vec3(0.0f, 1.0f, 0.0f)),
-            .scale = 1.0f,
-            .layer = RenderLayer::Opaque,
-            .visible = true
-        });
+        VoxelModelComponent component{};
+        component.assetId = _runtimeVoxelAssetId;
+        component.position = runtime_voxel_demo_position(offsets[index]);
+        component.rotation = glm::angleAxis(glm::radians(yawDegrees), glm::vec3(0.0f, 1.0f, 0.0f));
+        component.scale = 1.0f;
+        component.visible = true;
+
+        const std::optional<VoxelRenderInstance> renderInstance = build_voxel_render_instance(component, _voxelAssetManager);
+        if (!renderInstance.has_value())
+        {
+            continue;
+        }
+
+        (void)_voxelRenderRegistry.add_instance(renderInstance.value());
     }
 
     _runtimeVoxelStatus = std::format(
         "Loaded '{}' as {} shared-mesh runtime prop instance(s).",
-        asset->assetId,
+        _runtimeVoxelAssetId,
         offsets.size());
 }
 
@@ -1281,6 +1300,7 @@ void GameScene::apply_view_distance_settings(const settings::ViewDistanceRuntime
 {
     _viewDistanceDraft = settings.viewDistance;
     _chunkRenderRegistry.clear(_renderState);
+    _chunkDecorationRenderRegistry.clear(_renderState);
     clear_chunk_boundary_debug();
     clear_target_block_outline();
     _outlinedBlockWorldPos.reset();
