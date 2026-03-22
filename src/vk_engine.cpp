@@ -105,7 +105,8 @@ void VulkanEngine::cleanup()
 
 void VulkanEngine::handle_input()
 {	
-    const WindowEventState eventState = _windowSystem.poll_events([this](const SDL_Event& event)
+    Scene& currentScene = *_sceneRenderer.get_current_scene();
+    const WindowEventState eventState = _windowSystem.poll_events(currentScene.wants_mouse_capture(), [this](const SDL_Event& event)
     {
         if (event.type == SDL_KEYDOWN && !event.key.repeat)
         {
@@ -124,9 +125,18 @@ void VulkanEngine::handle_input()
 
     bQuit = bQuit || eventState.quitRequested;
     bResizeRequest = bResizeRequest || eventState.resizeRequested;
-    const bool imguiCapturingInput = !_windowSystem.is_focused() && USE_IMGUI && ImGui::GetCurrentContext() != nullptr &&
+    const bool imguiCapturingInput = !_sceneRenderer.get_current_scene()->wants_mouse_capture() && USE_IMGUI && ImGui::GetCurrentContext() != nullptr &&
         (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard);
     if (imguiCapturingInput)
+    {
+        _sceneRenderer.get_current_scene()->clear_input();
+        return;
+    }
+
+    const bool sceneRequiresFocus = _sceneRenderer.get_current_scene()->wants_mouse_capture();
+    const bool focusedImguiCapturingInput = sceneRequiresFocus && !_windowSystem.is_focused() && USE_IMGUI && ImGui::GetCurrentContext() != nullptr &&
+        (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard);
+    if (focusedImguiCapturingInput)
     {
         _sceneRenderer.get_current_scene()->clear_input();
         return;

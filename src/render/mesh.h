@@ -18,7 +18,10 @@ struct Mesh {
     static std::shared_ptr<Mesh> create_cube_mesh();
     static std::shared_ptr<Mesh> create_quad_mesh();
     static std::shared_ptr<Mesh> create_chunk_boundary_mesh();
+    static std::shared_ptr<Mesh> create_block_indicator_mesh(const glm::vec3& blockMinCorner, float blockSize);
+    static std::shared_ptr<Mesh> create_block_preview_mesh(const glm::vec3& blockMinCorner, float blockSize);
     static std::shared_ptr<Mesh> create_block_outline_mesh(const glm::vec3& blockMinCorner);
+    static std::shared_ptr<Mesh> create_block_outline_mesh(const glm::vec3& blockMinCorner, float blockSize);
 
     Mesh(): _allocation()
     {

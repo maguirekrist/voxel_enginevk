@@ -13,6 +13,7 @@ add_executable(engine_tests
     ../src/game/cloud_structure_generator.cpp
     ../src/game/tree_structure_generator.cpp
     ../src/voxel/voxel_mesher.cpp
+    ../src/voxel/voxel_picking.cpp
     ../src/voxel/voxel_model_repository.cpp
     ../src/world/chunk_neighborhood.cpp
     ../src/world/chunk_lighting.cpp

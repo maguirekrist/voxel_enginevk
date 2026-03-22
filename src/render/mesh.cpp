@@ -4,8 +4,74 @@
 
 #include "mesh.h"
 
+#include <algorithm>
+
 #include "constants.h"
 #include "game/block.h"
+
+namespace
+{
+    void add_box_mesh(
+        const std::shared_ptr<Mesh>& mesh,
+        const glm::vec3& minCorner,
+        const glm::vec3& maxCorner,
+        const glm::vec3& color)
+    {
+        const glm::vec3 corners[8] = {
+            { minCorner.x, minCorner.y, minCorner.z },
+            { maxCorner.x, minCorner.y, minCorner.z },
+            { maxCorner.x, maxCorner.y, minCorner.z },
+            { minCorner.x, maxCorner.y, minCorner.z },
+            { minCorner.x, minCorner.y, maxCorner.z },
+            { maxCorner.x, minCorner.y, maxCorner.z },
+            { maxCorner.x, maxCorner.y, maxCorner.z },
+            { minCorner.x, maxCorner.y, maxCorner.z }
+        };
+
+        const int faceCornerIndices[6][4] = {
+            { 4, 5, 6, 7 },
+            { 1, 0, 3, 2 },
+            { 0, 4, 7, 3 },
+            { 5, 1, 2, 6 },
+            { 3, 7, 6, 2 },
+            { 0, 1, 5, 4 }
+        };
+
+        for (int face = 0; face < 6; ++face)
+        {
+            const uint32_t baseIndex = static_cast<uint32_t>(mesh->_vertices.size());
+            for (int vertexIndex = 0; vertexIndex < 4; ++vertexIndex)
+            {
+                mesh->_vertices.push_back(Vertex{
+                    corners[faceCornerIndices[face][vertexIndex]],
+                    faceNormals[face],
+                    color,
+                    glm::vec2(1.0f, 1.0f),
+                    glm::vec3(0.0f)
+                });
+            }
+
+            mesh->_indices.push_back(baseIndex + 0);
+            mesh->_indices.push_back(baseIndex + 1);
+            mesh->_indices.push_back(baseIndex + 2);
+            mesh->_indices.push_back(baseIndex + 2);
+            mesh->_indices.push_back(baseIndex + 3);
+            mesh->_indices.push_back(baseIndex + 0);
+        }
+    }
+
+    void add_beam(
+        const std::shared_ptr<Mesh>& mesh,
+        const glm::vec3& start,
+        const glm::vec3& end,
+        const float thickness,
+        const glm::vec3& color)
+    {
+        const glm::vec3 minCorner = glm::min(start, end) - glm::vec3(thickness * 0.5f);
+        const glm::vec3 maxCorner = glm::max(start, end) + glm::vec3(thickness * 0.5f);
+        add_box_mesh(mesh, minCorner, maxCorner, color);
+    }
+}
 
 std::shared_ptr<Mesh> Mesh::create_cube_mesh()
 {
@@ -101,10 +167,58 @@ std::shared_ptr<Mesh> Mesh::create_chunk_boundary_mesh()
     return debugMesh;
 }
 
-std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinCorner)
+std::shared_ptr<Mesh> Mesh::create_block_indicator_mesh(const glm::vec3& blockMinCorner, const float blockSize)
 {
     auto debugMesh = std::make_shared<Mesh>();
-    constexpr float epsilon = 0.0025f;
+    const float thickness = std::max(blockSize * 0.24f, 0.03f);
+    const glm::vec3 color{1.0f, 0.95f, 0.25f};
+
+    const glm::vec3 p000 = blockMinCorner;
+    const glm::vec3 p100 = blockMinCorner + glm::vec3(blockSize, 0.0f, 0.0f);
+    const glm::vec3 p010 = blockMinCorner + glm::vec3(0.0f, blockSize, 0.0f);
+    const glm::vec3 p110 = blockMinCorner + glm::vec3(blockSize, blockSize, 0.0f);
+    const glm::vec3 p001 = blockMinCorner + glm::vec3(0.0f, 0.0f, blockSize);
+    const glm::vec3 p101 = blockMinCorner + glm::vec3(blockSize, 0.0f, blockSize);
+    const glm::vec3 p011 = blockMinCorner + glm::vec3(0.0f, blockSize, blockSize);
+    const glm::vec3 p111 = blockMinCorner + glm::vec3(blockSize, blockSize, blockSize);
+
+    add_beam(debugMesh, p000, p100, thickness, color);
+    add_beam(debugMesh, p001, p101, thickness, color);
+    add_beam(debugMesh, p010, p110, thickness, color);
+    add_beam(debugMesh, p011, p111, thickness, color);
+
+    add_beam(debugMesh, p000, p001, thickness, color);
+    add_beam(debugMesh, p100, p101, thickness, color);
+    add_beam(debugMesh, p010, p011, thickness, color);
+    add_beam(debugMesh, p110, p111, thickness, color);
+
+    add_beam(debugMesh, p000, p010, thickness, color);
+    add_beam(debugMesh, p100, p110, thickness, color);
+    add_beam(debugMesh, p001, p011, thickness, color);
+    add_beam(debugMesh, p101, p111, thickness, color);
+
+    return debugMesh;
+}
+
+std::shared_ptr<Mesh> Mesh::create_block_preview_mesh(const glm::vec3& blockMinCorner, const float blockSize)
+{
+    auto previewMesh = std::make_shared<Mesh>();
+    const float inset = std::max(blockSize * 0.08f, 0.004f);
+    const glm::vec3 minCorner = blockMinCorner + glm::vec3(inset);
+    const glm::vec3 maxCorner = blockMinCorner + glm::vec3(blockSize - inset);
+    add_box_mesh(previewMesh, minCorner, maxCorner, glm::vec3(1.0f, 0.93f, 0.30f));
+    return previewMesh;
+}
+
+std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinCorner)
+{
+    return create_block_outline_mesh(blockMinCorner, 1.0f);
+}
+
+std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinCorner, const float blockSize)
+{
+    auto debugMesh = std::make_shared<Mesh>();
+    const float epsilon = std::max(0.0005f, blockSize * 0.025f);
     const glm::vec3 color = glm::vec3(1.0f);
 
     const auto add_line = [&debugMesh, &color](const glm::vec3& start, const glm::vec3& end)
@@ -117,13 +231,13 @@ std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinC
     };
 
     const glm::vec3 p000 = blockMinCorner + glm::vec3{-epsilon, -epsilon, -epsilon};
-    const glm::vec3 p100 = blockMinCorner + glm::vec3{1.0f + epsilon, -epsilon, -epsilon};
-    const glm::vec3 p010 = blockMinCorner + glm::vec3{-epsilon, 1.0f + epsilon, -epsilon};
-    const glm::vec3 p110 = blockMinCorner + glm::vec3{1.0f + epsilon, 1.0f + epsilon, -epsilon};
-    const glm::vec3 p001 = blockMinCorner + glm::vec3{-epsilon, -epsilon, 1.0f + epsilon};
-    const glm::vec3 p101 = blockMinCorner + glm::vec3{1.0f + epsilon, -epsilon, 1.0f + epsilon};
-    const glm::vec3 p011 = blockMinCorner + glm::vec3{-epsilon, 1.0f + epsilon, 1.0f + epsilon};
-    const glm::vec3 p111 = blockMinCorner + glm::vec3{1.0f + epsilon, 1.0f + epsilon, 1.0f + epsilon};
+    const glm::vec3 p100 = blockMinCorner + glm::vec3{blockSize + epsilon, -epsilon, -epsilon};
+    const glm::vec3 p010 = blockMinCorner + glm::vec3{-epsilon, blockSize + epsilon, -epsilon};
+    const glm::vec3 p110 = blockMinCorner + glm::vec3{blockSize + epsilon, blockSize + epsilon, -epsilon};
+    const glm::vec3 p001 = blockMinCorner + glm::vec3{-epsilon, -epsilon, blockSize + epsilon};
+    const glm::vec3 p101 = blockMinCorner + glm::vec3{blockSize + epsilon, -epsilon, blockSize + epsilon};
+    const glm::vec3 p011 = blockMinCorner + glm::vec3{-epsilon, blockSize + epsilon, blockSize + epsilon};
+    const glm::vec3 p111 = blockMinCorner + glm::vec3{blockSize + epsilon, blockSize + epsilon, blockSize + epsilon};
 
     add_line(p000, p100);
     add_line(p001, p101);

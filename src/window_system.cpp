@@ -47,10 +47,18 @@ const Uint8* WindowSystem::keyboard_state() const
     return SDL_GetKeyboardState(nullptr);
 }
 
-WindowEventState WindowSystem::poll_events(const std::function<void(const SDL_Event&)>& sceneInputHandler)
+WindowEventState WindowSystem::poll_events(const bool mouseCaptureDesired, const std::function<void(const SDL_Event&)>& sceneInputHandler)
 {
     WindowEventState eventState{};
     SDL_Event event;
+
+    if (!mouseCaptureDesired && _focused)
+    {
+        _focused = false;
+        SDL_SetWindowGrab(_window, SDL_FALSE);
+        SDL_SetRelativeMouseMode(SDL_FALSE);
+        SDL_ShowCursor(SDL_TRUE);
+    }
 
     while (SDL_PollEvent(&event) != 0)
     {
@@ -59,7 +67,7 @@ WindowEventState WindowSystem::poll_events(const std::function<void(const SDL_Ev
             ImGui_ImplSDL2_ProcessEvent(&event);
         }
 
-        const bool imguiCaptureAllowed = !_focused;
+        const bool imguiCaptureAllowed = !mouseCaptureDesired || !_focused;
         const bool imguiCapturingMouse = imguiCaptureAllowed && USE_IMGUI && ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse;
         const bool imguiCapturingKeyboard = imguiCaptureAllowed && USE_IMGUI && ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureKeyboard;
 
@@ -81,7 +89,7 @@ WindowEventState WindowSystem::poll_events(const std::function<void(const SDL_Ev
             }
             break;
         case SDL_MOUSEBUTTONDOWN:
-            if (!_focused && !imguiCapturingMouse)
+            if (mouseCaptureDesired && !_focused && !imguiCapturingMouse)
             {
                 _focused = true;
                 SDL_SetWindowGrab(_window, SDL_TRUE);
@@ -103,7 +111,7 @@ WindowEventState WindowSystem::poll_events(const std::function<void(const SDL_Ev
         const bool isKeyboardEvent = event.type == SDL_KEYDOWN || event.type == SDL_KEYUP || event.type == SDL_TEXTINPUT;
         const bool imguiCapturedEvent = (isMouseEvent && imguiCapturingMouse) || (isKeyboardEvent && imguiCapturingKeyboard);
 
-        if (_focused && !imguiCapturedEvent)
+        if (((mouseCaptureDesired && _focused) || !mouseCaptureDesired) && !imguiCapturedEvent)
         {
             sceneInputHandler(event);
         }

@@ -5,6 +5,8 @@
 #include <fstream>
 
 #include <gtest/gtest.h>
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_transform.hpp>
 
 #include "constants.h"
 #include "game/block.h"
@@ -17,6 +19,7 @@
 #include "config/world_gen_config_repository.h"
 #include "game/world.h"
 #include "voxel/voxel_mesher.h"
+#include "voxel/voxel_picking.h"
 #include "voxel/voxel_model_repository.h"
 #include "world/chunk_lighting.h"
 #include "world/chunk_manager.h"
@@ -520,6 +523,206 @@ TEST(VoxelMesherTest, GeneratesOnlyExteriorFacesForAdjacentVoxels)
     constexpr uint32_t expectedVisibleFaces = 10;
     EXPECT_EQ(mesh->_vertices.size(), expectedVisibleFaces * 4);
     EXPECT_EQ(mesh->_indices.size(), expectedVisibleFaces * 6);
+}
+
+TEST(VoxelPickingTest, FaceFromOutwardNormalMatchesExpectedPlacementFace)
+{
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(glm::ivec3(1, 0, 0)), LEFT_FACE);
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(glm::ivec3(-1, 0, 0)), RIGHT_FACE);
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(glm::ivec3(0, 1, 0)), TOP_FACE);
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(glm::ivec3(0, -1, 0)), BOTTOM_FACE);
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(glm::ivec3(0, 0, 1)), FRONT_FACE);
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(glm::ivec3(0, 0, -1)), BACK_FACE);
+}
+
+TEST(VoxelPickingTest, BuildRayFromCursorPointsForwardAtViewportCenter)
+{
+    const glm::vec3 cameraPosition{0.0f, 0.0f, 0.0f};
+    const glm::vec3 cameraFront = glm::normalize(glm::vec3(1.0f, 0.0f, 0.0f));
+    const glm::vec3 cameraUp{0.0f, 1.0f, 0.0f};
+    glm::mat4 projection = glm::perspective(glm::radians(70.0f), 800.0f / 600.0f, 0.1f, 10000.0f);
+    projection[1][1] *= -1.0f;
+    const glm::mat4 view = glm::lookAt(cameraPosition, cameraPosition + cameraFront, cameraUp);
+
+    const voxel::picking::Ray ray = voxel::picking::build_ray_from_cursor(
+        399,
+        299,
+        VkExtent2D{ 800, 600 },
+        cameraPosition,
+        glm::inverse(projection * view));
+
+    EXPECT_NEAR(ray.direction.x, cameraFront.x, 0.02f);
+    EXPECT_NEAR(ray.direction.y, cameraFront.y, 0.02f);
+    EXPECT_NEAR(ray.direction.z, cameraFront.z, 0.02f);
+}
+
+TEST(VoxelPickingTest, BuildRayFromCursorTopOfViewportPointsUpward)
+{
+    const glm::vec3 cameraPosition{0.0f, 0.0f, 0.0f};
+    const glm::vec3 cameraFront = glm::normalize(glm::vec3(1.0f, 0.0f, 0.0f));
+    const glm::vec3 cameraUp{0.0f, 1.0f, 0.0f};
+    glm::mat4 projection = glm::perspective(glm::radians(70.0f), 800.0f / 600.0f, 0.1f, 10000.0f);
+    projection[1][1] *= -1.0f;
+    const glm::mat4 view = glm::lookAt(cameraPosition, cameraPosition + cameraFront, cameraUp);
+
+    const voxel::picking::Ray topRay = voxel::picking::build_ray_from_cursor(
+        399,
+        0,
+        VkExtent2D{ 800, 600 },
+        cameraPosition,
+        glm::inverse(projection * view));
+
+    const voxel::picking::Ray bottomRay = voxel::picking::build_ray_from_cursor(
+        399,
+        599,
+        VkExtent2D{ 800, 600 },
+        cameraPosition,
+        glm::inverse(projection * view));
+
+    EXPECT_GT(topRay.direction.y, 0.0f);
+    EXPECT_LT(bottomRay.direction.y, 0.0f);
+}
+
+TEST(VoxelPickingTest, IntersectRayBoxReturnsCorrectOutwardNormal)
+{
+    const voxel::picking::Ray ray{
+        .origin = glm::vec3(-2.0f, 0.5f, 0.5f),
+        .direction = glm::normalize(glm::vec3(1.0f, 0.0f, 0.0f))
+    };
+
+    const auto hit = voxel::picking::intersect_ray_box(
+        ray,
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        10.0f);
+
+    ASSERT_TRUE(hit.has_value());
+    EXPECT_NEAR(hit->distance, 2.0f, 0.0001f);
+    EXPECT_EQ(hit->outwardNormal, glm::ivec3(-1, 0, 0));
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(hit->outwardNormal), RIGHT_FACE);
+}
+
+TEST(VoxelPickingTest, IntersectRayBoxReturnsCorrectOutwardNormalForNegativeDirection)
+{
+    const voxel::picking::Ray ray{
+        .origin = glm::vec3(3.0f, 0.5f, 0.5f),
+        .direction = glm::normalize(glm::vec3(-1.0f, 0.0f, 0.0f))
+    };
+
+    const auto hit = voxel::picking::intersect_ray_box(
+        ray,
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        10.0f);
+
+    ASSERT_TRUE(hit.has_value());
+    EXPECT_NEAR(hit->distance, 2.0f, 0.0001f);
+    EXPECT_EQ(hit->outwardNormal, glm::ivec3(1, 0, 0));
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(hit->outwardNormal), LEFT_FACE);
+}
+
+TEST(VoxelPickingTest, IntersectRayBoxReturnsCorrectFrontFaceNormalOnZAxis)
+{
+    const voxel::picking::Ray ray{
+        .origin = glm::vec3(0.5f, 0.5f, -2.0f),
+        .direction = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f))
+    };
+
+    const auto hit = voxel::picking::intersect_ray_box(
+        ray,
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        10.0f);
+
+    ASSERT_TRUE(hit.has_value());
+    EXPECT_EQ(hit->outwardNormal, glm::ivec3(0, 0, -1));
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(hit->outwardNormal), BACK_FACE);
+}
+
+TEST(VoxelPickingTest, IntersectRayBoxMissesWhenParallelOutsideSlab)
+{
+    const voxel::picking::Ray ray{
+        .origin = glm::vec3(2.0f, 0.5f, -1.0f),
+        .direction = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f))
+    };
+
+    const auto hit = voxel::picking::intersect_ray_box(
+        ray,
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        10.0f);
+
+    EXPECT_FALSE(hit.has_value());
+}
+
+TEST(VoxelPickingTest, IntersectRayBoxHitsWhenParallelInsideOtherSlabs)
+{
+    const voxel::picking::Ray ray{
+        .origin = glm::vec3(0.5f, 0.5f, -2.0f),
+        .direction = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f))
+    };
+
+    const auto hit = voxel::picking::intersect_ray_box(
+        ray,
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        10.0f);
+
+    ASSERT_TRUE(hit.has_value());
+    EXPECT_NEAR(hit->distance, 2.0f, 0.0001f);
+}
+
+TEST(VoxelPickingTest, IntersectRayBoxRespectsMaximumDistance)
+{
+    const voxel::picking::Ray ray{
+        .origin = glm::vec3(-2.0f, 0.5f, 0.5f),
+        .direction = glm::normalize(glm::vec3(1.0f, 0.0f, 0.0f))
+    };
+
+    const auto hit = voxel::picking::intersect_ray_box(
+        ray,
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        1.5f);
+
+    EXPECT_FALSE(hit.has_value());
+}
+
+TEST(VoxelPickingTest, IntersectRayBoxUsesDeterministicNormalForEdgeHits)
+{
+    const voxel::picking::Ray ray{
+        .origin = glm::vec3(-1.0f, -1.0f, 0.5f),
+        .direction = glm::normalize(glm::vec3(1.0f, 1.0f, 0.0f))
+    };
+
+    const auto hit = voxel::picking::intersect_ray_box(
+        ray,
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        10.0f);
+
+    ASSERT_TRUE(hit.has_value());
+    EXPECT_EQ(hit->outwardNormal, glm::ivec3(-1, 0, 0));
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(hit->outwardNormal), RIGHT_FACE);
+}
+
+TEST(VoxelPickingTest, IntersectRayBoxReturnsExitFaceWhenRayStartsInside)
+{
+    const voxel::picking::Ray ray{
+        .origin = glm::vec3(0.5f, 0.5f, 0.5f),
+        .direction = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f))
+    };
+
+    const auto hit = voxel::picking::intersect_ray_box(
+        ray,
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        10.0f);
+
+    ASSERT_TRUE(hit.has_value());
+    EXPECT_NEAR(hit->distance, 0.5f, 0.0001f);
+    EXPECT_EQ(hit->outwardNormal, glm::ivec3(0, 0, 1));
+    EXPECT_EQ(voxel::picking::face_from_outward_normal(hit->outwardNormal), FRONT_FACE);
 }
 
 TEST(VoxelModelRepositoryTest, ListsSavedVoxelAssets)

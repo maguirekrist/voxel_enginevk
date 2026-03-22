@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "game/block.h"
 #include "camera.h"
 #include "config/json_document_store.h"
 #include "render/mesh.h"
@@ -29,6 +30,7 @@ public:
     void build_pipelines() override;
     void rebuild_pipelines() override;
     SceneRenderState& get_render_state() override;
+    [[nodiscard]] bool wants_mouse_capture() const override { return false; }
 
 private:
     struct CameraUBO
@@ -79,10 +81,22 @@ private:
         int height{1};
     };
 
+    struct HoverTarget
+    {
+        VoxelCoord voxel{};
+        FaceDirection face{FRONT_FACE};
+        float distance{0.0f};
+    };
+
     void update_uniform_buffers() const;
     void sync_model_mesh();
+    void sync_hover_target();
+    void sync_hover_outline();
     void release_preview_mesh();
+    void release_outline_mesh();
     void update_camera();
+    void draw_orientation_gizmo();
+    void sync_orbit_from_view_matrix(const glm::mat4& viewMatrix);
     void clamp_slice_index();
     [[nodiscard]] PlaneSpec plane_spec() const;
     void draw_editor_window();
@@ -92,6 +106,8 @@ private:
     void load_model();
     void load_model(const std::string& assetId);
     void refresh_saved_assets();
+    [[nodiscard]] bool is_within_grid(const VoxelCoord& coord) const;
+    [[nodiscard]] std::optional<HoverTarget> raycast_hover_target() const;
     [[nodiscard]] glm::vec3 orbit_target() const;
 
     SceneServices _services;
@@ -101,7 +117,9 @@ private:
     std::shared_ptr<Resource> _lightingResource;
     std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Mesh> _previewMesh;
+    std::shared_ptr<Mesh> _outlineMesh;
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _previewHandle;
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _outlineHandle;
 
     std::unique_ptr<Camera> _camera;
 
@@ -114,11 +132,15 @@ private:
     int _rotationQuarterTurns{0};
     VoxelColor _paintColor{255, 64, 64, 255};
     bool _eraseMode{false};
+    bool _orbitDragging{false};
     bool _meshDirty{true};
     float _orbitYawDegrees{40.0f};
     float _orbitPitchDegrees{24.0f};
     float _orbitDistance{3.5f};
     std::vector<std::string> _savedAssetIds{};
     int _selectedSavedAssetIndex{-1};
+    std::optional<HoverTarget> _hoveredTarget;
+    std::optional<VoxelCoord> _outlinedVoxelCoord;
+    bool _outlineShowsRemoval{false};
     std::string _statusMessage{"Ready"};
 };

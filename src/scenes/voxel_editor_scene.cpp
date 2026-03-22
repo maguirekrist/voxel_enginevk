@@ -4,15 +4,21 @@
 #include <cmath>
 #include <cstring>
 #include <format>
+#include <limits>
 
 #include <glm/trigonometric.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+#include <SDL.h>
 
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "imgui.h"
+#include "third_party/imoguizmo/imoguizmo.hpp"
 #include "render/material_manager.h"
 #include "render/mesh_manager.h"
 #include "render/mesh_release_queue.h"
+#include "voxel/voxel_picking.h"
 #include "voxel/voxel_mesher.h"
 #include "vk_util.h"
 
@@ -66,6 +72,7 @@ namespace
             std::sin(pitch),
             std::cos(pitch) * std::sin(yaw)));
     }
+
 }
 
 VoxelEditorScene::VoxelEditorScene(const SceneServices& services) :
@@ -114,12 +121,19 @@ VoxelEditorScene::~VoxelEditorScene()
         _renderState.opaqueObjects.remove(_previewHandle.value());
         _previewHandle.reset();
     }
+    if (_outlineHandle.has_value())
+    {
+        _renderState.transparentObjects.remove(_outlineHandle.value());
+        _outlineHandle.reset();
+    }
     release_preview_mesh();
+    release_outline_mesh();
 }
 
 void VoxelEditorScene::update_buffers()
 {
     sync_model_mesh();
+    sync_hover_outline();
     update_uniform_buffers();
 }
 
@@ -127,13 +141,77 @@ void VoxelEditorScene::update(const float deltaTime)
 {
     (void)deltaTime;
     update_camera();
+    sync_hover_target();
 }
 
 void VoxelEditorScene::handle_input(const SDL_Event& event)
 {
+    if (event.type == SDL_MOUSEMOTION)
+    {
+        if (_orbitDragging)
+        {
+            _orbitYawDegrees += static_cast<float>(event.motion.xrel) * 0.18f;
+            _orbitPitchDegrees -= static_cast<float>(event.motion.yrel) * 0.18f;
+        }
+        return;
+    }
+
     if (event.type == SDL_MOUSEWHEEL)
     {
         _orbitDistance = std::clamp(_orbitDistance - (static_cast<float>(event.wheel.y) * 0.2f), 0.5f, 64.0f);
+        return;
+    }
+
+    if (event.type == SDL_MOUSEBUTTONDOWN)
+    {
+        sync_hover_target();
+
+        if (event.button.button == SDL_BUTTON_MIDDLE)
+        {
+            _orbitDragging = true;
+        }
+        else if (event.button.button == SDL_BUTTON_LEFT)
+        {
+            if (_eraseMode)
+            {
+                if (_hoveredTarget.has_value() && _model.remove_voxel(_hoveredTarget->voxel))
+                {
+                    _statusMessage = std::format("Removed voxel {}, {}, {}", _hoveredTarget->voxel.x, _hoveredTarget->voxel.y, _hoveredTarget->voxel.z);
+                    mark_model_dirty();
+                    sync_hover_target();
+                }
+            }
+            else if (_hoveredTarget.has_value())
+            {
+                const FaceDirection face = _hoveredTarget->face;
+                const VoxelCoord placedCoord{
+                    .x = _hoveredTarget->voxel.x + faceOffsetX[face],
+                    .y = _hoveredTarget->voxel.y + faceOffsetY[face],
+                    .z = _hoveredTarget->voxel.z + faceOffsetZ[face]
+                };
+
+                if (is_within_grid(placedCoord))
+                {
+                    _model.set_voxel(placedCoord, _paintColor);
+                    _statusMessage = std::format("Placed voxel {}, {}, {}", placedCoord.x, placedCoord.y, placedCoord.z);
+                    mark_model_dirty();
+                    sync_hover_target();
+                }
+            }
+        }
+        else if (event.button.button == SDL_BUTTON_RIGHT)
+        {
+            if (_hoveredTarget.has_value() && _model.remove_voxel(_hoveredTarget->voxel))
+            {
+                _statusMessage = std::format("Removed voxel {}, {}, {}", _hoveredTarget->voxel.x, _hoveredTarget->voxel.y, _hoveredTarget->voxel.z);
+                mark_model_dirty();
+                sync_hover_target();
+            }
+        }
+    }
+    else if (event.type == SDL_MOUSEBUTTONUP && event.button.button == SDL_BUTTON_MIDDLE)
+    {
+        _orbitDragging = false;
     }
 }
 
@@ -144,6 +222,7 @@ void VoxelEditorScene::handle_keystate(const Uint8* state)
 
 void VoxelEditorScene::clear_input()
 {
+    _orbitDragging = false;
 }
 
 void VoxelEditorScene::draw_imgui()
@@ -152,6 +231,7 @@ void VoxelEditorScene::draw_imgui()
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
     draw_editor_window();
+    draw_orientation_gizmo();
     ImGui::Render();
 }
 
@@ -178,6 +258,27 @@ void VoxelEditorScene::build_pipelines()
         "tri_mesh.vert.spv",
         "tri_mesh.frag.spv",
         "defaultmesh");
+
+    _services.materialManager->build_graphics_pipeline(
+        {
+            MaterialBinding::from_resource(0, 0, _cameraUboResource)
+        },
+        { translate },
+        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Alpha, .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST },
+        "editor_preview.vert.spv",
+        "editor_preview.frag.spv",
+        "editorpreview");
+
+    _services.materialManager->build_graphics_pipeline(
+        {
+            MaterialBinding::from_resource(0, 0, _cameraUboResource),
+            MaterialBinding::from_resource(1, 0, _lightingResource)
+        },
+        { translate },
+        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Opaque, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
+        "tri_mesh.vert.spv",
+        "tri_mesh.frag.spv",
+        "chunkboundary");
 
     _services.materialManager->build_postprocess_pipeline(_fogResource);
     _services.materialManager->build_present_pipeline();
@@ -267,6 +368,75 @@ void VoxelEditorScene::sync_model_mesh()
         .xzPos = glm::ivec2(0),
         .layer = RenderLayer::Opaque
     });
+
+    sync_hover_outline();
+}
+
+void VoxelEditorScene::sync_hover_target()
+{
+    _hoveredTarget = raycast_hover_target();
+}
+
+void VoxelEditorScene::sync_hover_outline()
+{
+    std::optional<VoxelCoord> outlineCoord{};
+    bool showsRemoval = false;
+
+    if (_hoveredTarget.has_value())
+    {
+        if (_eraseMode)
+        {
+            outlineCoord = _hoveredTarget->voxel;
+            showsRemoval = true;
+        }
+        else
+        {
+            const FaceDirection face = _hoveredTarget->face;
+            const VoxelCoord candidate{
+                .x = _hoveredTarget->voxel.x + faceOffsetX[face],
+                .y = _hoveredTarget->voxel.y + faceOffsetY[face],
+                .z = _hoveredTarget->voxel.z + faceOffsetZ[face]
+            };
+
+            if (is_within_grid(candidate) && !_model.contains(candidate))
+            {
+                outlineCoord = candidate;
+            }
+        }
+    }
+
+    if (_outlinedVoxelCoord == outlineCoord && _outlineShowsRemoval == showsRemoval && _outlineHandle.has_value())
+    {
+        return;
+    }
+
+    if (_outlineHandle.has_value())
+    {
+        _renderState.transparentObjects.remove(_outlineHandle.value());
+        _outlineHandle.reset();
+    }
+    release_outline_mesh();
+
+    _outlinedVoxelCoord = outlineCoord;
+    _outlineShowsRemoval = showsRemoval;
+
+    if (!outlineCoord.has_value())
+    {
+        return;
+    }
+
+    const glm::vec3 minCorner = (glm::vec3(
+        static_cast<float>(outlineCoord->x),
+        static_cast<float>(outlineCoord->y),
+        static_cast<float>(outlineCoord->z)) * _model.voxelSize) - _model.pivot;
+    _outlineMesh = Mesh::create_block_preview_mesh(minCorner, _model.voxelSize);
+    _services.meshManager->UploadQueue.enqueue(_outlineMesh);
+    _outlineHandle = _renderState.transparentObjects.insert(RenderObject{
+        .mesh = _outlineMesh,
+        .material = _services.materialManager->get_material("editorpreview"),
+        .xzPos = glm::ivec2(0),
+        .layer = RenderLayer::Transparent
+    });
 }
 
 void VoxelEditorScene::release_preview_mesh()
@@ -274,6 +444,14 @@ void VoxelEditorScene::release_preview_mesh()
     if (_previewMesh != nullptr)
     {
         render::enqueue_mesh_release(std::move(_previewMesh));
+    }
+}
+
+void VoxelEditorScene::release_outline_mesh()
+{
+    if (_outlineMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_outlineMesh));
     }
 }
 
@@ -288,6 +466,53 @@ void VoxelEditorScene::update_camera()
     _camera->_up = glm::vec3(0.0f, 1.0f, 0.0f);
     _camera->_position = target - (front * _orbitDistance);
     _camera->update(0.0f);
+}
+
+void VoxelEditorScene::draw_orientation_gizmo()
+{
+    ImGuiViewport* const viewport = ImGui::GetMainViewport();
+    if (viewport == nullptr)
+    {
+        return;
+    }
+
+    constexpr float gizmoSize = 110.0f;
+    constexpr float gizmoPadding = 16.0f;
+
+    glm::mat4 gizmoView = _camera->_view;
+    const glm::mat4 gizmoProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 100.0f);
+
+    ImOGuizmo::SetRect(
+        viewport->WorkPos.x + viewport->WorkSize.x - gizmoSize - gizmoPadding,
+        viewport->WorkPos.y + gizmoPadding,
+        gizmoSize);
+    ImOGuizmo::BeginFrame(false);
+
+    if (ImOGuizmo::DrawGizmo(glm::value_ptr(gizmoView), glm::value_ptr(gizmoProjection), _orbitDistance))
+    {
+        sync_orbit_from_view_matrix(gizmoView);
+    }
+}
+
+void VoxelEditorScene::sync_orbit_from_view_matrix(const glm::mat4& viewMatrix)
+{
+    const glm::mat4 inverseView = glm::inverse(viewMatrix);
+    const glm::vec3 target = orbit_target();
+    const glm::vec3 position = glm::vec3(inverseView[3]);
+    glm::vec3 front = glm::normalize(target - position);
+
+    if (!std::isfinite(front.x) || !std::isfinite(front.y) || !std::isfinite(front.z) || glm::length(front) <= 0.0001f)
+    {
+        return;
+    }
+
+    _orbitDistance = glm::distance(position, target);
+    _orbitYawDegrees = glm::degrees(std::atan2(front.z, front.x));
+    _orbitPitchDegrees = glm::degrees(std::asin(std::clamp(front.y, -1.0f, 1.0f)));
+    _camera->_position = position;
+    _camera->_front = front;
+    _camera->_up = glm::vec3(0.0f, 1.0f, 0.0f);
+    _camera->_view = viewMatrix;
 }
 
 void VoxelEditorScene::clamp_slice_index()
@@ -477,6 +702,8 @@ void VoxelEditorScene::draw_editor_window()
     }
 
     ImGui::SeparatorText("Preview Camera");
+    ImGui::Text("Editor Controls: MMB drag orbit, wheel zoom, LMB place, RMB remove.");
+    ImGui::Text("Placement/removal uses the actual mouse cursor over the 3D view.");
     ImGui::SliderFloat("Yaw", &_orbitYawDegrees, -180.0f, 180.0f, "%.1f deg");
     ImGui::SliderFloat("Pitch", &_orbitPitchDegrees, -80.0f, 80.0f, "%.1f deg");
     ImGui::SliderFloat("Distance", &_orbitDistance, 0.5f, 48.0f, "%.2f");
@@ -601,6 +828,16 @@ void VoxelEditorScene::draw_editor_window()
 void VoxelEditorScene::mark_model_dirty()
 {
     _meshDirty = true;
+
+    if (_outlineHandle.has_value())
+    {
+        _renderState.transparentObjects.remove(_outlineHandle.value());
+        _outlineHandle.reset();
+    }
+    release_outline_mesh();
+    _outlinedVoxelCoord.reset();
+    _outlineShowsRemoval = false;
+
 }
 
 void VoxelEditorScene::reset_model()
@@ -615,7 +852,9 @@ void VoxelEditorScene::reset_model()
     _sliceIndex = 0;
     _rotationQuarterTurns = 0;
     _statusMessage = "Created a new voxel model.";
+    _hoveredTarget.reset();
     mark_model_dirty();
+    sync_hover_target();
 }
 
 void VoxelEditorScene::save_model()
@@ -642,8 +881,13 @@ void VoxelEditorScene::load_model(const std::string& assetId)
     if (const auto loaded = _repository.load(assetId); loaded.has_value())
     {
         _model = loaded.value();
+        const glm::ivec3 bounds = _model.bounds().dimensions();
+        _gridDimensions.x = std::max(_gridDimensions.x, std::max(bounds.x, 1));
+        _gridDimensions.y = std::max(_gridDimensions.y, std::max(bounds.y, 1));
+        _gridDimensions.z = std::max(_gridDimensions.z, std::max(bounds.z, 1));
         _statusMessage = std::format("Loaded {}", _repository.resolve_path(_model.assetId).string());
         refresh_saved_assets();
+        sync_hover_target();
         mark_model_dirty();
         return;
     }
@@ -664,6 +908,74 @@ void VoxelEditorScene::refresh_saved_assets()
             break;
         }
     }
+}
+
+bool VoxelEditorScene::is_within_grid(const VoxelCoord& coord) const
+{
+    return coord.x >= 0 && coord.x < _gridDimensions.x &&
+        coord.y >= 0 && coord.y < _gridDimensions.y &&
+        coord.z >= 0 && coord.z < _gridDimensions.z;
+}
+
+std::optional<VoxelEditorScene::HoverTarget> VoxelEditorScene::raycast_hover_target() const
+{
+    if (_model.voxel_count() == 0)
+    {
+        return std::nullopt;
+    }
+
+    constexpr float maxDistance = 128.0f;
+    int mouseX = 0;
+    int mouseY = 0;
+    SDL_GetMouseState(&mouseX, &mouseY);
+
+    const VkExtent2D extent = _services.current_window_extent();
+    if (extent.width == 0 || extent.height == 0)
+    {
+        return std::nullopt;
+    }
+
+    const glm::mat4 inverseViewProjection = glm::inverse(_camera->_projection * _camera->_view);
+    const voxel::picking::Ray ray = voxel::picking::build_ray_from_cursor(
+        mouseX,
+        mouseY,
+        extent,
+        _camera->_position,
+        inverseViewProjection);
+
+    std::optional<HoverTarget> bestHit{};
+    float bestDistance = std::numeric_limits<float>::max();
+
+    for (const auto& [coord, color] : _model.voxels())
+    {
+        (void)color;
+        const glm::vec3 boxMin = (glm::vec3(
+            static_cast<float>(coord.x),
+            static_cast<float>(coord.y),
+            static_cast<float>(coord.z)) * _model.voxelSize) - _model.pivot;
+        const glm::vec3 boxMax = boxMin + glm::vec3(_model.voxelSize);
+
+        const auto hit = voxel::picking::intersect_ray_box(ray, boxMin, boxMax, maxDistance);
+        if (!hit.has_value() || hit->distance >= bestDistance)
+        {
+            continue;
+        }
+
+        const auto face = voxel::picking::face_from_outward_normal(hit->outwardNormal);
+        if (!face.has_value())
+        {
+            continue;
+        }
+
+        bestDistance = hit->distance;
+        bestHit = HoverTarget{
+            .voxel = coord,
+            .face = face.value(),
+            .distance = hit->distance
+        };
+    }
+
+    return bestHit;
 }
 
 glm::vec3 VoxelEditorScene::orbit_target() const

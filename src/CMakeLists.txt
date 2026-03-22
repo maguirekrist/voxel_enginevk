@@ -74,6 +74,8 @@ add_executable(vulkan_guide
     voxel/voxel_model.h
     voxel/voxel_mesher.h
     voxel/voxel_mesher.cpp
+    voxel/voxel_picking.h
+    voxel/voxel_picking.cpp
     voxel/voxel_model_repository.h
     voxel/voxel_model_repository.cpp
     config/config_paths.h

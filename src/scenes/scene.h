@@ -15,6 +15,7 @@ public:
     virtual void build_pipelines() = 0;
     virtual void rebuild_pipelines() = 0;
     virtual SceneRenderState& get_render_state() = 0;
+    [[nodiscard]] virtual bool wants_mouse_capture() const = 0;
 
     virtual ~Scene() = default;
 };

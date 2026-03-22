@@ -23,9 +23,10 @@ public:
     void handle_keystate(const Uint8* state) override;
     void clear_input() override;
     void draw_imgui() override;
-	void rebuild_pipelines() override;
+    void rebuild_pipelines() override;
     void build_pipelines() override;
     SceneRenderState& get_render_state() override;
+    [[nodiscard]] bool wants_mouse_capture() const override { return true; }
 
     void draw_debug_map();
 private:
