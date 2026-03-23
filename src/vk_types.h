@@ -31,7 +31,7 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vk_mem_alloc.h>
-#include <glm/gtx/transform.hpp>
+#include <glm/ext/matrix_transform.hpp>
 #include <glm/glm.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
@@ -92,4 +92,3 @@ std::cout << "Detected Vulkan error: " << err << std::endl; \
 abort();                                                \
 }                                                           \
 } while (0)
-

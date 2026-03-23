@@ -1,7 +1,7 @@
 #include "voxel_render_instance.h"
 
 #include <glm/ext/matrix_transform.hpp>
-#include <glm/gtx/quaternion.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace
 {
