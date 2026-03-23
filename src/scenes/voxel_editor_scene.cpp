@@ -173,6 +173,11 @@ void VoxelEditorScene::handle_input(const SDL_Event& event)
         }
         else if (event.button.button == SDL_BUTTON_LEFT)
         {
+            if ((SDL_GetModState() & KMOD_SHIFT) != 0 && try_pick_paint_color_from_hovered_voxel())
+            {
+                return;
+            }
+
             if (_eraseMode)
             {
                 if (_hoveredTarget.has_value() && _model.remove_voxel(_hoveredTarget->voxel))
@@ -372,7 +377,8 @@ void VoxelEditorScene::sync_model_mesh()
         .mesh = _previewMesh,
         .material = _services.materialManager->get_material("defaultmesh"),
         .transform = glm::mat4(1.0f),
-        .layer = RenderLayer::Opaque
+        .layer = RenderLayer::Opaque,
+        .lightingMode = LightingMode::Unlit
     });
 
     sync_hover_outline();
@@ -728,7 +734,7 @@ void VoxelEditorScene::draw_editor_window()
     }
 
     ImGui::SeparatorText("Preview Camera");
-    ImGui::Text("Editor Controls: MMB drag orbit, wheel zoom, LMB place, RMB remove.");
+    ImGui::Text("Editor Controls: MMB drag orbit, wheel zoom, LMB place, RMB remove, Shift+LMB pick color.");
     ImGui::Text("Placement/removal uses the actual mouse cursor over the 3D view.");
     ImGui::SliderFloat("Yaw", &_orbitYawDegrees, -180.0f, 180.0f, "%.1f deg");
     ImGui::SliderFloat("Pitch", &_orbitPitchDegrees, -80.0f, 80.0f, "%.1f deg");
@@ -934,6 +940,32 @@ void VoxelEditorScene::refresh_saved_assets()
             break;
         }
     }
+}
+
+bool VoxelEditorScene::try_pick_paint_color_from_hovered_voxel()
+{
+    if (!_hoveredTarget.has_value())
+    {
+        return false;
+    }
+
+    const VoxelColor* const hoveredColor = _model.try_get(_hoveredTarget->voxel);
+    if (hoveredColor == nullptr)
+    {
+        return false;
+    }
+
+    _paintColor = *hoveredColor;
+    _statusMessage = std::format(
+        "Picked paint color rgba({}, {}, {}, {}) from voxel {}, {}, {}",
+        static_cast<int>(_paintColor.r),
+        static_cast<int>(_paintColor.g),
+        static_cast<int>(_paintColor.b),
+        static_cast<int>(_paintColor.a),
+        _hoveredTarget->voxel.x,
+        _hoveredTarget->voxel.y,
+        _hoveredTarget->voxel.z);
+    return true;
 }
 
 bool VoxelEditorScene::is_within_grid(const VoxelCoord& coord) const

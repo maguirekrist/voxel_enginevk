@@ -113,6 +113,7 @@ private:
     void load_model();
     void load_model(const std::string& assetId);
     void refresh_saved_assets();
+    bool try_pick_paint_color_from_hovered_voxel();
     [[nodiscard]] bool is_within_grid(const VoxelCoord& coord) const;
     [[nodiscard]] std::optional<HoverTarget> raycast_hover_target() const;
     [[nodiscard]] glm::vec3 orbit_target() const;
