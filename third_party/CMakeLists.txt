@@ -38,24 +38,24 @@ add_subdirectory(SPIRV-Reflect/third_party/googletest EXCLUDE_FROM_ALL)
 add_subdirectory(tracy)
 
 include(FetchContent)
+set(SDL2_LOCAL_SOURCE_DIR "${PROJECT_SOURCE_DIR}/build/_deps/sdl2-src")
+
+if (EXISTS "${SDL2_LOCAL_SOURCE_DIR}/CMakeLists.txt")
+    set(FETCHCONTENT_SOURCE_DIR_SDL2 "${SDL2_LOCAL_SOURCE_DIR}")
+endif()
+
 FetchContent_Declare(
     sdl2
     GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-    GIT_TAG        release-2.28.4  # Use the latest stable release
+    GIT_TAG        release-2.28.4
 )
 FetchContent_MakeAvailable(sdl2)
 
 add_library(sdl2 INTERFACE)
-
-if (WIN32)
-target_include_directories(sdl2 INTERFACE ${sdl2_SOURCE_DIR}/include ${sdl2_image_DIR}/include)
-target_link_directories(sdl2 INTERFACE ${sdl2_SOURCE_DIR}/lib/x64 ${sdl2_image_DIR}/lib/x64)
-elseif (UNIX)
-target_include_directories(sdl2 INTERFACE ${sdl2_SOURCE_DIRR}/include/SDL2 ${sdl2_image_DIR}/include/SDL2)
-target_link_directories(sdl2 INTERFACE ${sdl2_SOURCE_DIR}/lib ${sdl2_image_DIR}/lib)
+target_link_libraries(sdl2 INTERFACE SDL2::SDL2)
+if (WIN32 AND TARGET SDL2::SDL2main)
+    target_link_libraries(sdl2 INTERFACE SDL2::SDL2main)
 endif()
-
-target_link_libraries(sdl2 INTERFACE SDL2 SDL2main)
 
 add_library(imgui STATIC)
 

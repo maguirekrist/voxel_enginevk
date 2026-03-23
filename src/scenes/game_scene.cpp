@@ -13,6 +13,7 @@
 #include "backends/imgui_impl_vulkan.h"
 #include "render/mesh_release_queue.h"
 #include "components/voxel_model_component.h"
+#include "string_utils.h"
 #include "voxel/voxel_model_component_adapter.h"
 
 namespace
@@ -431,6 +432,7 @@ SceneRenderState& GameScene::get_render_state()
 void GameScene::update(const float deltaTime)
 {
 	_game.set_player_input(_playerInput);
+    _playerInput.jumpPressed = false;
     _playerInput.lookDeltaX = 0.0f;
     _playerInput.lookDeltaY = 0.0f;
 	_game.update(deltaTime);
@@ -454,7 +456,7 @@ void GameScene::update(const float deltaTime)
 void GameScene::handle_input(const SDL_Event& event)
 {
 	switch(event.type) {
-        case SDL_KEYDOWN:
+		case SDL_KEYDOWN:
             if (!event.key.repeat && event.key.keysym.scancode == SDL_SCANCODE_G)
             {
                 _settings.mutate([](settings::GameSettingsPersistence& persistence)
@@ -462,7 +464,9 @@ void GameScene::handle_input(const SDL_Event& event)
                     persistence.debug.showChunkBoundaries = !persistence.debug.showChunkBoundaries;
                 });
             }
-            else if (!event.key.repeat && event.key.keysym.scancode == SDL_SCANCODE_SPACE)
+            else if (!event.key.repeat &&
+                event.key.keysym.scancode == SDL_SCANCODE_SPACE &&
+                !_settings.persistence().player.flyModeEnabled)
             {
                 _playerInput.jumpPressed = true;
             }
@@ -519,6 +523,10 @@ void GameScene::handle_keystate(const Uint8* state)
     _playerInput.moveBackward = state[SDL_SCANCODE_S];
     _playerInput.moveLeft = state[SDL_SCANCODE_A];
     _playerInput.moveRight = state[SDL_SCANCODE_D];
+
+    const bool flyModeEnabled = _settings.persistence().player.flyModeEnabled;
+    _playerInput.moveUp = flyModeEnabled && state[SDL_SCANCODE_SPACE];
+    _playerInput.moveDown = flyModeEnabled && (state[SDL_SCANCODE_LCTRL] || state[SDL_SCANCODE_C]);
 }
 
 void GameScene::clear_input()
@@ -745,7 +753,7 @@ void GameScene::draw_debug_map()
         if (ImGui::BeginTabItem("Voxel Props"))
         {
             char assetIdBuffer[128]{};
-            strncpy_s(assetIdBuffer, _runtimeVoxelAssetId.c_str(), _TRUNCATE);
+            copy_cstr_truncating(assetIdBuffer, _runtimeVoxelAssetId);
             if (ImGui::InputText("Asset Id", assetIdBuffer, IM_ARRAYSIZE(assetIdBuffer)))
             {
                 _runtimeVoxelAssetId = assetIdBuffer;
@@ -917,6 +925,41 @@ void GameScene::draw_debug_map()
             {
                 ImGui::EndDisabled();
             }
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("PlayerSettings"))
+        {
+            const settings::GameSettingsPersistence& persistence = _settings.persistence();
+            ImGui::Text("Player tuning applies live. Save from Settings when you want it persisted.");
+
+            bool flyModeEnabled = persistence.player.flyModeEnabled;
+            if (ImGui::Checkbox("Fly Mode", &flyModeEnabled))
+            {
+                _settings.mutate([flyModeEnabled](settings::GameSettingsPersistence& updated)
+                {
+                    updated.player.flyModeEnabled = flyModeEnabled;
+                });
+                _playerInput.jumpPressed = false;
+            }
+
+            ImGui::TextWrapped("Fly mode uses WASD for camera-relative movement, Space to rise, and Left Ctrl or C to descend.");
+
+            auto playerSettings = persistence.player;
+            bool playerSettingsChanged = false;
+            playerSettingsChanged |= ImGui::SliderFloat("Move Speed", &playerSettings.moveSpeed, 0.0f, 20.0f, "%.2f");
+            playerSettingsChanged |= ImGui::SliderFloat("Air Control", &playerSettings.airControl, 0.0f, 1.0f, "%.2f");
+            playerSettingsChanged |= ImGui::SliderFloat("Gravity", &playerSettings.gravity, 0.0f, 60.0f, "%.2f");
+            playerSettingsChanged |= ImGui::SliderFloat("Jump Velocity", &playerSettings.jumpVelocity, 0.0f, 20.0f, "%.2f");
+            playerSettingsChanged |= ImGui::SliderFloat("Max Fall Speed", &playerSettings.maxFallSpeed, 0.0f, 80.0f, "%.2f");
+            if (playerSettingsChanged)
+            {
+                _settings.mutate([playerSettings](settings::GameSettingsPersistence& updated)
+                {
+                    updated.player = playerSettings;
+                });
+            }
+
             ImGui::EndTabItem();
         }
 
@@ -1381,6 +1424,10 @@ void GameScene::bind_settings()
     {
         apply_ambient_occlusion_settings(settings);
     });
+    _settings.bind_player_settings_handler([this](const settings::PlayerRuntimeSettings& settings)
+    {
+        apply_player_settings(settings);
+    });
 }
 
 void GameScene::apply_view_distance_settings(const settings::ViewDistanceRuntimeSettings& settings)
@@ -1411,6 +1458,17 @@ void GameScene::apply_ambient_occlusion_settings(const settings::AmbientOcclusio
     _game.chunk_manager().apply_mesh_settings(ChunkMeshSettings{
         .ambientOcclusionEnabled = settings.enabled
     });
+}
+
+void GameScene::apply_player_settings(const settings::PlayerRuntimeSettings& settings)
+{
+    _game.configure_player(PlayerPhysicsTuning{
+        .moveSpeed = settings.moveSpeed,
+        .airControl = settings.airControl,
+        .gravity = settings.gravity,
+        .jumpVelocity = settings.jumpVelocity,
+        .maxFallSpeed = settings.maxFallSpeed
+    }, settings.flyModeEnabled);
 }
 
 void GameScene::sync_world_gen_draft()

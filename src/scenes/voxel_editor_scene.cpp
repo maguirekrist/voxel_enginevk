@@ -18,6 +18,7 @@
 #include "render/material_manager.h"
 #include "render/mesh_manager.h"
 #include "render/mesh_release_queue.h"
+#include "string_utils.h"
 #include "voxel/voxel_picking.h"
 #include "voxel/voxel_mesher.h"
 #include "vk_util.h"
@@ -572,8 +573,8 @@ void VoxelEditorScene::draw_editor_window()
 
     char assetIdBuffer[128]{};
     char displayNameBuffer[128]{};
-    strncpy_s(assetIdBuffer, _model.assetId.c_str(), _TRUNCATE);
-    strncpy_s(displayNameBuffer, _model.displayName.c_str(), _TRUNCATE);
+    copy_cstr_truncating(assetIdBuffer, _model.assetId);
+    copy_cstr_truncating(displayNameBuffer, _model.displayName);
 
     if (ImGui::InputText("Asset Id", assetIdBuffer, IM_ARRAYSIZE(assetIdBuffer)))
     {
@@ -586,6 +587,26 @@ void VoxelEditorScene::draw_editor_window()
     if (ImGui::InputFloat("Voxel Size", &_model.voxelSize, 0.0f, 0.0f, "%.4f"))
     {
         _model.voxelSize = std::max(_model.voxelSize, 0.001f);
+        mark_model_dirty();
+    }
+
+    glm::vec3 pivotVoxelUnits = _model.pivot / _model.voxelSize;
+    if (ImGui::InputFloat3("Pivot (Voxel Units)", &pivotVoxelUnits.x, "%.3f"))
+    {
+        _model.pivot = pivotVoxelUnits * _model.voxelSize;
+        mark_model_dirty();
+    }
+
+    if (ImGui::Button("Pivot To Grid Center XZ"))
+    {
+        _model.pivot.x = static_cast<float>(_gridDimensions.x) * 0.5f * _model.voxelSize;
+        _model.pivot.z = static_cast<float>(_gridDimensions.z) * 0.5f * _model.voxelSize;
+        mark_model_dirty();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Pivot To Bounds Center"))
+    {
+        _model.pivot = _model.bounds().center() * _model.voxelSize;
         mark_model_dirty();
     }
 

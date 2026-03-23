@@ -16,6 +16,7 @@
 #include "game/cloud_structure_generator.h"
 #include "game/decoration.h"
 #include "game/player_entity.h"
+#include "game/player_input_state.h"
 #include "game/tree_structure_generator.h"
 #include "game/world_collision.h"
 #include "render/render_primitives.h"
@@ -381,6 +382,17 @@ TEST(PlayerEntityTest, WorldBoundsUseFeetPositionAsBase)
     EXPECT_NEAR(bounds.max.z, -1.65f, 0.0001f);
 }
 
+TEST(PlayerEntityTest, RenderComponentStartsWithIdentityRotation)
+{
+    PlayerEntity player{ glm::vec3(4.0f, 10.0f, -2.0f) };
+
+    const glm::quat rotation = player.render_component().rotation;
+    EXPECT_NEAR(rotation.w, 1.0f, 0.0001f);
+    EXPECT_NEAR(rotation.x, 0.0f, 0.0001f);
+    EXPECT_NEAR(rotation.y, 0.0f, 0.0001f);
+    EXPECT_NEAR(rotation.z, 0.0f, 0.0001f);
+}
+
 TEST(DecorationPlacementTest, ForestFlowersRequireForestBiome)
 {
     EXPECT_TRUE(decoration::is_forest_flower_biome(BiomeType::Forest));
@@ -538,6 +550,12 @@ TEST(GameSettingsConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     persistence.world.viewDistance = 14;
     persistence.world.ambientOcclusionEnabled = true;
     persistence.debug.showChunkBoundaries = true;
+    persistence.player.moveSpeed = 7.5f;
+    persistence.player.airControl = 0.6f;
+    persistence.player.gravity = 18.0f;
+    persistence.player.jumpVelocity = 11.0f;
+    persistence.player.maxFallSpeed = 42.0f;
+    persistence.player.flyModeEnabled = true;
     persistence.dayNight.paused = true;
     persistence.dayNight.timeOfDay = 0.71f;
     persistence.dayNight.tuning.daySkyZenith = { 0.25f, 0.44f, 0.93f };
@@ -558,6 +576,12 @@ TEST(GameSettingsConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     EXPECT_EQ(loaded.world.viewDistance, persistence.world.viewDistance);
     EXPECT_EQ(loaded.world.ambientOcclusionEnabled, persistence.world.ambientOcclusionEnabled);
     EXPECT_EQ(loaded.debug.showChunkBoundaries, persistence.debug.showChunkBoundaries);
+    EXPECT_FLOAT_EQ(loaded.player.moveSpeed, persistence.player.moveSpeed);
+    EXPECT_FLOAT_EQ(loaded.player.airControl, persistence.player.airControl);
+    EXPECT_FLOAT_EQ(loaded.player.gravity, persistence.player.gravity);
+    EXPECT_FLOAT_EQ(loaded.player.jumpVelocity, persistence.player.jumpVelocity);
+    EXPECT_FLOAT_EQ(loaded.player.maxFallSpeed, persistence.player.maxFallSpeed);
+    EXPECT_EQ(loaded.player.flyModeEnabled, persistence.player.flyModeEnabled);
     EXPECT_EQ(loaded.dayNight.paused, persistence.dayNight.paused);
     EXPECT_FLOAT_EQ(loaded.dayNight.timeOfDay, persistence.dayNight.timeOfDay);
     EXPECT_FLOAT_EQ(loaded.dayNight.tuning.daySkyZenith.x, persistence.dayNight.tuning.daySkyZenith.x);

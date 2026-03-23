@@ -33,21 +33,15 @@ target_include_directories(engine_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src"
         "${PROJECT_SOURCE_DIR}"
+        "${Vulkan_INCLUDE_DIR}"
 )
 
 target_link_libraries(engine_tests
     PRIVATE
         gtest_main
-        vkbootstrap
         libcuckoo
         vma
         glm
-        tinyobjloader
-        imgui
-        spirv_reflect
-        stb_image
-        Vulkan::Vulkan
-        sdl2
         FastNoise
         TracyClient
 )

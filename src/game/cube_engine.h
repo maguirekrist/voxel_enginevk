@@ -37,6 +37,7 @@ public:
     ~CubeEngine();
 
     void set_player_input(const PlayerInputState& input);
+    void configure_player(const PlayerPhysicsTuning& tuning, bool flyModeEnabled);
     void update(float deltaTime);
 
     [[nodiscard]] const GameSnapshot& snapshot() const;

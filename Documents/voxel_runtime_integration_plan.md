@@ -179,7 +179,8 @@ struct VoxelRenderInstance
 - `pivot`
   - The explicit local-space point used as the transform center for the asset.
   - Rotations and scaling should revolve around this point.
-  - In the first editor pass, users may choose a voxel and the pivot can be set to that voxel center.
+  - The current editor pass supports numeric pivot authoring and quick actions such as grid-center and bounds-center pivot placement.
+  - A direct "set pivot from selected voxel" action is still pending.
   - The persisted representation should remain a `vec3`, not just a voxel index, so the format can later support sub-voxel pivots without redesign.
 - `socket/anchor`
   - A named local-space attachment point.
@@ -252,7 +253,8 @@ Exit criteria:
 
 ## Phase 4: Attachment Authoring Support
 
-- Add editor support for setting the model pivot from a selected voxel.
+- Add editor support for numeric pivot authoring without editing JSON manually.
+- Add editor action to set the model pivot from a selected voxel.
 - Add editor visualization for the current pivot with a dedicated indicator render.
 - Add editor support for creating/editing attachment sockets.
 - Visualize sockets and local axes in the voxel editor.
@@ -328,17 +330,16 @@ This gives immediate runtime value without overcommitting to the full assembly s
 ## Worklist
 
 - [ ] Explicitly support signed voxel-local coordinates in editor/runtime workflows.
-- [ ] Add pivot metadata authoring to `VoxelModel`.
+- [x] Add pivot metadata authoring to `VoxelModel`.
 - [ ] Add editor action to set pivot from selected voxel.
 - [ ] Add pivot indicator rendering in voxel editor.
 - [x] Add attachment/socket metadata to voxel asset domain.
 - [x] Persist attachments in repository load/save.
 - [x] Add runtime asset package type.
 - [x] Add runtime asset cache/manager.
-- [ ] Add shared mesh upload lifecycle for runtime voxel assets.
 - [x] Add shared mesh upload lifecycle for runtime voxel assets.
 - [x] Add runtime voxel render instance submission.
-- [ ] Add single-asset gameplay component.
+- [x] Add single-asset gameplay component.
 - [ ] Add first multi-part assembly component.
 - [x] Add transform composition tests.
 - [x] Add one `GameScene` runtime demo entity using voxel assets.
@@ -349,6 +350,8 @@ This gives immediate runtime value without overcommitting to the full assembly s
 
 - Implemented asset-level attachment metadata on `VoxelModel`.
 - Repository now persists attachment metadata alongside pivot and voxels.
+- Runtime pivot application is active in voxel meshing, local-to-world transform conversion, and editor orbit targeting.
+- Added numeric pivot authoring to the voxel editor, including quick actions for grid-center XZ and bounds-center placement.
 - Added `VoxelRuntimeAsset` as the immutable runtime package boundary.
 - Added `VoxelAssetManager` to load/cache shared runtime voxel assets by asset id.
 - Generalized mesh render submission to use full per-object model transforms instead of chunk-only XZ translation.
@@ -356,6 +359,7 @@ This gives immediate runtime value without overcommitting to the full assembly s
 - Added `VoxelRenderRegistry` for reusable voxel instance submission and shared mesh upload handling.
 - Added a `GameScene` runtime voxel prop demo path that loads a saved asset id and spawns multiple shared-mesh world props near the player.
 - Added `VoxelModelComponent` groundwork plus a component-to-render-instance adapter.
+- Added a player-entity runtime voxel render path that uses the authored asset pivot for mesh placement.
 - Added a world-decoration generation pass after structure placement with forest-only flower placement.
 - Added `ChunkDecorationRenderRegistry` so chunk-owned voxel decorations stream in/out with visible chunks.
 - Added tests for:

@@ -60,11 +60,22 @@ namespace settings
         LightingTuningSettings tuning{};
     };
 
+    struct PlayerSettingsPersistence
+    {
+        float moveSpeed{4.5f};
+        float airControl{0.35f};
+        float gravity{24.0f};
+        float jumpVelocity{8.5f};
+        float maxFallSpeed{30.0f};
+        bool flyModeEnabled{false};
+    };
+
     struct GameSettingsPersistence
     {
         WorldSettingsPersistence world{};
         DebugSettingsPersistence debug{};
         DayNightSettingsPersistence dayNight{};
+        PlayerSettingsPersistence player{};
     };
 
     struct ViewDistanceRuntimeSettings
@@ -81,11 +92,22 @@ namespace settings
         bool enabled{false};
     };
 
+    struct PlayerRuntimeSettings
+    {
+        float moveSpeed{4.5f};
+        float airControl{0.35f};
+        float gravity{24.0f};
+        float jumpVelocity{8.5f};
+        float maxFallSpeed{30.0f};
+        bool flyModeEnabled{false};
+    };
+
     class SettingsManager
     {
     public:
         using ViewDistanceHandler = std::function<void(const ViewDistanceRuntimeSettings&)>;
         using AmbientOcclusionHandler = std::function<void(const AmbientOcclusionRuntimeSettings&)>;
+        using PlayerSettingsHandler = std::function<void(const PlayerRuntimeSettings&)>;
 
         SettingsManager();
         explicit SettingsManager(GameSettingsPersistence persistence);
@@ -93,6 +115,7 @@ namespace settings
         [[nodiscard]] const GameSettingsPersistence& persistence() const noexcept;
         [[nodiscard]] ViewDistanceRuntimeSettings view_distance_runtime_settings() const noexcept;
         [[nodiscard]] AmbientOcclusionRuntimeSettings ambient_occlusion_runtime_settings() const noexcept;
+        [[nodiscard]] PlayerRuntimeSettings player_runtime_settings() const noexcept;
 
         template <typename Mutator>
         bool mutate(Mutator&& mutator)
@@ -113,17 +136,20 @@ namespace settings
 
         void bind_view_distance_handler(ViewDistanceHandler handler, bool replayCurrent = true);
         void bind_ambient_occlusion_handler(AmbientOcclusionHandler handler, bool replayCurrent = true);
+        void bind_player_settings_handler(PlayerSettingsHandler handler, bool replayCurrent = true);
 
     private:
         static bool equal_persistence(const GameSettingsPersistence& lhs, const GameSettingsPersistence& rhs) noexcept;
         static void normalize(GameSettingsPersistence& persistence);
         static ViewDistanceRuntimeSettings make_view_distance_runtime(const GameSettingsPersistence& persistence) noexcept;
         static AmbientOcclusionRuntimeSettings make_ambient_occlusion_runtime(const GameSettingsPersistence& persistence) noexcept;
+        static PlayerRuntimeSettings make_player_runtime(const GameSettingsPersistence& persistence) noexcept;
 
         void dispatch_changes(const GameSettingsPersistence& previous, const GameSettingsPersistence& current);
 
         GameSettingsPersistence _persistence{};
         std::vector<ViewDistanceHandler> _viewDistanceHandlers{};
         std::vector<AmbientOcclusionHandler> _ambientOcclusionHandlers{};
+        std::vector<PlayerSettingsHandler> _playerSettingsHandlers{};
     };
 }

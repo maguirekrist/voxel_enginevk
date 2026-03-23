@@ -11,6 +11,8 @@ struct PlayerMovementState
     glm::vec3 velocity{0.0f};
     bool grounded{false};
     bool jumpQueued{false};
+    float jumpBufferTimeRemaining{0.0f};
+    float coyoteTimeRemaining{0.0f};
 };
 
 struct PlayerBodyDef
@@ -37,6 +39,7 @@ public:
     void apply_input(const PlayerInputState& input);
     void simulate(float deltaTime, const WorldCollision& collision);
     void tick(float deltaTime) override;
+    void set_tuning(const PlayerPhysicsTuning& tuning) noexcept;
     void set_fly_mode(bool enabled) noexcept;
     [[nodiscard]] bool fly_mode_enabled() const noexcept;
 

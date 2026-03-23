@@ -14,6 +14,8 @@ namespace
     constexpr float MinCameraPitch = -65.0f;
     constexpr float MaxCameraPitch = 35.0f;
     constexpr float CollisionStepEpsilon = 0.001f;
+    constexpr float JumpBufferDuration = 0.12f;
+    constexpr float CoyoteTimeDuration = 0.10f;
 
     [[nodiscard]] glm::vec3 planar_forward_from_yaw(const float yawDegrees) noexcept
     {
@@ -53,11 +55,15 @@ void PlayerEntity::apply_input(const PlayerInputState& input)
     if (input.jumpPressed)
     {
         _movement.jumpQueued = true;
+        _movement.jumpBufferTimeRemaining = JumpBufferDuration;
     }
 }
 
 void PlayerEntity::simulate(const float deltaTime, const WorldCollision& collision)
 {
+    _movement.jumpBufferTimeRemaining = std::max(0.0f, _movement.jumpBufferTimeRemaining - deltaTime);
+    _movement.coyoteTimeRemaining = std::max(0.0f, _movement.coyoteTimeRemaining - deltaTime);
+
     const glm::vec3 planarForward = planar_forward_from_yaw(_cameraYawDegrees);
     const glm::vec3 planarRight = glm::normalize(glm::cross(planarForward, _up));
     glm::vec3 desiredMove = (planarRight * _moveIntent.x) + (planarForward * _moveIntent.y);
@@ -82,19 +88,33 @@ void PlayerEntity::simulate(const float deltaTime, const WorldCollision& collisi
         _front = camera_forward();
         update_render_component();
         _movement.jumpQueued = false;
+        _movement.jumpBufferTimeRemaining = 0.0f;
+        _movement.coyoteTimeRemaining = 0.0f;
         return;
+    }
+
+    if (_movement.grounded)
+    {
+        _movement.coyoteTimeRemaining = CoyoteTimeDuration;
     }
 
     const float control = _movement.grounded ? 1.0f : _tuning.airControl;
     _movement.velocity.x = desiredMove.x * _tuning.moveSpeed * control;
     _movement.velocity.z = desiredMove.z * _tuning.moveSpeed * control;
 
-    if (_movement.grounded && _movement.jumpQueued)
+    if ((_movement.grounded || _movement.coyoteTimeRemaining > 0.0f) &&
+        (_movement.jumpQueued || _movement.jumpBufferTimeRemaining > 0.0f))
     {
         _movement.velocity.y = _tuning.jumpVelocity;
         _movement.grounded = false;
+        _movement.jumpQueued = false;
+        _movement.jumpBufferTimeRemaining = 0.0f;
+        _movement.coyoteTimeRemaining = 0.0f;
     }
-    _movement.jumpQueued = false;
+    else if (_movement.jumpBufferTimeRemaining <= 0.0f)
+    {
+        _movement.jumpQueued = false;
+    }
 
     if (!_movement.grounded)
     {
@@ -186,6 +206,11 @@ const VoxelModelComponent& PlayerEntity::render_component() const
     return Get<VoxelModelComponent>();
 }
 
+void PlayerEntity::set_tuning(const PlayerPhysicsTuning& tuning) noexcept
+{
+    _tuning = tuning;
+}
+
 void PlayerEntity::set_fly_mode(const bool enabled) noexcept
 {
     _flyModeEnabled = enabled;
@@ -194,6 +219,8 @@ void PlayerEntity::set_fly_mode(const bool enabled) noexcept
         _movement.velocity = glm::vec3(0.0f);
         _movement.grounded = false;
         _movement.jumpQueued = false;
+        _movement.jumpBufferTimeRemaining = 0.0f;
+        _movement.coyoteTimeRemaining = 0.0f;
     }
 }
 
@@ -206,7 +233,7 @@ void PlayerEntity::update_render_component()
 {
     auto& voxelComponent = Get<VoxelModelComponent>();
     voxelComponent.position = _position;
-    voxelComponent.rotation = glm::angleAxis(glm::radians(_bodyYawDegrees), glm::vec3(0.0f, 1.0f, 0.0f));
+    voxelComponent.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     voxelComponent.visible = true;
 }
 

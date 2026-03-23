@@ -10,3 +10,8 @@
 /build-release
 .vs
 out
+/mac_build
+/build_mac
+/build_mac2
+/build_verify
+/mac_builds

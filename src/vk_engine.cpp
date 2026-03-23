@@ -23,6 +23,25 @@
 #include "backends/imgui_impl_vulkan.h"
 #include "vk_mem_alloc.h"
 
+namespace
+{
+	template <typename T>
+	T take_vkb_result(vkb::Result<T>&& result, const char* step)
+	{
+		if (result.has_value())
+		{
+			return std::move(result).value();
+		}
+
+		const auto error = result.full_error();
+		throw std::runtime_error(std::format(
+			"{} failed: {} (VkResult={})",
+			step,
+			error.type.message(),
+			static_cast<int>(error.vk_result)));
+	}
+}
+
 
 VulkanEngine::VulkanEngine()
 {
@@ -326,12 +345,15 @@ void VulkanEngine::init_vulkan()
 	.require_api_version(1, 1, 0)
 	.build();
 
-	vkb::Instance vkb_inst = inst_ret.value();
+	vkb::Instance vkb_inst = take_vkb_result(std::move(inst_ret), "Vulkan instance creation");
 
 	_instance = vkb_inst.instance;
 	_debug_messenger = vkb_inst.debug_messenger;
 
-	SDL_Vulkan_CreateSurface(_windowSystem.handle(), _instance, &_surface);
+	if (SDL_Vulkan_CreateSurface(_windowSystem.handle(), _instance, &_surface) != SDL_TRUE)
+	{
+		throw std::runtime_error(std::format("SDL_Vulkan_CreateSurface failed: {}", SDL_GetError()));
+	}
 
 
 	// //vulkan 1.3 features
@@ -348,13 +370,13 @@ void VulkanEngine::init_vulkan()
 	//use vkbootstrap to select a gpu. 
 	//We want a gpu that can write to the SDL surface and supports vulkan 1.3 with the correct features
 	vkb::PhysicalDeviceSelector selector{ vkb_inst };
-	vkb::PhysicalDevice physicalDevice = selector
+	auto physicalDeviceResult = selector
 		.set_minimum_version(1, 1)
 		// .set_required_features_13(features)
 		// .set_required_features_12(features12)
 		.set_surface(_surface)
-		.select()
-		.value();
+		.select();
+	vkb::PhysicalDevice physicalDevice = take_vkb_result(std::move(physicalDeviceResult), "Physical device selection");
 
 
 	std::println("Has dedicated transfer queue? {}", physicalDevice.has_dedicated_transfer_queue());
@@ -363,8 +385,7 @@ void VulkanEngine::init_vulkan()
 	//create the final vulkan device
 	vkb::DeviceBuilder deviceBuilder{ physicalDevice };
 
-	vkb::Device vkbDevice = deviceBuilder.build()
-		.value();
+	vkb::Device vkbDevice = take_vkb_result(deviceBuilder.build(), "Logical device creation");
 
 	_gpuProperties = vkbDevice.physical_device.properties;
 
@@ -380,8 +401,14 @@ void VulkanEngine::init_vulkan()
 	_chosenGPU = physicalDevice.physical_device;
 
 
-	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
-	_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+	auto graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics);
+	auto graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics);
+	if (!graphicsQueue.has_value() || !graphicsQueueFamily.has_value())
+	{
+		throw std::runtime_error("Graphics queue selection failed.");
+	}
+	_graphicsQueue = graphicsQueue.value();
+	_graphicsQueueFamily = graphicsQueueFamily.value();
 	auto transferQueue = vkbDevice.get_queue(vkb::QueueType::transfer);
 	auto transferQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::transfer);
 
@@ -420,18 +447,28 @@ void VulkanEngine::init_swapchain()
 {
 	vkb::SwapchainBuilder swapchainBuilder{_chosenGPU,_device,_surface };
 
-	vkb::Swapchain vkbSwapchain = swapchainBuilder
+	auto swapchainResult = swapchainBuilder
 		.set_desired_format({VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_PASS_THROUGH_EXT})
 		//use vsync present mode
 		.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
-		.build()
-		.value();
+		.build();
+	vkb::Swapchain vkbSwapchain = take_vkb_result(std::move(swapchainResult), "Swapchain creation");
 
 	//store swapchain and its related images
 	_swapchain = vkbSwapchain.swapchain;
-	_swapchainImages = vkbSwapchain.get_images().value();
-	_swapchainImageViews = vkbSwapchain.get_image_views().value();
+	const auto swapchainImages = vkbSwapchain.get_images();
+	if (!swapchainImages.has_value())
+	{
+		throw std::runtime_error("Swapchain image retrieval failed.");
+	}
+	_swapchainImages = swapchainImages.value();
+	const auto swapchainImageViews = vkbSwapchain.get_image_views();
+	if (!swapchainImageViews.has_value())
+	{
+		throw std::runtime_error("Swapchain image view retrieval failed.");
+	}
+	_swapchainImageViews = swapchainImageViews.value();
 	_swapchainImageFormat = vkbSwapchain.image_format;
 	// Per-image render-finished semaphores to prevent reuse across different images
 	_imageRenderFinishedSemaphores.resize(_swapchainImages.size());

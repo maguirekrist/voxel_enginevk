@@ -17,6 +17,18 @@ void CubeEngine::set_player_input(const PlayerInputState& input)
     _playerInput = input;
 }
 
+void CubeEngine::configure_player(const PlayerPhysicsTuning& tuning, const bool flyModeEnabled)
+{
+    if (_player == nullptr)
+    {
+        return;
+    }
+
+    _player->set_tuning(tuning);
+    _player->set_fly_mode(flyModeEnabled);
+    refresh_snapshot();
+}
+
 void CubeEngine::update(const float deltaTime)
 {
     ZoneScopedN("GameUpdate");

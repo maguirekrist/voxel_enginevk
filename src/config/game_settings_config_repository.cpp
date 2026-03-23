@@ -6,7 +6,7 @@ namespace config
 {
     namespace
     {
-        constexpr int GameSettingsConfigVersion = 1;
+        constexpr int GameSettingsConfigVersion = 2;
 
         nlohmann::json vec3_to_json(const glm::vec3& value)
         {
@@ -41,6 +41,14 @@ namespace config
                 } },
                 { "debug", {
                     { "showChunkBoundaries", settings.debug.showChunkBoundaries }
+                } },
+                { "player", {
+                    { "moveSpeed", settings.player.moveSpeed },
+                    { "airControl", settings.player.airControl },
+                    { "gravity", settings.player.gravity },
+                    { "jumpVelocity", settings.player.jumpVelocity },
+                    { "maxFallSpeed", settings.player.maxFallSpeed },
+                    { "flyModeEnabled", settings.player.flyModeEnabled }
                 } },
                 { "dayNight", {
                     { "paused", settings.dayNight.paused },
@@ -93,6 +101,17 @@ namespace config
             {
                 const auto& debug = document.at("debug");
                 settings.debug.showChunkBoundaries = debug.value("showChunkBoundaries", settings.debug.showChunkBoundaries);
+            }
+
+            if (document.contains("player") && document.at("player").is_object())
+            {
+                const auto& player = document.at("player");
+                settings.player.moveSpeed = player.value("moveSpeed", settings.player.moveSpeed);
+                settings.player.airControl = player.value("airControl", settings.player.airControl);
+                settings.player.gravity = player.value("gravity", settings.player.gravity);
+                settings.player.jumpVelocity = player.value("jumpVelocity", settings.player.jumpVelocity);
+                settings.player.maxFallSpeed = player.value("maxFallSpeed", settings.player.maxFallSpeed);
+                settings.player.flyModeEnabled = player.value("flyModeEnabled", settings.player.flyModeEnabled);
             }
 
             if (document.contains("dayNight") && document.at("dayNight").is_object())

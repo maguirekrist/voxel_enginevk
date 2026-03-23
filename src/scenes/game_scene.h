@@ -137,6 +137,7 @@ private:
     void bind_settings();
     void apply_view_distance_settings(const settings::ViewDistanceRuntimeSettings& settings);
     void apply_ambient_occlusion_settings(const settings::AmbientOcclusionRuntimeSettings& settings);
+    void apply_player_settings(const settings::PlayerRuntimeSettings& settings);
     void sync_world_gen_draft();
     void clear_target_block_outline();
     void clear_chunk_boundary_debug();
