@@ -11,6 +11,7 @@ void ChunkRenderRegistry::sync(
     ChunkManager& chunkManager,
     MeshManager& meshManager,
     MaterialManager& materialManager,
+    const std::string_view materialScope,
     SceneRenderState& renderState)
 {
     ChunkManager::ChunkRenderResetEvent resetEvent;
@@ -49,13 +50,14 @@ void ChunkRenderRegistry::sync(
         };
     }
 
-    finalize_pending_renders(chunkManager, meshManager, materialManager, renderState);
+    finalize_pending_renders(chunkManager, meshManager, materialManager, materialScope, renderState);
 }
 
 void ChunkRenderRegistry::finalize_pending_renders(
     ChunkManager& chunkManager,
     MeshManager& meshManager,
     MaterialManager& materialManager,
+    const std::string_view materialScope,
     SceneRenderState& renderState)
 {
     std::vector<Chunk*> completedChunks{};
@@ -115,7 +117,7 @@ void ChunkRenderRegistry::finalize_pending_renders(
         ChunkRenderHandles handles{};
         handles.opaque = renderState.opaqueObjects.insert(RenderObject{
             .mesh = pending.meshData->mesh,
-            .material = materialManager.get_material("defaultmesh"),
+            .material = materialManager.get_material(materialScope, "defaultmesh"),
             .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
                 static_cast<float>(pending.data->position.x),
                 0.0f,
@@ -129,7 +131,7 @@ void ChunkRenderRegistry::finalize_pending_renders(
         {
             handles.waterTransparent = renderState.transparentObjects.insert(RenderObject{
                 .mesh = pending.meshData->waterMesh,
-                .material = materialManager.get_material("watermesh"),
+                .material = materialManager.get_material(materialScope, "watermesh"),
                 .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
                     static_cast<float>(pending.data->position.x),
                     0.0f,
@@ -144,7 +146,7 @@ void ChunkRenderRegistry::finalize_pending_renders(
         {
             handles.glowTransparent = renderState.transparentObjects.insert(RenderObject{
                 .mesh = pending.meshData->glowMesh,
-                .material = materialManager.get_material("glowmesh"),
+                .material = materialManager.get_material(materialScope, "glowmesh"),
                 .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
                     static_cast<float>(pending.data->position.x),
                     0.0f,

@@ -79,11 +79,18 @@ add_executable(vulkan_guide
     scenes/scene_services.h
     scenes/game_scene.h
     scenes/game_scene.cpp
+    scenes/orbit_orientation_gizmo.h
+    scenes/orbit_orientation_gizmo.cpp
+    scenes/voxel_assembly_scene.h
+    scenes/voxel_assembly_scene.cpp
     scenes/voxel_editor_scene.h
     scenes/voxel_editor_scene.cpp
     settings/game_settings.h
     settings/game_settings.cpp
     voxel/voxel_model.h
+    voxel/voxel_assembly_asset.h
+    voxel/voxel_assembly_repository.h
+    voxel/voxel_assembly_repository.cpp
     voxel/voxel_runtime_asset.h
     voxel/voxel_asset_manager.h
     voxel/voxel_asset_manager.cpp

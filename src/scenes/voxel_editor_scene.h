@@ -99,8 +99,14 @@ private:
     void sync_model_mesh();
     void sync_hover_target();
     void sync_hover_outline();
+    void sync_marker_overlays();
     void release_preview_mesh();
     void release_outline_mesh();
+    void release_marker_meshes();
+    void ensure_attachment_selection();
+    [[nodiscard]] VoxelAttachment* selected_attachment();
+    [[nodiscard]] const VoxelAttachment* selected_attachment() const;
+    [[nodiscard]] std::string make_unique_attachment_name(std::string_view baseName) const;
     void update_camera();
     void draw_orientation_gizmo();
     void sync_orbit_from_view_matrix(const glm::mat4& viewMatrix);
@@ -126,8 +132,16 @@ private:
     std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Mesh> _previewMesh;
     std::shared_ptr<Mesh> _outlineMesh;
+    std::shared_ptr<Mesh> _pivotMarkerMesh;
+    std::shared_ptr<Mesh> _pivotVoxelMesh;
+    std::shared_ptr<Mesh> _selectedAttachmentVoxelMesh;
+    std::vector<std::shared_ptr<Mesh>> _attachmentMarkerMeshes{};
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _previewHandle;
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _outlineHandle;
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _pivotMarkerHandle;
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _pivotVoxelHandle;
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _selectedAttachmentVoxelHandle;
+    std::vector<dev_collections::sparse_set<RenderObject>::Handle> _attachmentMarkerHandles{};
 
     std::unique_ptr<Camera> _camera;
 
@@ -142,11 +156,17 @@ private:
     bool _eraseMode{false};
     bool _orbitDragging{false};
     bool _meshDirty{true};
+    bool _markerDirty{true};
+    bool _showPivotMarker{true};
+    bool _showPivotVoxel{true};
+    bool _showAttachmentMarkers{true};
+    bool _showSelectedAttachmentVoxel{true};
     float _orbitYawDegrees{40.0f};
     float _orbitPitchDegrees{24.0f};
     float _orbitDistance{3.5f};
     std::vector<std::string> _savedAssetIds{};
     int _selectedSavedAssetIndex{-1};
+    int _selectedAttachmentIndex{-1};
     std::optional<HoverTarget> _hoveredTarget;
     std::optional<VoxelCoord> _outlinedVoxelCoord;
     bool _outlineShowsRemoval{false};

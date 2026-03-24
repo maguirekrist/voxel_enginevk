@@ -25,6 +25,7 @@ private:
     
 	std::unordered_map<std::string, std::shared_ptr<Scene>> _scenes;
     std::shared_ptr<Scene> _currentScene = nullptr;
+    std::string _currentSceneName{};
 
     std::string m_lastMaterialKey;
 };

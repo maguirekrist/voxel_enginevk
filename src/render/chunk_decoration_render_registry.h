@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -29,6 +30,7 @@ public:
         VoxelAssetManager& assetManager,
         MeshManager& meshManager,
         MaterialManager& materialManager,
+        std::string_view materialScope,
         const world_lighting::WorldLightSampler* worldLightSampler,
         SceneRenderState& renderState);
 

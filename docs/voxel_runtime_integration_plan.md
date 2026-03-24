@@ -261,7 +261,7 @@ Exit criteria:
 - Persist sockets in asset files.
 
 Exit criteria:
-
+T
 - Designers can author pivots and runtime attachment points without editing JSON manually.
 
 ## Phase 5: Skeleton-Ready Refinement

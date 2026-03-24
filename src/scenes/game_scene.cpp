@@ -18,6 +18,8 @@
 
 namespace
 {
+    constexpr std::string_view GameSceneMaterialScope = "game";
+
     bool equal_spline_points(const std::vector<SplinePoint>& lhs, const std::vector<SplinePoint>& rhs)
     {
         if (lhs.size() != rhs.size())
@@ -404,6 +406,7 @@ void GameScene::update_buffers() {
 		_game.chunk_manager(),
 		*_services.meshManager,
 		*_services.materialManager,
+        GameSceneMaterialScope,
 		_renderState);
     const ChunkCoord centerChunk = _game.snapshot().currentChunk.value_or(World::get_chunk_coordinates(_game.snapshot().player.position));
     _chunkDecorationRenderRegistry.sync(
@@ -413,10 +416,11 @@ void GameScene::update_buffers() {
         _voxelAssetManager,
         *_services.meshManager,
         *_services.materialManager,
+        GameSceneMaterialScope,
         _worldLightSampler.get(),
         _renderState);
-    _playerVoxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, _renderState, _worldLightSampler.get());
-    _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, _renderState, _worldLightSampler.get());
+    _playerVoxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, GameSceneMaterialScope, _renderState, _worldLightSampler.get());
+    _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, GameSceneMaterialScope, _renderState, _worldLightSampler.get());
     sync_target_block_outline();
     sync_chunk_boundary_debug();
 	update_uniform_buffer();
@@ -570,6 +574,7 @@ void GameScene::build_pipelines()
 		}
 	};
 	_services.materialManager->build_graphics_pipeline(
+        GameSceneMaterialScope,
 		{
             MaterialBinding::from_resource(0, 0, _cameraUboResource),
             MaterialBinding::from_resource(1, 0, _lightingResource)
@@ -582,6 +587,7 @@ void GameScene::build_pipelines()
 	);
 
 	_services.materialManager->build_graphics_pipeline(
+        GameSceneMaterialScope,
 		{
             MaterialBinding::from_resource(0, 0, _cameraUboResource),
             MaterialBinding::from_resource(1, 0, _lightingResource),
@@ -595,6 +601,7 @@ void GameScene::build_pipelines()
 	);
 
     _services.materialManager->build_graphics_pipeline(
+        GameSceneMaterialScope,
         {
             MaterialBinding::from_resource(0, 0, _cameraUboResource)
         },
@@ -606,6 +613,7 @@ void GameScene::build_pipelines()
     );
 
     _services.materialManager->build_graphics_pipeline(
+        GameSceneMaterialScope,
         {
             MaterialBinding::from_resource(0, 0, _cameraUboResource),
             MaterialBinding::from_resource(1, 0, _lightingResource)
@@ -617,8 +625,8 @@ void GameScene::build_pipelines()
         "chunkboundary"
     );
 
-	_services.materialManager->build_postprocess_pipeline(_fogResource);
-	_services.materialManager->build_present_pipeline();
+	_services.materialManager->build_postprocess_pipeline(GameSceneMaterialScope, _fogResource);
+	_services.materialManager->build_present_pipeline(GameSceneMaterialScope);
 }
 
 void GameScene::draw_debug_map()
@@ -1280,7 +1288,7 @@ void GameScene::sync_target_block_outline()
 
     _targetBlockOutlineHandle = _renderState.opaqueObjects.insert(RenderObject{
         .mesh = _targetBlockOutlineMesh,
-        .material = _services.materialManager->get_material("chunkboundary"),
+        .material = _services.materialManager->get_material(GameSceneMaterialScope, "chunkboundary"),
         .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
             static_cast<float>(chunkOrigin.x),
             0.0f,
@@ -1304,7 +1312,7 @@ void GameScene::sync_chunk_boundary_debug()
         _services.meshManager->UploadQueue.enqueue(_chunkBoundaryMesh);
     }
 
-    const auto debugMaterial = _services.materialManager->get_material("chunkboundary");
+    const auto debugMaterial = _services.materialManager->get_material(GameSceneMaterialScope, "chunkboundary");
     const GameSnapshot& snapshot = _game.snapshot();
     const ChunkCoord playerChunk = snapshot.currentChunk.value_or(World::get_chunk_coordinates(snapshot.player.position));
     const int viewDistance = _settings.persistence().world.viewDistance;

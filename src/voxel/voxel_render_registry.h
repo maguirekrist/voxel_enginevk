@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string_view>
 #include <unordered_map>
 
 #include "collections/spare_set.h"
@@ -26,6 +27,7 @@ public:
     void sync(
         MeshManager& meshManager,
         MaterialManager& materialManager,
+        std::string_view materialScope,
         SceneRenderState& renderState,
         const world_lighting::WorldLightSampler* worldLightSampler = nullptr);
     [[nodiscard]] size_t instance_count() const noexcept;

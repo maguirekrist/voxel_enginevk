@@ -19,6 +19,7 @@ add_executable(engine_tests
     ../src/world/dynamic_light_registry.cpp
     ../src/world/world_light_sampler.cpp
     ../src/voxel/voxel_asset_manager.cpp
+    ../src/voxel/voxel_assembly_repository.cpp
     ../src/voxel/voxel_render_instance.cpp
     ../src/voxel/voxel_mesher.cpp
     ../src/voxel/voxel_picking.cpp

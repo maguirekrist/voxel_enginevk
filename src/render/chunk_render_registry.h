@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string_view>
 #include <unordered_map>
 
 #include "collections/spare_set.h"
@@ -18,6 +19,7 @@ public:
         ChunkManager& chunkManager,
         MeshManager& meshManager,
         MaterialManager& materialManager,
+        std::string_view materialScope,
         SceneRenderState& renderState);
 
     void clear(SceneRenderState& renderState);
@@ -53,5 +55,6 @@ private:
         ChunkManager& chunkManager,
         MeshManager& meshManager,
         MaterialManager& materialManager,
+        std::string_view materialScope,
         SceneRenderState& renderState);
 };

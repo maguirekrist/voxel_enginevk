@@ -74,10 +74,11 @@ void VoxelRenderRegistry::clear(SceneRenderState& renderState)
 void VoxelRenderRegistry::sync(
     MeshManager& meshManager,
     MaterialManager& materialManager,
+    const std::string_view materialScope,
     SceneRenderState& renderState,
     const world_lighting::WorldLightSampler* const worldLightSampler)
 {
-    const auto defaultMaterial = materialManager.get_material("defaultmesh");
+    const auto defaultMaterial = materialManager.get_material(materialScope, "defaultmesh");
     std::unordered_set<Mesh*> queuedMeshes{};
     queuedMeshes.reserve(_entries.size());
 

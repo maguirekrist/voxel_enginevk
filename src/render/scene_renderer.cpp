@@ -4,6 +4,7 @@
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
 #include <scenes/game_scene.h>
+#include <scenes/voxel_assembly_scene.h>
 #include <scenes/voxel_editor_scene.h>
 
 #include "imgui.h"
@@ -13,6 +14,8 @@ void SceneRenderer::init(const SceneServices& sceneServices)
 {
 	_scenes["game"] = std::make_shared<GameScene>(sceneServices);
     _scenes["voxel_editor"] = std::make_shared<VoxelEditorScene>(sceneServices);
+    _scenes["voxel_assembly"] = std::make_shared<VoxelAssemblyScene>(sceneServices);
+    _currentSceneName = "voxel_editor";
 	_currentScene = _scenes["voxel_editor"];
 }
 
@@ -31,6 +34,7 @@ void SceneRenderer::set_current_scene(const std::string& name)
             return;
         }
         _currentScene = it->second;
+        _currentSceneName = name;
         _currentScene->rebuild_pipelines();
     }
 }
@@ -58,7 +62,7 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, const FrameRenderContext& 
 
     vkCmdEndRenderPass(cmd);
 
-    run_compute(cmd, frameContext, frameContext.materialManager->get_material("compute"));
+    run_compute(cmd, frameContext, frameContext.materialManager->get_material(_currentSceneName, "compute"));
 
 	VkRenderPassBeginInfo rpInfo = vkinit::render_pass_begin_info(
         frameContext.presentPass,
@@ -69,7 +73,7 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, const FrameRenderContext& 
 
 	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    draw_fullscreen(cmd, frameContext.materialManager->get_material("present"));
+    draw_fullscreen(cmd, frameContext.materialManager->get_material(_currentSceneName, "present"));
 
     //Draw transparent
     draw_objects(cmd, renderState.transparentObjects.data());

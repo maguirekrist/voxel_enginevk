@@ -1,0 +1,81 @@
+{
+  "assetId": "flower_wpatch",
+  "displayName": "flower_wpatch",
+  "parts": [
+    {
+      "binding": {
+        "defaultStateId": "default",
+        "states": [
+          {
+            "localPositionOffset": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localRotationOffset": {
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localScale": {
+              "x": 1.0,
+              "y": 1.0,
+              "z": 1.0
+            },
+            "parentAttachmentName": "head",
+            "parentPartId": "player",
+            "stateId": "default",
+            "visible": true
+          }
+        ]
+      },
+      "defaultModelAssetId": "flower",
+      "displayName": "flower",
+      "partId": "flower",
+      "visibleByDefault": true
+    },
+    {
+      "binding": {
+        "defaultStateId": "default",
+        "states": [
+          {
+            "localPositionOffset": {
+              "x": 0.0,
+              "y": -0.25,
+              "z": 0.0
+            },
+            "localRotationOffset": {
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localScale": {
+              "x": 1.0,
+              "y": 1.0,
+              "z": 1.0
+            },
+            "parentAttachmentName": "",
+            "parentPartId": "player",
+            "stateId": "default",
+            "visible": true
+          }
+        ]
+      },
+      "defaultModelAssetId": "flower_patch",
+      "displayName": "flower_patch",
+      "partId": "flower_patch",
+      "visibleByDefault": true
+    },
+    {
+      "defaultModelAssetId": "player",
+      "displayName": "player",
+      "partId": "player",
+      "visibleByDefault": true
+    }
+  ],
+  "rootPartId": "player",
+  "slots": [],
+  "version": 1
+}

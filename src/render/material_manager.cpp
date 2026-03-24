@@ -189,7 +189,7 @@ void MaterialManager::init(const MaterialBackendContext& context)
 }
 
 
-std::shared_ptr<Material> MaterialManager::get_material(const std::string &name)
+std::shared_ptr<Material> MaterialManager::get_material_by_key(const std::string &name)
 {
     //search for the object, and return nullptr if not found
     if (const auto it = m_materials.find(name); it != m_materials.end()) {
@@ -197,6 +197,16 @@ std::shared_ptr<Material> MaterialManager::get_material(const std::string &name)
 	}
 
 	throw std::runtime_error("Material not found: " + name);
+}
+ 
+std::string MaterialManager::scoped_name(const std::string_view scope, const std::string_view name)
+{
+    return std::format("{}::{}", scope, name);
+}
+
+std::shared_ptr<Material> MaterialManager::get_material(const std::string_view scope, const std::string_view name)
+{
+    return get_material_by_key(scoped_name(scope, name));
 }
 
 void MaterialManager::cleanup()
@@ -212,12 +222,13 @@ void MaterialManager::cleanup()
 
 
 void MaterialManager::build_graphics_pipeline(
+    const std::string_view scope,
 	const MaterialBindings& bindings,
 	const std::vector<PushConstant>& pConstants,
 	const PipelineMetadata&& metadata,
 	const std::string& vertex_shader,
 	const std::string& fragment_shader, 
-	const std::string& name)
+	const std::string_view name)
 {
 	ShaderProgram shaderProgram = ShaderProgram::load_graphics(_context.device, vertex_shader, fragment_shader);
 	validate_descriptor_sets_are_contiguous(shaderProgram.descriptor_sets());
@@ -304,9 +315,10 @@ void MaterialManager::build_graphics_pipeline(
 	VkRenderPass render_pass = uses_blending(metadata.blendMode) ? *_context.renderPass : *_context.offscreenPass;
 	VkPipeline meshPipeline = pipelineBuilder.build_pipeline(_context.device, render_pass);
 
+    const std::string materialKey = scoped_name(scope, name);
 
 	auto new_material = Material{
-		.key = name,
+		.key = materialKey,
 		.pipeline = meshPipeline,
 		.pipelineLayout = pipelineLayout,
 		.descriptorSets = descriptorState.descriptorSets,
@@ -314,10 +326,10 @@ void MaterialManager::build_graphics_pipeline(
 		.pushConstants = pConstants
 	};
 
-	add_material(name, std::move(new_material));
+	add_material(materialKey, std::move(new_material));
 }
 
-void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUboBuffer)
+void MaterialManager::build_postprocess_pipeline(const std::string_view scope, std::shared_ptr<Resource> fogUboBuffer)
 {
 	ShaderProgram shaderProgram = ShaderProgram::load_compute(_context.device, "fog.comp.spv");
 	validate_descriptor_sets_are_contiguous(shaderProgram.descriptor_sets());
@@ -368,17 +380,17 @@ void MaterialManager::build_postprocess_pipeline(std::shared_ptr<Resource> fogUb
 	}
 
 	auto new_material = Material{
+        .key = scoped_name(scope, "compute"),
 		.pipeline = computePipeline,
 		.pipelineLayout = computePipelineLayout,
 		.descriptorSets = descriptorState.descriptorSets,
 		.bindings = bindings,
 		.pushConstants = {} };
 
-	/*m_materials.emplace("compute", std::make_shared<Material>());*/
-	add_material("compute", std::move(new_material));
+	add_material(new_material.key, std::move(new_material));
 }
 
-void MaterialManager::build_present_pipeline()
+void MaterialManager::build_present_pipeline(const std::string_view scope)
 {
 	ShaderProgram shaderProgram = ShaderProgram::load_graphics(_context.device, "present_full.vert.spv", "present_full.frag.spv");
 	validate_descriptor_sets_are_contiguous(shaderProgram.descriptor_sets());
@@ -398,11 +410,11 @@ void MaterialManager::build_present_pipeline()
 
 	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
-	_sampledImageSetLayout = descriptorState.layouts.front();
-	_sampledImageSet = descriptorState.descriptorSets.front();
+	const VkDescriptorSetLayout sampledImageSetLayout = descriptorState.layouts.front();
+	const VkDescriptorSet sampledImageSet = descriptorState.descriptorSets.front();
 
 	pipeline_layout_info.setLayoutCount = 1;
-	pipeline_layout_info.pSetLayouts = &_sampledImageSetLayout;
+	pipeline_layout_info.pSetLayouts = &sampledImageSetLayout;
 	pipeline_layout_info.pPushConstantRanges = shaderProgram.push_constant_ranges().data();
 	pipeline_layout_info.pushConstantRangeCount = static_cast<uint32_t>(shaderProgram.push_constant_ranges().size());
 
@@ -469,12 +481,12 @@ void MaterialManager::build_present_pipeline()
 
 	//create_material(meshPipeline, meshPipelineLayout, "present");
 	auto new_material = Material{
-		.key = "present",
+		.key = scoped_name(scope, "present"),
 		.pipeline = meshPipeline,
 		.pipelineLayout = meshPipelineLayout,
-		.descriptorSets = { _sampledImageSet },
+		.descriptorSets = { sampledImageSet },
 		.bindings = bindings };
-	add_material("present", std::move(new_material));
+	add_material(new_material.key, std::move(new_material));
 }
 
 void MaterialManager::add_material(const std::string& name, Material&& material)

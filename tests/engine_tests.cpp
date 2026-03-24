@@ -27,6 +27,7 @@
 #include "game/world.h"
 #include "render/chunk_decoration_render_registry.h"
 #include "voxel/voxel_mesher.h"
+#include "voxel/voxel_assembly_repository.h"
 #include "voxel/voxel_asset_manager.h"
 #include "voxel/voxel_picking.h"
 #include "voxel/voxel_render_instance.h"
@@ -830,6 +831,92 @@ TEST(VoxelAssetManagerTest, LoadsAndCachesRuntimeAssets)
     EXPECT_FLOAT_EQ(firstLoad->attachments.at("grip").position.y, 1.0f);
 }
 
+TEST(VoxelAssemblyRepositoryTest, SavesAndLoadsAssemblyAssetRoundTrip)
+{
+    VoxelAssemblyAsset asset{};
+    asset.assetId = "Player Base";
+    asset.displayName = "Player Base";
+    asset.rootPartId = "torso";
+
+    VoxelAssemblyPartDefinition torso{};
+    torso.partId = "torso";
+    torso.displayName = "Torso";
+    torso.defaultModelAssetId = "player_torso";
+    asset.parts.push_back(torso);
+
+    VoxelAssemblyPartDefinition leftHand{};
+    leftHand.partId = "left_hand";
+    leftHand.displayName = "Left Hand";
+    leftHand.defaultModelAssetId = "player_left_hand";
+    leftHand.slotId = "left_hand";
+    leftHand.defaultStateId = "default";
+    leftHand.bindingStates.push_back(VoxelAssemblyBindingState{
+        .stateId = "default",
+        .parentPartId = "torso",
+        .parentAttachmentName = "left_hand",
+        .localPositionOffset = glm::vec3(1.0f, 2.0f, 3.0f),
+        .localRotationOffset = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+        .localScale = glm::vec3(1.0f, 1.0f, 1.0f),
+        .visible = true
+    });
+    leftHand.bindingStates.push_back(VoxelAssemblyBindingState{
+        .stateId = "hidden",
+        .parentPartId = "torso",
+        .parentAttachmentName = "left_hand",
+        .localPositionOffset = glm::vec3(0.0f),
+        .localRotationOffset = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+        .localScale = glm::vec3(1.0f),
+        .visible = false
+    });
+    asset.parts.push_back(leftHand);
+
+    asset.slots.push_back(VoxelAssemblySlotDefinition{
+        .slotId = "left_hand",
+        .displayName = "Left Hand",
+        .fallbackPartId = "left_hand",
+        .required = true
+    });
+
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_assembly_repo_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const VoxelAssemblyRepository repository(documentStore, "assemblies");
+
+    repository.save(asset);
+    const std::optional<VoxelAssemblyAsset> loaded = repository.load("Player Base");
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->assetId, "playerbase");
+    EXPECT_EQ(loaded->displayName, "Player Base");
+    EXPECT_EQ(loaded->rootPartId, "torso");
+    ASSERT_EQ(loaded->parts.size(), 2u);
+    ASSERT_EQ(loaded->slots.size(), 1u);
+
+    const VoxelAssemblyPartDefinition* const loadedTorso = loaded->find_part("torso");
+    ASSERT_NE(loadedTorso, nullptr);
+    EXPECT_EQ(loadedTorso->defaultModelAssetId, "player_torso");
+
+    const VoxelAssemblyPartDefinition* const loadedLeftHand = loaded->find_part("left_hand");
+    ASSERT_NE(loadedLeftHand, nullptr);
+    EXPECT_EQ(loadedLeftHand->slotId, "left_hand");
+    EXPECT_EQ(loadedLeftHand->defaultStateId, "default");
+    ASSERT_EQ(loadedLeftHand->bindingStates.size(), 2u);
+
+    const VoxelAssemblyBindingState* const defaultBinding = loaded->default_binding_state("left_hand");
+    ASSERT_NE(defaultBinding, nullptr);
+    EXPECT_EQ(defaultBinding->parentPartId, "torso");
+    EXPECT_EQ(defaultBinding->parentAttachmentName, "left_hand");
+    EXPECT_FLOAT_EQ(defaultBinding->localPositionOffset.x, 1.0f);
+    EXPECT_FLOAT_EQ(defaultBinding->localPositionOffset.y, 2.0f);
+    EXPECT_FLOAT_EQ(defaultBinding->localPositionOffset.z, 3.0f);
+
+    const VoxelAssemblySlotDefinition* const leftHandSlot = loaded->find_slot("left_hand");
+    ASSERT_NE(leftHandSlot, nullptr);
+    EXPECT_EQ(leftHandSlot->fallbackPartId, "left_hand");
+    EXPECT_TRUE(leftHandSlot->required);
+}
+
 TEST(VoxelMesherTest, GeneratesOnlyExteriorFacesForAdjacentVoxels)
 {
     VoxelModel model{};
@@ -1060,6 +1147,41 @@ TEST(VoxelModelRepositoryTest, ListsSavedVoxelAssets)
     VoxelModel beta{};
     beta.assetId = "beta";
     beta.set_voxel(VoxelCoord{ 1, 0, 0 }, VoxelColor{ 255, 255, 255, 255 });
+    repository.save(beta);
+
+    const std::vector<std::string> assetIds = repository.list_asset_ids();
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_EQ(assetIds.size(), 2u);
+    EXPECT_EQ(assetIds[0], "alpha");
+    EXPECT_EQ(assetIds[1], "beta");
+}
+
+TEST(VoxelAssemblyRepositoryTest, ListsSavedAssemblyAssets)
+{
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_assembly_list_test";
+    std::filesystem::remove_all(tempRoot);
+    const config::JsonFileDocumentStore documentStore;
+    const VoxelAssemblyRepository repository(documentStore, tempRoot / "assemblies");
+
+    VoxelAssemblyAsset alpha{};
+    alpha.assetId = "Alpha";
+    alpha.rootPartId = "root";
+    alpha.parts.push_back(VoxelAssemblyPartDefinition{
+        .partId = "root",
+        .displayName = "Root",
+        .defaultModelAssetId = "alpha_root"
+    });
+    repository.save(alpha);
+
+    VoxelAssemblyAsset beta{};
+    beta.assetId = "beta";
+    beta.rootPartId = "root";
+    beta.parts.push_back(VoxelAssemblyPartDefinition{
+        .partId = "root",
+        .displayName = "Root",
+        .defaultModelAssetId = "beta_root"
+    });
     repository.save(beta);
 
     const std::vector<std::string> assetIds = repository.list_asset_ids();

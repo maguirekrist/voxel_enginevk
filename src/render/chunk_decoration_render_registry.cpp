@@ -14,6 +14,7 @@ void ChunkDecorationRenderRegistry::sync(
     VoxelAssetManager& assetManager,
     MeshManager& meshManager,
     MaterialManager& materialManager,
+    const std::string_view materialScope,
     const world_lighting::WorldLightSampler* const worldLightSampler,
     SceneRenderState& renderState)
 {
@@ -72,7 +73,7 @@ void ChunkDecorationRenderRegistry::sync(
         remove_chunk(coord, renderState);
     }
 
-    _voxelRenderRegistry.sync(meshManager, materialManager, renderState, worldLightSampler);
+    _voxelRenderRegistry.sync(meshManager, materialManager, materialScope, renderState, worldLightSampler);
 }
 
 void ChunkDecorationRenderRegistry::clear(SceneRenderState& renderState)

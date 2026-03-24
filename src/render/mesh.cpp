@@ -200,14 +200,53 @@ std::shared_ptr<Mesh> Mesh::create_block_indicator_mesh(const glm::vec3& blockMi
     return debugMesh;
 }
 
-std::shared_ptr<Mesh> Mesh::create_block_preview_mesh(const glm::vec3& blockMinCorner, const float blockSize)
+std::shared_ptr<Mesh> Mesh::create_point_marker_mesh(const glm::vec3& center, const float size, const glm::vec3& color)
+{
+    auto markerMesh = std::make_shared<Mesh>();
+    const float clampedSize = std::max(size, 0.005f);
+    const float coreHalfExtent = clampedSize * 0.28f;
+    const float axisLength = clampedSize * 0.9f;
+    const float axisThickness = std::max(clampedSize * 0.12f, 0.01f);
+
+    add_box_mesh(
+        markerMesh,
+        center - glm::vec3(coreHalfExtent),
+        center + glm::vec3(coreHalfExtent),
+        color);
+    add_beam(
+        markerMesh,
+        center - glm::vec3(axisLength, 0.0f, 0.0f),
+        center + glm::vec3(axisLength, 0.0f, 0.0f),
+        axisThickness,
+        color);
+    add_beam(
+        markerMesh,
+        center - glm::vec3(0.0f, axisLength, 0.0f),
+        center + glm::vec3(0.0f, axisLength, 0.0f),
+        axisThickness,
+        color);
+    add_beam(
+        markerMesh,
+        center - glm::vec3(0.0f, 0.0f, axisLength),
+        center + glm::vec3(0.0f, 0.0f, axisLength),
+        axisThickness,
+        color);
+    return markerMesh;
+}
+
+std::shared_ptr<Mesh> Mesh::create_box_preview_mesh(const glm::vec3& minCorner, const glm::vec3& maxCorner, const glm::vec3& color)
 {
     auto previewMesh = std::make_shared<Mesh>();
+    add_box_mesh(previewMesh, minCorner, maxCorner, color);
+    return previewMesh;
+}
+
+std::shared_ptr<Mesh> Mesh::create_block_preview_mesh(const glm::vec3& blockMinCorner, const float blockSize)
+{
     const float inset = std::max(blockSize * 0.08f, 0.004f);
     const glm::vec3 minCorner = blockMinCorner + glm::vec3(inset);
     const glm::vec3 maxCorner = blockMinCorner + glm::vec3(blockSize - inset);
-    add_box_mesh(previewMesh, minCorner, maxCorner, glm::vec3(1.0f, 0.93f, 0.30f));
-    return previewMesh;
+    return create_box_preview_mesh(minCorner, maxCorner, glm::vec3(1.0f, 0.93f, 0.30f));
 }
 
 std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinCorner)
@@ -215,11 +254,9 @@ std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinC
     return create_block_outline_mesh(blockMinCorner, 1.0f);
 }
 
-std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinCorner, const float blockSize)
+std::shared_ptr<Mesh> Mesh::create_box_outline_mesh(const glm::vec3& minCorner, const glm::vec3& maxCorner, const glm::vec3& color)
 {
     auto debugMesh = std::make_shared<Mesh>();
-    const float epsilon = std::max(0.0005f, blockSize * 0.025f);
-    const glm::vec3 color = glm::vec3(1.0f);
 
     const auto add_line = [&debugMesh, &color](const glm::vec3& start, const glm::vec3& end)
     {
@@ -230,14 +267,14 @@ std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinC
         debugMesh->_indices.push_back(baseIndex + 1);
     };
 
-    const glm::vec3 p000 = blockMinCorner + glm::vec3{-epsilon, -epsilon, -epsilon};
-    const glm::vec3 p100 = blockMinCorner + glm::vec3{blockSize + epsilon, -epsilon, -epsilon};
-    const glm::vec3 p010 = blockMinCorner + glm::vec3{-epsilon, blockSize + epsilon, -epsilon};
-    const glm::vec3 p110 = blockMinCorner + glm::vec3{blockSize + epsilon, blockSize + epsilon, -epsilon};
-    const glm::vec3 p001 = blockMinCorner + glm::vec3{-epsilon, -epsilon, blockSize + epsilon};
-    const glm::vec3 p101 = blockMinCorner + glm::vec3{blockSize + epsilon, -epsilon, blockSize + epsilon};
-    const glm::vec3 p011 = blockMinCorner + glm::vec3{-epsilon, blockSize + epsilon, blockSize + epsilon};
-    const glm::vec3 p111 = blockMinCorner + glm::vec3{blockSize + epsilon, blockSize + epsilon, blockSize + epsilon};
+    const glm::vec3 p000{minCorner.x, minCorner.y, minCorner.z};
+    const glm::vec3 p100{maxCorner.x, minCorner.y, minCorner.z};
+    const glm::vec3 p010{minCorner.x, maxCorner.y, minCorner.z};
+    const glm::vec3 p110{maxCorner.x, maxCorner.y, minCorner.z};
+    const glm::vec3 p001{minCorner.x, minCorner.y, maxCorner.z};
+    const glm::vec3 p101{maxCorner.x, minCorner.y, maxCorner.z};
+    const glm::vec3 p011{minCorner.x, maxCorner.y, maxCorner.z};
+    const glm::vec3 p111{maxCorner.x, maxCorner.y, maxCorner.z};
 
     add_line(p000, p100);
     add_line(p001, p101);
@@ -255,4 +292,18 @@ std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinC
     add_line(p101, p111);
 
     return debugMesh;
+}
+
+std::shared_ptr<Mesh> Mesh::create_block_outline_mesh(const glm::vec3& blockMinCorner, const float blockSize)
+{
+    const float epsilon = std::max(0.0005f, blockSize * 0.025f);
+    const glm::vec3 p000 = blockMinCorner + glm::vec3{-epsilon, -epsilon, -epsilon};
+    const glm::vec3 p100 = blockMinCorner + glm::vec3{blockSize + epsilon, -epsilon, -epsilon};
+    const glm::vec3 p010 = blockMinCorner + glm::vec3{-epsilon, blockSize + epsilon, -epsilon};
+    const glm::vec3 p110 = blockMinCorner + glm::vec3{blockSize + epsilon, blockSize + epsilon, -epsilon};
+    const glm::vec3 p001 = blockMinCorner + glm::vec3{-epsilon, -epsilon, blockSize + epsilon};
+    const glm::vec3 p101 = blockMinCorner + glm::vec3{blockSize + epsilon, -epsilon, blockSize + epsilon};
+    const glm::vec3 p011 = blockMinCorner + glm::vec3{-epsilon, blockSize + epsilon, blockSize + epsilon};
+    const glm::vec3 p111 = blockMinCorner + glm::vec3{blockSize + epsilon, blockSize + epsilon, blockSize + epsilon};
+    return create_box_outline_mesh(p000, p111, glm::vec3(1.0f));
 }

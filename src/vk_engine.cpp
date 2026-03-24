@@ -149,6 +149,10 @@ void VulkanEngine::handle_input()
             {
                 switch_scene("voxel_editor");
             }
+            else if (event.key.keysym.scancode == SDL_SCANCODE_F3)
+            {
+                switch_scene("voxel_assembly");
+            }
         }
 
         _sceneRenderer.get_current_scene()->handle_input(event);
