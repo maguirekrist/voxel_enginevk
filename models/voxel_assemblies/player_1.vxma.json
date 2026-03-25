@@ -1,0 +1,180 @@
+{
+  "assetId": "player_1",
+  "displayName": "player_1",
+  "parts": [
+    {
+      "defaultModelAssetId": "torso_1",
+      "displayName": "torso_1",
+      "partId": "torso_1",
+      "visibleByDefault": true
+    },
+    {
+      "binding": {
+        "defaultStateId": "default",
+        "states": [
+          {
+            "localPositionOffset": {
+              "x": 0.0,
+              "y": 0.1875,
+              "z": 0.0625
+            },
+            "localRotationOffset": {
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localScale": {
+              "x": 1.0,
+              "y": 1.0,
+              "z": 1.0
+            },
+            "parentAttachmentName": "head",
+            "parentPartId": "torso_1",
+            "stateId": "default",
+            "visible": true
+          }
+        ]
+      },
+      "defaultModelAssetId": "head_1",
+      "displayName": "head_1",
+      "partId": "head_1",
+      "visibleByDefault": true
+    },
+    {
+      "binding": {
+        "defaultStateId": "default",
+        "states": [
+          {
+            "localPositionOffset": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localRotationOffset": {
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localScale": {
+              "x": 1.0,
+              "y": 1.0,
+              "z": 1.0
+            },
+            "parentAttachmentName": "shoe_left",
+            "parentPartId": "torso_1",
+            "stateId": "default",
+            "visible": true
+          }
+        ]
+      },
+      "defaultModelAssetId": "shoe_1",
+      "displayName": "shoe_1",
+      "partId": "shoe_1",
+      "visibleByDefault": true
+    },
+    {
+      "binding": {
+        "defaultStateId": "default",
+        "states": [
+          {
+            "localPositionOffset": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localRotationOffset": {
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localScale": {
+              "x": 1.0,
+              "y": 1.0,
+              "z": 1.0
+            },
+            "parentAttachmentName": "shoe_right",
+            "parentPartId": "torso_1",
+            "stateId": "default",
+            "visible": true
+          }
+        ]
+      },
+      "defaultModelAssetId": "shoe_1",
+      "displayName": "shoe_1",
+      "partId": "shoe_1_2",
+      "visibleByDefault": true
+    },
+    {
+      "binding": {
+        "defaultStateId": "default",
+        "states": [
+          {
+            "localPositionOffset": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localRotationOffset": {
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localScale": {
+              "x": 1.0,
+              "y": 1.0,
+              "z": 1.0
+            },
+            "parentAttachmentName": "left_hand",
+            "parentPartId": "torso_1",
+            "stateId": "default",
+            "visible": true
+          }
+        ]
+      },
+      "defaultModelAssetId": "hand_1",
+      "displayName": "hand_1",
+      "partId": "hand_1",
+      "visibleByDefault": true
+    },
+    {
+      "binding": {
+        "defaultStateId": "default",
+        "states": [
+          {
+            "localPositionOffset": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localRotationOffset": {
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "localScale": {
+              "x": 1.0,
+              "y": 1.0,
+              "z": 1.0
+            },
+            "parentAttachmentName": "right_hand",
+            "parentPartId": "torso_1",
+            "stateId": "default",
+            "visible": true
+          }
+        ]
+      },
+      "defaultModelAssetId": "hand_1",
+      "displayName": "hand_1",
+      "partId": "hand_1_2",
+      "visibleByDefault": true
+    }
+  ],
+  "rootPartId": "torso_1",
+  "slots": [],
+  "version": 1
+}

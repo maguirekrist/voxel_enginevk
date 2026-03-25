@@ -25,8 +25,12 @@
 #include "config/json_document_store.h"
 #include "config/world_gen_config_repository.h"
 #include "game/world.h"
+#include "editing/document_command_history.h"
 #include "render/chunk_decoration_render_registry.h"
+#include "components/voxel_assembly_component.h"
 #include "voxel/voxel_mesher.h"
+#include "voxel/voxel_assembly_asset_manager.h"
+#include "voxel/voxel_component_render_adapter.h"
 #include "voxel/voxel_assembly_repository.h"
 #include "voxel/voxel_asset_manager.h"
 #include "voxel/voxel_picking.h"
@@ -917,6 +921,101 @@ TEST(VoxelAssemblyRepositoryTest, SavesAndLoadsAssemblyAssetRoundTrip)
     EXPECT_TRUE(leftHandSlot->required);
 }
 
+TEST(VoxelComponentRenderAdapterTest, ResolvesAssemblyPartsRelativeToParentAttachments)
+{
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_assembly_runtime_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const VoxelModelRepository modelRepository(documentStore, "models");
+    const VoxelAssemblyRepository assemblyRepository(documentStore, "assemblies");
+
+    VoxelModel torso{};
+    torso.assetId = "torso";
+    torso.voxelSize = 1.0f;
+    torso.pivot = glm::vec3(0.0f);
+    torso.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 255, 255, 255});
+    torso.attachments.push_back(VoxelAttachment{
+        .name = "hand",
+        .position = glm::vec3(1.0f, 0.0f, 0.0f),
+        .forward = glm::vec3(1.0f, 0.0f, 0.0f),
+        .up = glm::vec3(0.0f, 1.0f, 0.0f)
+    });
+    modelRepository.save(torso);
+
+    VoxelModel dagger{};
+    dagger.assetId = "dagger";
+    dagger.voxelSize = 1.0f;
+    dagger.pivot = glm::vec3(0.0f);
+    dagger.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 255, 255, 255});
+    modelRepository.save(dagger);
+
+    VoxelAssemblyAsset assembly{};
+    assembly.assetId = "player_base";
+    assembly.displayName = "Player Base";
+    assembly.rootPartId = "torso";
+    assembly.parts.push_back(VoxelAssemblyPartDefinition{
+        .partId = "torso",
+        .displayName = "Torso",
+        .defaultModelAssetId = "torso",
+        .visibleByDefault = true
+    });
+    assembly.parts.push_back(VoxelAssemblyPartDefinition{
+        .partId = "weapon",
+        .displayName = "Weapon",
+        .defaultModelAssetId = "dagger",
+        .visibleByDefault = true,
+        .slotId = "main_weapon",
+        .defaultStateId = "equipped",
+        .bindingStates = {
+            VoxelAssemblyBindingState{
+                .stateId = "equipped",
+                .parentPartId = "torso",
+                .parentAttachmentName = "hand",
+                .localPositionOffset = glm::vec3(0.5f, 0.0f, 0.0f),
+                .localRotationOffset = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+                .localScale = glm::vec3(1.0f),
+                .visible = true
+            }
+        }
+    });
+    assemblyRepository.save(assembly);
+
+    VoxelAssetManager modelAssetManager(modelRepository);
+    VoxelAssemblyAssetManager assemblyAssetManager(assemblyRepository);
+
+    GameObject object(glm::vec3(10.0f, 0.0f, 0.0f));
+    auto& component = object.Add<VoxelAssemblyComponent>();
+    component.assetId = "player_base";
+    component.position = glm::vec3(10.0f, 0.0f, 0.0f);
+    component.scale = 2.0f;
+    component.visible = true;
+
+    const VoxelComponentRenderBundle bundle =
+        build_voxel_component_render_bundle(object, assemblyAssetManager, modelAssetManager);
+
+    std::filesystem::remove_all(tempRoot);
+
+    EXPECT_FALSE(bundle.has_error());
+    EXPECT_EQ(bundle.assetId, "player_base");
+    ASSERT_EQ(bundle.entries.size(), 2u);
+
+    const auto torsoIt = std::ranges::find_if(bundle.entries, [](const VoxelComponentRenderEntry& entry)
+    {
+        return entry.stableId == "torso";
+    });
+    ASSERT_NE(torsoIt, bundle.entries.end());
+    EXPECT_FLOAT_EQ(torsoIt->renderInstance.position.x, 10.0f);
+
+    const auto weaponIt = std::ranges::find_if(bundle.entries, [](const VoxelComponentRenderEntry& entry)
+    {
+        return entry.stableId == "weapon";
+    });
+    ASSERT_NE(weaponIt, bundle.entries.end());
+    EXPECT_FLOAT_EQ(weaponIt->renderInstance.position.x, 13.0f);
+    EXPECT_FLOAT_EQ(weaponIt->renderInstance.position.y, 0.0f);
+    EXPECT_FLOAT_EQ(weaponIt->renderInstance.position.z, 0.0f);
+}
+
 TEST(VoxelMesherTest, GeneratesOnlyExteriorFacesForAdjacentVoxels)
 {
     VoxelModel model{};
@@ -1155,6 +1254,58 @@ TEST(VoxelModelRepositoryTest, ListsSavedVoxelAssets)
     ASSERT_EQ(assetIds.size(), 2u);
     EXPECT_EQ(assetIds[0], "alpha");
     EXPECT_EQ(assetIds[1], "beta");
+}
+
+TEST(DocumentCommandHistoryTest, AppliesUndoAndRedoForSnapshotEdits)
+{
+    editing::DocumentCommandHistory<VoxelModel> history{5};
+    VoxelModel model{};
+    model.assetId = "test_model";
+    model.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 0, 0, 255});
+
+    EXPECT_TRUE(editing::apply_snapshot_edit(history, model, "rename asset", [](VoxelModel& edited)
+    {
+        edited.assetId = "renamed_model";
+    }));
+    EXPECT_EQ(model.assetId, "renamed_model");
+    EXPECT_TRUE(history.can_undo());
+    EXPECT_FALSE(history.can_redo());
+
+    ASSERT_TRUE(history.undo(model));
+    EXPECT_EQ(model.assetId, "test_model");
+    EXPECT_FALSE(history.can_undo());
+    EXPECT_TRUE(history.can_redo());
+
+    ASSERT_TRUE(history.redo(model));
+    EXPECT_EQ(model.assetId, "renamed_model");
+    EXPECT_TRUE(history.can_undo());
+}
+
+TEST(DocumentCommandHistoryTest, RespectsConfiguredHistoryCapacity)
+{
+    editing::DocumentCommandHistory<VoxelModel> history{2};
+    VoxelModel model{};
+    model.assetId = "state_0";
+
+    EXPECT_TRUE(editing::apply_snapshot_edit(history, model, "state_1", [](VoxelModel& edited)
+    {
+        edited.assetId = "state_1";
+    }));
+    EXPECT_TRUE(editing::apply_snapshot_edit(history, model, "state_2", [](VoxelModel& edited)
+    {
+        edited.assetId = "state_2";
+    }));
+    EXPECT_TRUE(editing::apply_snapshot_edit(history, model, "state_3", [](VoxelModel& edited)
+    {
+        edited.assetId = "state_3";
+    }));
+
+    EXPECT_EQ(history.undo_count(), 2u);
+    ASSERT_TRUE(history.undo(model));
+    EXPECT_EQ(model.assetId, "state_2");
+    ASSERT_TRUE(history.undo(model));
+    EXPECT_EQ(model.assetId, "state_1");
+    EXPECT_FALSE(history.undo(model));
 }
 
 TEST(VoxelAssemblyRepositoryTest, ListsSavedAssemblyAssets)

@@ -31,6 +31,9 @@ PlayerEntity::PlayerEntity(const glm::vec3& position) :
     voxelComponent.assetId = "player";
     voxelComponent.position = position;
     voxelComponent.visible = true;
+    auto& assemblyComponent = Add<VoxelAssemblyComponent>();
+    assemblyComponent.position = position;
+    assemblyComponent.visible = true;
     _front = planar_forward_from_yaw(_cameraYawDegrees);
     update_render_component();
 }
@@ -206,6 +209,18 @@ const VoxelModelComponent& PlayerEntity::render_component() const
     return Get<VoxelModelComponent>();
 }
 
+const VoxelAssemblyComponent& PlayerEntity::assembly_render_component() const
+{
+    return Get<VoxelAssemblyComponent>();
+}
+
+void PlayerEntity::set_render_assembly_asset_id(std::string assetId)
+{
+    auto& assemblyComponent = Get<VoxelAssemblyComponent>();
+    assemblyComponent.assetId = std::move(assetId);
+    update_render_component();
+}
+
 void PlayerEntity::set_tuning(const PlayerPhysicsTuning& tuning) noexcept
 {
     _tuning = tuning;
@@ -235,6 +250,11 @@ void PlayerEntity::update_render_component()
     voxelComponent.position = _position;
     voxelComponent.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     voxelComponent.visible = true;
+
+    auto& assemblyComponent = Get<VoxelAssemblyComponent>();
+    assemblyComponent.position = _position;
+    assemblyComponent.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    assemblyComponent.visible = true;
 }
 
 void PlayerEntity::resolve_axis(const WorldCollision& collision, const int axis, const float deltaTime)

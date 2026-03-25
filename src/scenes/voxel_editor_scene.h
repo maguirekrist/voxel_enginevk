@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -8,6 +9,7 @@
 #include "game/block.h"
 #include "camera.h"
 #include "config/json_document_store.h"
+#include "editing/document_command_history.h"
 #include "render/mesh.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
@@ -114,6 +116,9 @@ private:
     [[nodiscard]] PlaneSpec plane_spec() const;
     void draw_editor_window();
     void mark_model_dirty();
+    void apply_model_edit(std::string_view description, const std::function<void(VoxelModel&)>& edit);
+    void undo_model_edit();
+    void redo_model_edit();
     void reset_model();
     void save_model();
     void load_model();
@@ -148,6 +153,7 @@ private:
     config::JsonFileDocumentStore _documentStore;
     VoxelModelRepository _repository;
     VoxelModel _model;
+    editing::DocumentCommandHistory<VoxelModel> _history{50};
     glm::ivec3 _gridDimensions{16, 16, 16};
     EditAxis _editAxis{EditAxis::Z};
     int _sliceIndex{0};

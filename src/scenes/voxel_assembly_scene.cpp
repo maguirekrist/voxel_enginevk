@@ -17,6 +17,7 @@
 
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
+#include "editor_shortcuts.h"
 #include "imgui.h"
 #include "orbit_orientation_gizmo.h"
 #include "render/material_manager.h"
@@ -163,6 +164,38 @@ void VoxelAssemblyScene::update(const float deltaTime)
 
 void VoxelAssemblyScene::handle_input(const SDL_Event& event)
 {
+    if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
+    {
+        const SDL_Keymod modifiers = SDL_GetModState();
+        if (editor_shortcuts::has_primary_modifier(modifiers))
+        {
+            if (event.key.keysym.sym == SDLK_z)
+            {
+                if (editor_shortcuts::has_shift_modifier(modifiers))
+                {
+                    redo_assembly_edit();
+                }
+                else
+                {
+                    undo_assembly_edit();
+                }
+                return;
+            }
+
+            if (event.key.keysym.sym == SDLK_y)
+            {
+                redo_assembly_edit();
+                return;
+            }
+
+            if (event.key.keysym.sym == SDLK_s)
+            {
+                save_assembly();
+                return;
+            }
+        }
+    }
+
     if (event.type == SDL_MOUSEMOTION)
     {
         if (_orbitDragging)
@@ -666,17 +699,31 @@ void VoxelAssemblyScene::add_part_from_selected_model()
     part.displayName = modelAssetId;
     part.defaultModelAssetId = modelAssetId;
     part.visibleByDefault = true;
+    const std::string addedPartId = part.partId;
 
-    if (_assembly.parts.empty())
+    apply_assembly_edit(
+        std::format("Add part '{}'", modelAssetId),
+        [part = std::move(part)](VoxelAssemblyAsset& assembly) mutable
+        {
+            if (assembly.parts.empty())
+            {
+                assembly.rootPartId = part.partId;
+            }
+
+            assembly.parts.push_back(std::move(part));
+        });
+    if (const VoxelAssemblyPartDefinition* const addedPart = _assembly.find_part(addedPartId); addedPart != nullptr)
     {
-        _assembly.rootPartId = part.partId;
+        for (int partIndex = 0; partIndex < static_cast<int>(_assembly.parts.size()); ++partIndex)
+        {
+            if (_assembly.parts[static_cast<size_t>(partIndex)].partId == addedPartId)
+            {
+                _selectedPartIndex = partIndex;
+                _selectedBindingStateIndex = 0;
+                break;
+            }
+        }
     }
-
-    _assembly.parts.push_back(std::move(part));
-    _selectedPartIndex = static_cast<int>(_assembly.parts.size()) - 1;
-    _selectedBindingStateIndex = 0;
-    mark_preview_dirty();
-    _statusMessage = std::format("Added part '{}'", modelAssetId);
 }
 
 void VoxelAssemblyScene::remove_selected_part()
@@ -688,49 +735,43 @@ void VoxelAssemblyScene::remove_selected_part()
     }
 
     const std::string removedPartId = _assembly.parts[static_cast<size_t>(_selectedPartIndex)].partId;
-    _assembly.parts.erase(_assembly.parts.begin() + _selectedPartIndex);
-
-    if (_assembly.rootPartId == removedPartId)
-    {
-        _assembly.rootPartId = _assembly.parts.empty() ? std::string{} : _assembly.parts.front().partId;
-    }
-
-    for (VoxelAssemblySlotDefinition& slot : _assembly.slots)
-    {
-        if (slot.fallbackPartId == removedPartId)
+    const int removedIndex = _selectedPartIndex;
+    apply_assembly_edit(
+        std::format("Remove part '{}'", removedPartId),
+        [removedIndex, removedPartId](VoxelAssemblyAsset& assembly)
         {
-            slot.fallbackPartId.clear();
-        }
-    }
-
-    for (VoxelAssemblyPartDefinition& part : _assembly.parts)
-    {
-        for (VoxelAssemblyBindingState& state : part.bindingStates)
-        {
-            if (state.parentPartId == removedPartId)
+            if (removedIndex < 0 || removedIndex >= static_cast<int>(assembly.parts.size()))
             {
-                state.parentPartId.clear();
-                state.parentAttachmentName.clear();
+                return;
             }
-        }
-    }
 
-    if (_assembly.parts.empty())
-    {
-        _selectedPartIndex = -1;
-    }
-    else
-    {
-        _selectedPartIndex = std::clamp(_selectedPartIndex, 0, static_cast<int>(_assembly.parts.size()) - 1);
-    }
-    _selectedBindingStateIndex = 0;
-    if (_selectedSlotIndex >= static_cast<int>(_assembly.slots.size()))
-    {
-        _selectedSlotIndex = _assembly.slots.empty() ? -1 : 0;
-    }
+            assembly.parts.erase(assembly.parts.begin() + removedIndex);
 
-    mark_preview_dirty();
-    _statusMessage = std::format("Removed part '{}'", removedPartId);
+            if (assembly.rootPartId == removedPartId)
+            {
+                assembly.rootPartId = assembly.parts.empty() ? std::string{} : assembly.parts.front().partId;
+            }
+
+            for (VoxelAssemblySlotDefinition& slot : assembly.slots)
+            {
+                if (slot.fallbackPartId == removedPartId)
+                {
+                    slot.fallbackPartId.clear();
+                }
+            }
+
+            for (VoxelAssemblyPartDefinition& part : assembly.parts)
+            {
+                for (VoxelAssemblyBindingState& state : part.bindingStates)
+                {
+                    if (state.parentPartId == removedPartId)
+                    {
+                        state.parentPartId.clear();
+                        state.parentAttachmentName.clear();
+                    }
+                }
+            }
+        });
 }
 
 void VoxelAssemblyScene::mark_preview_dirty()
@@ -742,6 +783,78 @@ void VoxelAssemblyScene::mark_preview_dirty()
 glm::vec3 VoxelAssemblyScene::orbit_target() const
 {
     return _previewOrbitTarget;
+}
+
+void VoxelAssemblyScene::apply_assembly_edit(
+    const std::string_view description,
+    const std::function<void(VoxelAssemblyAsset&)>& edit)
+{
+    if (edit == nullptr)
+    {
+        return;
+    }
+
+    if (!editing::apply_snapshot_edit(_history, _assembly, std::string(description), edit))
+    {
+        return;
+    }
+
+    sync_selection_indices();
+    mark_preview_dirty();
+    _statusMessage = std::format("Edited assembly: {}", description);
+}
+
+void VoxelAssemblyScene::undo_assembly_edit()
+{
+    if (!_history.undo(_assembly))
+    {
+        _statusMessage = "Nothing to undo";
+        return;
+    }
+
+    sync_selection_indices();
+    mark_preview_dirty();
+    _statusMessage = std::format("Undo: {}", _history.redo_description());
+}
+
+void VoxelAssemblyScene::redo_assembly_edit()
+{
+    if (!_history.redo(_assembly))
+    {
+        _statusMessage = "Nothing to redo";
+        return;
+    }
+
+    sync_selection_indices();
+    mark_preview_dirty();
+    _statusMessage = std::format("Redo: {}", _history.undo_description());
+}
+
+void VoxelAssemblyScene::sync_selection_indices()
+{
+    if (_selectedSlotIndex >= static_cast<int>(_assembly.slots.size()))
+    {
+        _selectedSlotIndex = _assembly.slots.empty() ? -1 : static_cast<int>(_assembly.slots.size()) - 1;
+    }
+
+    if (_selectedPartIndex >= static_cast<int>(_assembly.parts.size()))
+    {
+        _selectedPartIndex = _assembly.parts.empty() ? -1 : static_cast<int>(_assembly.parts.size()) - 1;
+    }
+
+    if (_selectedPartIndex < 0 && !_assembly.parts.empty())
+    {
+        _selectedPartIndex = 0;
+    }
+
+    if (VoxelAssemblyPartDefinition* const part = selected_part(); part != nullptr)
+    {
+        ensure_binding_state_selection(*part);
+    }
+    else
+    {
+        _selectedBindingStateIndex = 0;
+    }
 }
 
 std::string VoxelAssemblyScene::make_unique_part_id(const std::string_view baseId) const
@@ -870,6 +983,7 @@ const VoxelAssemblyBindingState* VoxelAssemblyScene::preview_binding_state(const
 
 VoxelAssemblyBindingState& VoxelAssemblyScene::add_binding_state(VoxelAssemblyPartDefinition& part)
 {
+    const std::string partId = part.partId;
     VoxelAssemblyBindingState state{};
     state.stateId = std::format("state_{}", part.bindingStates.size());
     state.localScale = glm::vec3(1.0f);
@@ -877,17 +991,49 @@ VoxelAssemblyBindingState& VoxelAssemblyScene::add_binding_state(VoxelAssemblyPa
     {
         state.parentPartId = _assembly.rootPartId;
     }
+    const std::string stateId = state.stateId;
 
-    part.bindingStates.push_back(std::move(state));
-    _selectedBindingStateIndex = static_cast<int>(part.bindingStates.size()) - 1;
+    apply_assembly_edit(
+        std::format("Add binding state '{}' to '{}'", stateId, partId),
+        [partId, state = std::move(state)](VoxelAssemblyAsset& assembly) mutable
+        {
+            VoxelAssemblyPartDefinition* targetPart = nullptr;
+            for (VoxelAssemblyPartDefinition& candidate : assembly.parts)
+            {
+                if (candidate.partId == partId)
+                {
+                    targetPart = &candidate;
+                    break;
+                }
+            }
 
-    if (part.defaultStateId.empty())
+            if (targetPart == nullptr)
+            {
+                return;
+            }
+
+            targetPart->bindingStates.push_back(std::move(state));
+            if (targetPart->defaultStateId.empty())
+            {
+                targetPart->defaultStateId = targetPart->bindingStates.back().stateId;
+            }
+        });
+
+    VoxelAssemblyPartDefinition* const updatedPart = selected_part();
+    if (updatedPart == nullptr)
     {
-        part.defaultStateId = part.bindingStates.back().stateId;
+        return _assembly.parts.front().bindingStates.front();
     }
 
-    mark_preview_dirty();
-    return part.bindingStates.back();
+    for (int stateIndex = 0; stateIndex < static_cast<int>(updatedPart->bindingStates.size()); ++stateIndex)
+    {
+        if (updatedPart->bindingStates[static_cast<size_t>(stateIndex)].stateId == stateId)
+        {
+            _selectedBindingStateIndex = stateIndex;
+            break;
+        }
+    }
+    return updatedPart->bindingStates[static_cast<size_t>(_selectedBindingStateIndex)];
 }
 
 void VoxelAssemblyScene::nudge_selected_binding_position(const glm::vec3& delta)
@@ -904,8 +1050,30 @@ void VoxelAssemblyScene::nudge_selected_binding_position(const glm::vec3& delta)
         return;
     }
 
-    bindingState->localPositionOffset += delta;
-    mark_preview_dirty();
+    const std::string partId = part->partId;
+    const std::string stateId = bindingState->stateId;
+    const glm::vec3 nextPosition = bindingState->localPositionOffset + delta;
+    apply_assembly_edit(
+        std::format("Move binding state '{}.{}'", partId, stateId),
+        [partId, stateId, nextPosition](VoxelAssemblyAsset& assembly)
+        {
+            for (VoxelAssemblyPartDefinition& candidatePart : assembly.parts)
+            {
+                if (candidatePart.partId != partId)
+                {
+                    continue;
+                }
+
+                for (VoxelAssemblyBindingState& candidateState : candidatePart.bindingStates)
+                {
+                    if (candidateState.stateId == stateId)
+                    {
+                        candidateState.localPositionOffset = nextPosition;
+                        return;
+                    }
+                }
+            }
+        });
 }
 
 void VoxelAssemblyScene::rotate_selected_binding_euler_degrees(const glm::vec3& deltaDegrees)
@@ -922,9 +1090,31 @@ void VoxelAssemblyScene::rotate_selected_binding_euler_degrees(const glm::vec3& 
         return;
     }
 
+    const std::string partId = part->partId;
+    const std::string stateId = bindingState->stateId;
     const glm::vec3 nextDegrees = euler_degrees_from_quat(bindingState->localRotationOffset) + deltaDegrees;
-    bindingState->localRotationOffset = glm::quat(glm::radians(nextDegrees));
-    mark_preview_dirty();
+    const glm::quat nextRotation = glm::quat(glm::radians(nextDegrees));
+    apply_assembly_edit(
+        std::format("Rotate binding state '{}.{}'", partId, stateId),
+        [partId, stateId, nextRotation](VoxelAssemblyAsset& assembly)
+        {
+            for (VoxelAssemblyPartDefinition& candidatePart : assembly.parts)
+            {
+                if (candidatePart.partId != partId)
+                {
+                    continue;
+                }
+
+                for (VoxelAssemblyBindingState& candidateState : candidatePart.bindingStates)
+                {
+                    if (candidateState.stateId == stateId)
+                    {
+                        candidateState.localRotationOffset = nextRotation;
+                        return;
+                    }
+                }
+            }
+        });
 }
 
 std::vector<std::string> VoxelAssemblyScene::collect_validation_messages()
@@ -1135,6 +1325,7 @@ std::vector<std::string> VoxelAssemblyScene::collect_validation_messages()
 void VoxelAssemblyScene::reset_assembly()
 {
     _assembly = VoxelAssemblyAsset{};
+    _history.clear();
     _selectedSlotIndex = -1;
     _selectedPartIndex = -1;
     _selectedBindingStateIndex = 0;
@@ -1175,6 +1366,7 @@ void VoxelAssemblyScene::load_assembly(const std::string& assetId)
     if (const std::optional<VoxelAssemblyAsset> loaded = _assemblyRepository.load(assetId); loaded.has_value())
     {
         _assembly = loaded.value();
+        _history.clear();
         _selectedSlotIndex = _assembly.slots.empty() ? -1 : 0;
         _selectedPartIndex = _assembly.parts.empty() ? -1 : 0;
         _selectedBindingStateIndex = 0;
@@ -1256,14 +1448,22 @@ void VoxelAssemblyScene::draw_editor_window()
     copy_cstr_truncating(assetIdBuffer, _assembly.assetId);
     if (ImGui::InputText("Asset Id", assetIdBuffer, IM_ARRAYSIZE(assetIdBuffer)))
     {
-        _assembly.assetId = assetIdBuffer;
+        const std::string nextAssetId = assetIdBuffer;
+        apply_assembly_edit("Rename assembly asset id", [nextAssetId](VoxelAssemblyAsset& assembly)
+        {
+            assembly.assetId = nextAssetId;
+        });
     }
 
     char displayNameBuffer[128]{};
     copy_cstr_truncating(displayNameBuffer, _assembly.displayName);
     if (ImGui::InputText("Display Name", displayNameBuffer, IM_ARRAYSIZE(displayNameBuffer)))
     {
-        _assembly.displayName = displayNameBuffer;
+        const std::string nextDisplayName = displayNameBuffer;
+        apply_assembly_edit("Rename assembly display name", [nextDisplayName](VoxelAssemblyAsset& assembly)
+        {
+            assembly.displayName = nextDisplayName;
+        });
     }
 
     const char* rootPartLabel = _assembly.rootPartId.empty() ? "<none>" : _assembly.rootPartId.c_str();
@@ -1272,8 +1472,10 @@ void VoxelAssemblyScene::draw_editor_window()
         const bool noneSelected = _assembly.rootPartId.empty();
         if (ImGui::Selectable("<none>", noneSelected))
         {
-            _assembly.rootPartId.clear();
-            mark_preview_dirty();
+            apply_assembly_edit("Clear root part", [](VoxelAssemblyAsset& assembly)
+            {
+                assembly.rootPartId.clear();
+            });
         }
 
         for (int partIndex = 0; partIndex < static_cast<int>(_assembly.parts.size()); ++partIndex)
@@ -1283,8 +1485,11 @@ void VoxelAssemblyScene::draw_editor_window()
             const bool selected = _assembly.rootPartId == part.partId;
             if (ImGui::Selectable(part.partId.c_str(), selected))
             {
-                _assembly.rootPartId = part.partId;
-                mark_preview_dirty();
+                const std::string nextRootPartId = part.partId;
+                apply_assembly_edit("Change root part", [nextRootPartId](VoxelAssemblyAsset& assembly)
+                {
+                    assembly.rootPartId = nextRootPartId;
+                });
             }
             ImGui::PopID();
         }
@@ -1300,6 +1505,32 @@ void VoxelAssemblyScene::draw_editor_window()
     if (ImGui::Button("Save Assembly"))
     {
         save_assembly();
+    }
+    ImGui::SameLine();
+    if (!_history.can_undo())
+    {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("Undo"))
+    {
+        undo_assembly_edit();
+    }
+    if (!_history.can_undo())
+    {
+        ImGui::EndDisabled();
+    }
+    ImGui::SameLine();
+    if (!_history.can_redo())
+    {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("Redo"))
+    {
+        redo_assembly_edit();
+    }
+    if (!_history.can_redo())
+    {
+        ImGui::EndDisabled();
     }
     ImGui::SameLine();
     if (ImGui::Button("Load Selected Assembly"))
@@ -1384,8 +1615,21 @@ void VoxelAssemblyScene::draw_editor_window()
         VoxelAssemblySlotDefinition slot{};
         slot.slotId = make_unique_slot_id();
         slot.displayName = slot.slotId;
-        _assembly.slots.push_back(std::move(slot));
-        _selectedSlotIndex = static_cast<int>(_assembly.slots.size()) - 1;
+        const std::string addedSlotId = slot.slotId;
+        apply_assembly_edit(
+            std::format("Add slot '{}'", addedSlotId),
+            [slot = std::move(slot)](VoxelAssemblyAsset& assembly) mutable
+            {
+                assembly.slots.push_back(std::move(slot));
+            });
+        for (int slotIndex = 0; slotIndex < static_cast<int>(_assembly.slots.size()); ++slotIndex)
+        {
+            if (_assembly.slots[static_cast<size_t>(slotIndex)].slotId == addedSlotId)
+            {
+                _selectedSlotIndex = slotIndex;
+                break;
+            }
+        }
     }
     ImGui::SameLine();
     if (ImGui::Button("Remove Selected Slot"))
@@ -1393,19 +1637,25 @@ void VoxelAssemblyScene::draw_editor_window()
         if (VoxelAssemblySlotDefinition* const slot = selected_slot(); slot != nullptr)
         {
             const std::string removedSlotId = slot->slotId;
-            _assembly.slots.erase(_assembly.slots.begin() + _selectedSlotIndex);
-            for (VoxelAssemblyPartDefinition& part : _assembly.parts)
-            {
-                if (part.slotId == removedSlotId)
+            const int removedSlotIndex = _selectedSlotIndex;
+            apply_assembly_edit(
+                std::format("Remove slot '{}'", removedSlotId),
+                [removedSlotIndex, removedSlotId](VoxelAssemblyAsset& assembly)
                 {
-                    part.slotId.clear();
-                }
-            }
+                    if (removedSlotIndex < 0 || removedSlotIndex >= static_cast<int>(assembly.slots.size()))
+                    {
+                        return;
+                    }
 
-            if (_selectedSlotIndex >= static_cast<int>(_assembly.slots.size()))
-            {
-                _selectedSlotIndex = _assembly.slots.empty() ? -1 : static_cast<int>(_assembly.slots.size()) - 1;
-            }
+                    assembly.slots.erase(assembly.slots.begin() + removedSlotIndex);
+                    for (VoxelAssemblyPartDefinition& part : assembly.parts)
+                    {
+                        if (part.slotId == removedSlotId)
+                        {
+                            part.slotId.clear();
+                        }
+                    }
+                });
         }
     }
 
@@ -1436,21 +1686,39 @@ void VoxelAssemblyScene::draw_editor_window()
         if (ImGui::InputText("Slot Id", slotIdBuffer, IM_ARRAYSIZE(slotIdBuffer)))
         {
             const std::string previousSlotId = slot->slotId;
-            slot->slotId = slotIdBuffer;
-            for (VoxelAssemblyPartDefinition& part : _assembly.parts)
+            const int slotIndex = _selectedSlotIndex;
+            const std::string nextSlotId = slotIdBuffer;
+            apply_assembly_edit("Rename slot id", [slotIndex, previousSlotId, nextSlotId](VoxelAssemblyAsset& assembly)
             {
-                if (part.slotId == previousSlotId)
+                if (slotIndex < 0 || slotIndex >= static_cast<int>(assembly.slots.size()))
                 {
-                    part.slotId = slot->slotId;
+                    return;
                 }
-            }
+
+                assembly.slots[static_cast<size_t>(slotIndex)].slotId = nextSlotId;
+                for (VoxelAssemblyPartDefinition& part : assembly.parts)
+                {
+                    if (part.slotId == previousSlotId)
+                    {
+                        part.slotId = nextSlotId;
+                    }
+                }
+            });
         }
 
         char slotDisplayNameBuffer[128]{};
         copy_cstr_truncating(slotDisplayNameBuffer, slot->displayName);
         if (ImGui::InputText("Slot Display Name", slotDisplayNameBuffer, IM_ARRAYSIZE(slotDisplayNameBuffer)))
         {
-            slot->displayName = slotDisplayNameBuffer;
+            const int slotIndex = _selectedSlotIndex;
+            const std::string nextDisplayName = slotDisplayNameBuffer;
+            apply_assembly_edit("Rename slot display name", [slotIndex, nextDisplayName](VoxelAssemblyAsset& assembly)
+            {
+                if (slotIndex >= 0 && slotIndex < static_cast<int>(assembly.slots.size()))
+                {
+                    assembly.slots[static_cast<size_t>(slotIndex)].displayName = nextDisplayName;
+                }
+            });
         }
 
         const char* fallbackPartLabel = slot->fallbackPartId.empty() ? "<none>" : slot->fallbackPartId.c_str();
@@ -1459,7 +1727,14 @@ void VoxelAssemblyScene::draw_editor_window()
             const bool noneSelected = slot->fallbackPartId.empty();
             if (ImGui::Selectable("<none>", noneSelected))
             {
-                slot->fallbackPartId.clear();
+                const int slotIndex = _selectedSlotIndex;
+                apply_assembly_edit("Clear slot fallback part", [slotIndex](VoxelAssemblyAsset& assembly)
+                {
+                    if (slotIndex >= 0 && slotIndex < static_cast<int>(assembly.slots.size()))
+                    {
+                        assembly.slots[static_cast<size_t>(slotIndex)].fallbackPartId.clear();
+                    }
+                });
             }
 
             for (int partIndex = 0; partIndex < static_cast<int>(_assembly.parts.size()); ++partIndex)
@@ -1469,14 +1744,33 @@ void VoxelAssemblyScene::draw_editor_window()
                 const bool selected = slot->fallbackPartId == part.partId;
                 if (ImGui::Selectable(part.partId.c_str(), selected))
                 {
-                    slot->fallbackPartId = part.partId;
+                    const int slotIndex = _selectedSlotIndex;
+                    const std::string nextFallbackPartId = part.partId;
+                    apply_assembly_edit("Set slot fallback part", [slotIndex, nextFallbackPartId](VoxelAssemblyAsset& assembly)
+                    {
+                        if (slotIndex >= 0 && slotIndex < static_cast<int>(assembly.slots.size()))
+                        {
+                            assembly.slots[static_cast<size_t>(slotIndex)].fallbackPartId = nextFallbackPartId;
+                        }
+                    });
                 }
                 ImGui::PopID();
             }
             ImGui::EndCombo();
         }
 
-        ImGui::Checkbox("Required Slot", &slot->required);
+        bool required = slot->required;
+        if (ImGui::Checkbox("Required Slot", &required))
+        {
+            const int slotIndex = _selectedSlotIndex;
+            apply_assembly_edit("Toggle required slot", [slotIndex, required](VoxelAssemblyAsset& assembly)
+            {
+                if (slotIndex >= 0 && slotIndex < static_cast<int>(assembly.slots.size()))
+                {
+                    assembly.slots[static_cast<size_t>(slotIndex)].required = required;
+                }
+            });
+        }
         ImGui::PopID();
     }
 
@@ -1520,63 +1814,100 @@ void VoxelAssemblyScene::draw_editor_window()
         if (ImGui::InputText("Part Id", partIdBuffer, IM_ARRAYSIZE(partIdBuffer)))
         {
             const std::string previousPartId = part.partId;
-            part.partId = partIdBuffer;
-
-            if (_assembly.rootPartId == previousPartId)
+            const int partIndex = _selectedPartIndex;
+            const std::string nextPartId = partIdBuffer;
+            apply_assembly_edit("Rename part id", [partIndex, previousPartId, nextPartId](VoxelAssemblyAsset& assembly)
             {
-                _assembly.rootPartId = part.partId;
-            }
-
-            for (VoxelAssemblySlotDefinition& slot : _assembly.slots)
-            {
-                if (slot.fallbackPartId == previousPartId)
+                if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
                 {
-                    slot.fallbackPartId = part.partId;
+                    return;
                 }
-            }
 
-            for (VoxelAssemblyPartDefinition& otherPart : _assembly.parts)
-            {
-                for (VoxelAssemblyBindingState& state : otherPart.bindingStates)
+                assembly.parts[static_cast<size_t>(partIndex)].partId = nextPartId;
+
+                if (assembly.rootPartId == previousPartId)
                 {
-                    if (state.parentPartId == previousPartId)
+                    assembly.rootPartId = nextPartId;
+                }
+
+                for (VoxelAssemblySlotDefinition& slot : assembly.slots)
+                {
+                    if (slot.fallbackPartId == previousPartId)
                     {
-                        state.parentPartId = part.partId;
+                        slot.fallbackPartId = nextPartId;
                     }
                 }
-            }
 
-            mark_preview_dirty();
-            _selectionOverlayDirty = true;
+                for (VoxelAssemblyPartDefinition& otherPart : assembly.parts)
+                {
+                    for (VoxelAssemblyBindingState& state : otherPart.bindingStates)
+                    {
+                        if (state.parentPartId == previousPartId)
+                        {
+                            state.parentPartId = nextPartId;
+                        }
+                    }
+                }
+            });
         }
 
         char partDisplayNameBuffer[128]{};
         copy_cstr_truncating(partDisplayNameBuffer, part.displayName);
         if (ImGui::InputText("Part Display Name", partDisplayNameBuffer, IM_ARRAYSIZE(partDisplayNameBuffer)))
         {
-            part.displayName = partDisplayNameBuffer;
+            const int partIndex = _selectedPartIndex;
+            const std::string nextDisplayName = partDisplayNameBuffer;
+            apply_assembly_edit("Rename part display name", [partIndex, nextDisplayName](VoxelAssemblyAsset& assembly)
+            {
+                if (partIndex >= 0 && partIndex < static_cast<int>(assembly.parts.size()))
+                {
+                    assembly.parts[static_cast<size_t>(partIndex)].displayName = nextDisplayName;
+                }
+            });
         }
 
         char partModelAssetBuffer[128]{};
         copy_cstr_truncating(partModelAssetBuffer, part.defaultModelAssetId);
         if (ImGui::InputText("Model Asset Id", partModelAssetBuffer, IM_ARRAYSIZE(partModelAssetBuffer)))
         {
-            part.defaultModelAssetId = partModelAssetBuffer;
-            mark_preview_dirty();
+            const int partIndex = _selectedPartIndex;
+            const std::string nextModelAssetId = partModelAssetBuffer;
+            apply_assembly_edit("Change part model asset", [partIndex, nextModelAssetId](VoxelAssemblyAsset& assembly)
+            {
+                if (partIndex >= 0 && partIndex < static_cast<int>(assembly.parts.size()))
+                {
+                    assembly.parts[static_cast<size_t>(partIndex)].defaultModelAssetId = nextModelAssetId;
+                }
+            });
         }
         if (_selectedSavedModelIndex >= 0 && _selectedSavedModelIndex < static_cast<int>(_savedModelAssetIds.size()))
         {
             ImGui::SameLine();
             if (ImGui::Button("Use Selected Saved Model"))
             {
-                part.defaultModelAssetId = _savedModelAssetIds[static_cast<size_t>(_selectedSavedModelIndex)];
-                mark_preview_dirty();
+                const int partIndex = _selectedPartIndex;
+                const std::string nextModelAssetId = _savedModelAssetIds[static_cast<size_t>(_selectedSavedModelIndex)];
+                apply_assembly_edit("Use saved model for part", [partIndex, nextModelAssetId](VoxelAssemblyAsset& assembly)
+                {
+                    if (partIndex >= 0 && partIndex < static_cast<int>(assembly.parts.size()))
+                    {
+                        assembly.parts[static_cast<size_t>(partIndex)].defaultModelAssetId = nextModelAssetId;
+                    }
+                });
             }
         }
 
-        if (ImGui::Checkbox("Visible By Default", &part.visibleByDefault))
+        bool visibleByDefault = part.visibleByDefault;
+        if (ImGui::Checkbox("Visible By Default", &visibleByDefault))
         {
-            mark_preview_dirty();
+            const int partIndex = _selectedPartIndex;
+            apply_assembly_edit("Toggle part default visibility", [partIndex, visibleByDefault](VoxelAssemblyAsset& assembly)
+            {
+                if (partIndex >= 0 && partIndex < static_cast<int>(assembly.parts.size()))
+                {
+                    assembly.parts[static_cast<size_t>(partIndex)].visibleByDefault = visibleByDefault;
+                }
+            });
         }
 
         const char* slotBindingLabel = part.slotId.empty() ? "<none>" : part.slotId.c_str();
@@ -1585,7 +1916,14 @@ void VoxelAssemblyScene::draw_editor_window()
             const bool noneSelected = part.slotId.empty();
             if (ImGui::Selectable("<none>", noneSelected))
             {
-                part.slotId.clear();
+                const int partIndex = _selectedPartIndex;
+                apply_assembly_edit("Clear part slot binding", [partIndex](VoxelAssemblyAsset& assembly)
+                {
+                    if (partIndex >= 0 && partIndex < static_cast<int>(assembly.parts.size()))
+                    {
+                        assembly.parts[static_cast<size_t>(partIndex)].slotId.clear();
+                    }
+                });
             }
 
             for (int slotIndex = 0; slotIndex < static_cast<int>(_assembly.slots.size()); ++slotIndex)
@@ -1595,7 +1933,15 @@ void VoxelAssemblyScene::draw_editor_window()
                 const bool selected = part.slotId == slot.slotId;
                 if (ImGui::Selectable(slot.slotId.c_str(), selected))
                 {
-                    part.slotId = slot.slotId;
+                    const int partIndex = _selectedPartIndex;
+                    const std::string nextSlotId = slot.slotId;
+                    apply_assembly_edit("Set part slot binding", [partIndex, nextSlotId](VoxelAssemblyAsset& assembly)
+                    {
+                        if (partIndex >= 0 && partIndex < static_cast<int>(assembly.parts.size()))
+                        {
+                            assembly.parts[static_cast<size_t>(partIndex)].slotId = nextSlotId;
+                        }
+                    });
                 }
                 ImGui::PopID();
             }
@@ -1605,8 +1951,11 @@ void VoxelAssemblyScene::draw_editor_window()
 
         if (!isRoot && ImGui::Button("Make Root"))
         {
-            _assembly.rootPartId = part.partId;
-            mark_preview_dirty();
+            const std::string nextRootPartId = part.partId;
+            apply_assembly_edit("Make part root", [nextRootPartId](VoxelAssemblyAsset& assembly)
+            {
+                assembly.rootPartId = nextRootPartId;
+            });
         }
         else if (isRoot)
         {
@@ -1621,9 +1970,25 @@ void VoxelAssemblyScene::draw_editor_window()
         {
             if (ImGui::Button("Add First Binding State"))
             {
-                VoxelAssemblyBindingState& state = add_binding_state(part);
-                state.stateId = "default";
-                part.defaultStateId = state.stateId;
+                add_binding_state(part);
+                const int partIndex = _selectedPartIndex;
+                const int stateIndex = _selectedBindingStateIndex;
+                apply_assembly_edit("Initialize default binding state", [partIndex, stateIndex](VoxelAssemblyAsset& assembly)
+                {
+                    if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                    {
+                        return;
+                    }
+
+                    VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                    if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                    {
+                        return;
+                    }
+
+                    editedPart.bindingStates[static_cast<size_t>(stateIndex)].stateId = "default";
+                    editedPart.defaultStateId = "default";
+                });
             }
         }
         else
@@ -1656,13 +2021,31 @@ void VoxelAssemblyScene::draw_editor_window()
                 if (!part.bindingStates.empty())
                 {
                     const std::string removedStateId = part.bindingStates[static_cast<size_t>(_selectedBindingStateIndex)].stateId;
-                    part.bindingStates.erase(part.bindingStates.begin() + _selectedBindingStateIndex);
-                    if (part.defaultStateId == removedStateId)
-                    {
-                        part.defaultStateId = part.bindingStates.empty() ? std::string{} : part.bindingStates.front().stateId;
-                    }
-                    ensure_binding_state_selection(part);
-                    mark_preview_dirty();
+                    const int partIndex = _selectedPartIndex;
+                    const int removedStateIndex = _selectedBindingStateIndex;
+                    apply_assembly_edit(
+                        std::format("Remove binding state '{}'", removedStateId),
+                        [partIndex, removedStateIndex, removedStateId](VoxelAssemblyAsset& assembly)
+                        {
+                            if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                            {
+                                return;
+                            }
+
+                            VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                            if (removedStateIndex < 0 || removedStateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                            {
+                                return;
+                            }
+
+                            editedPart.bindingStates.erase(editedPart.bindingStates.begin() + removedStateIndex);
+                            if (editedPart.defaultStateId == removedStateId)
+                            {
+                                editedPart.defaultStateId = editedPart.bindingStates.empty()
+                                    ? std::string{}
+                                    : editedPart.bindingStates.front().stateId;
+                            }
+                        });
                 }
             }
 
@@ -1677,8 +2060,15 @@ void VoxelAssemblyScene::draw_editor_window()
                     const bool selected = part.defaultStateId == stateId;
                     if (ImGui::Selectable(stateId.c_str(), selected))
                     {
-                        part.defaultStateId = stateId;
-                        mark_preview_dirty();
+                        const int partIndex = _selectedPartIndex;
+                        const std::string nextDefaultStateId = stateId;
+                        apply_assembly_edit("Set default binding state", [partIndex, nextDefaultStateId](VoxelAssemblyAsset& assembly)
+                        {
+                            if (partIndex >= 0 && partIndex < static_cast<int>(assembly.parts.size()))
+                            {
+                                assembly.parts[static_cast<size_t>(partIndex)].defaultStateId = nextDefaultStateId;
+                            }
+                        });
                     }
                     ImGui::PopID();
                 }
@@ -1692,12 +2082,28 @@ void VoxelAssemblyScene::draw_editor_window()
                 if (ImGui::InputText("State Id", stateIdBuffer, IM_ARRAYSIZE(stateIdBuffer)))
                 {
                     const std::string previousStateId = bindingState->stateId;
-                    bindingState->stateId = stateIdBuffer;
-                    if (part.defaultStateId == previousStateId)
+                    const int partIndex = _selectedPartIndex;
+                    const int stateIndex = _selectedBindingStateIndex;
+                    const std::string nextStateId = stateIdBuffer;
+                    apply_assembly_edit("Rename binding state", [partIndex, stateIndex, previousStateId, nextStateId](VoxelAssemblyAsset& assembly)
                     {
-                        part.defaultStateId = bindingState->stateId;
-                    }
-                    mark_preview_dirty();
+                        if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                        {
+                            return;
+                        }
+
+                        VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                        if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                        {
+                            return;
+                        }
+
+                        editedPart.bindingStates[static_cast<size_t>(stateIndex)].stateId = nextStateId;
+                        if (editedPart.defaultStateId == previousStateId)
+                        {
+                            editedPart.defaultStateId = nextStateId;
+                        }
+                    });
                 }
 
                 if (isRoot)
@@ -1737,9 +2143,25 @@ void VoxelAssemblyScene::draw_editor_window()
                     }
                     if (ImGui::Combo("Parent Part", &parentPartChoice, parentPartLabels.data(), static_cast<int>(parentPartLabels.size())))
                     {
-                        bindingState->parentPartId = parentPartIds[static_cast<size_t>(parentPartChoice)];
-                        bindingState->parentAttachmentName.clear();
-                        mark_preview_dirty();
+                        const int partIndex = _selectedPartIndex;
+                        const int stateIndex = _selectedBindingStateIndex;
+                        const std::string nextParentPartId = parentPartIds[static_cast<size_t>(parentPartChoice)];
+                        apply_assembly_edit("Set binding parent part", [partIndex, stateIndex, nextParentPartId](VoxelAssemblyAsset& assembly)
+                        {
+                            if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                            {
+                                return;
+                            }
+
+                            VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                            if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                            {
+                                return;
+                            }
+
+                            editedPart.bindingStates[static_cast<size_t>(stateIndex)].parentPartId = nextParentPartId;
+                            editedPart.bindingStates[static_cast<size_t>(stateIndex)].parentAttachmentName.clear();
+                        });
                     }
 
                     std::vector<std::string> parentAttachmentNames{};
@@ -1800,8 +2222,23 @@ void VoxelAssemblyScene::draw_editor_window()
                             const bool pivotSelected = bindingState->parentAttachmentName.empty();
                             if (ImGui::Selectable("<parent pivot>", pivotSelected))
                             {
-                                bindingState->parentAttachmentName.clear();
-                                mark_preview_dirty();
+                                const int partIndex = _selectedPartIndex;
+                                const int stateIndex = _selectedBindingStateIndex;
+                                apply_assembly_edit("Clear parent attachment", [partIndex, stateIndex](VoxelAssemblyAsset& assembly)
+                                {
+                                    if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                                    {
+                                        return;
+                                    }
+
+                                    VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                                    if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                                    {
+                                        return;
+                                    }
+
+                                    editedPart.bindingStates[static_cast<size_t>(stateIndex)].parentAttachmentName.clear();
+                                });
                             }
 
                             for (int attachmentIndex = 0; attachmentIndex < static_cast<int>(parentAttachmentNames.size()); ++attachmentIndex)
@@ -1811,8 +2248,23 @@ void VoxelAssemblyScene::draw_editor_window()
                                 const bool selected = bindingState->parentAttachmentName == attachmentName;
                                 if (ImGui::Selectable(attachmentName.c_str(), selected))
                                 {
-                                    bindingState->parentAttachmentName = attachmentName;
-                                    mark_preview_dirty();
+                                    const int partIndex = _selectedPartIndex;
+                                    const int stateIndex = _selectedBindingStateIndex;
+                                    apply_assembly_edit("Set parent attachment", [partIndex, stateIndex, attachmentName](VoxelAssemblyAsset& assembly)
+                                    {
+                                        if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                                        {
+                                            return;
+                                        }
+
+                                        VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                                        if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                                        {
+                                            return;
+                                        }
+
+                                        editedPart.bindingStates[static_cast<size_t>(stateIndex)].parentAttachmentName = attachmentName;
+                                    });
                                 }
                                 ImGui::PopID();
                             }
@@ -1841,8 +2293,23 @@ void VoxelAssemblyScene::draw_editor_window()
                                 bindingState->parentPartId.c_str());
                             if (ImGui::Button("Clear Invalid Attachment"))
                             {
-                                bindingState->parentAttachmentName.clear();
-                                mark_preview_dirty();
+                                const int partIndex = _selectedPartIndex;
+                                const int stateIndex = _selectedBindingStateIndex;
+                                apply_assembly_edit("Clear invalid parent attachment", [partIndex, stateIndex](VoxelAssemblyAsset& assembly)
+                                {
+                                    if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                                    {
+                                        return;
+                                    }
+
+                                    VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                                    if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                                    {
+                                        return;
+                                    }
+
+                                    editedPart.bindingStates[static_cast<size_t>(stateIndex)].parentAttachmentName.clear();
+                                });
                             }
                         }
                     }
@@ -1866,16 +2333,49 @@ void VoxelAssemblyScene::draw_editor_window()
                                 bindingState->parentPartId.c_str());
                             if (ImGui::Button("Clear Invalid Attachment"))
                             {
-                                bindingState->parentAttachmentName.clear();
-                                mark_preview_dirty();
+                                const int partIndex = _selectedPartIndex;
+                                const int stateIndex = _selectedBindingStateIndex;
+                                apply_assembly_edit("Clear invalid parent attachment", [partIndex, stateIndex](VoxelAssemblyAsset& assembly)
+                                {
+                                    if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                                    {
+                                        return;
+                                    }
+
+                                    VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                                    if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                                    {
+                                        return;
+                                    }
+
+                                    editedPart.bindingStates[static_cast<size_t>(stateIndex)].parentAttachmentName.clear();
+                                });
                             }
                         }
                     }
                 }
 
-                if (ImGui::InputFloat3("Local Position", &bindingState->localPositionOffset.x, "%.3f"))
+                glm::vec3 localPosition = bindingState->localPositionOffset;
+                if (ImGui::InputFloat3("Local Position", &localPosition.x, "%.3f"))
                 {
-                    mark_preview_dirty();
+                    const int partIndex = _selectedPartIndex;
+                    const int stateIndex = _selectedBindingStateIndex;
+                    const glm::vec3 nextPosition = localPosition;
+                    apply_assembly_edit("Edit binding local position", [partIndex, stateIndex, nextPosition](VoxelAssemblyAsset& assembly)
+                    {
+                        if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                        {
+                            return;
+                        }
+
+                        VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                        if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                        {
+                            return;
+                        }
+
+                        editedPart.bindingStates[static_cast<size_t>(stateIndex)].localPositionOffset = nextPosition;
+                    });
                 }
 
                 const std::shared_ptr<VoxelRuntimeAsset> selectedAsset = _assetManager.load_or_get(part.defaultModelAssetId);
@@ -1914,8 +2414,24 @@ void VoxelAssemblyScene::draw_editor_window()
                 glm::vec3 localRotationDegrees = euler_degrees_from_quat(bindingState->localRotationOffset);
                 if (ImGui::InputFloat3("Local Rotation (Deg)", &localRotationDegrees.x, "%.1f"))
                 {
-                    bindingState->localRotationOffset = glm::quat(glm::radians(localRotationDegrees));
-                    mark_preview_dirty();
+                    const int partIndex = _selectedPartIndex;
+                    const int stateIndex = _selectedBindingStateIndex;
+                    const glm::quat nextRotation = glm::quat(glm::radians(localRotationDegrees));
+                    apply_assembly_edit("Edit binding local rotation", [partIndex, stateIndex, nextRotation](VoxelAssemblyAsset& assembly)
+                    {
+                        if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                        {
+                            return;
+                        }
+
+                        VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                        if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                        {
+                            return;
+                        }
+
+                        editedPart.bindingStates[static_cast<size_t>(stateIndex)].localRotationOffset = nextRotation;
+                    });
                 }
                 if (ImGui::Button("-90 X##Rotate"))
                 {
@@ -1947,14 +2463,48 @@ void VoxelAssemblyScene::draw_editor_window()
                     rotate_selected_binding_euler_degrees(glm::vec3(0.0f, 0.0f, 90.0f));
                 }
 
-                if (ImGui::InputFloat3("Local Scale", &bindingState->localScale.x, "%.3f"))
+                glm::vec3 localScale = bindingState->localScale;
+                if (ImGui::InputFloat3("Local Scale", &localScale.x, "%.3f"))
                 {
-                    bindingState->localScale = glm::max(bindingState->localScale, glm::vec3(0.001f));
-                    mark_preview_dirty();
+                    const int partIndex = _selectedPartIndex;
+                    const int stateIndex = _selectedBindingStateIndex;
+                    const glm::vec3 nextScale = glm::max(localScale, glm::vec3(0.001f));
+                    apply_assembly_edit("Edit binding local scale", [partIndex, stateIndex, nextScale](VoxelAssemblyAsset& assembly)
+                    {
+                        if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                        {
+                            return;
+                        }
+
+                        VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                        if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                        {
+                            return;
+                        }
+
+                        editedPart.bindingStates[static_cast<size_t>(stateIndex)].localScale = nextScale;
+                    });
                 }
-                if (ImGui::Checkbox("State Visible", &bindingState->visible))
+                bool stateVisible = bindingState->visible;
+                if (ImGui::Checkbox("State Visible", &stateVisible))
                 {
-                    mark_preview_dirty();
+                    const int partIndex = _selectedPartIndex;
+                    const int stateIndex = _selectedBindingStateIndex;
+                    apply_assembly_edit("Toggle binding state visibility", [partIndex, stateIndex, stateVisible](VoxelAssemblyAsset& assembly)
+                    {
+                        if (partIndex < 0 || partIndex >= static_cast<int>(assembly.parts.size()))
+                        {
+                            return;
+                        }
+
+                        VoxelAssemblyPartDefinition& editedPart = assembly.parts[static_cast<size_t>(partIndex)];
+                        if (stateIndex < 0 || stateIndex >= static_cast<int>(editedPart.bindingStates.size()))
+                        {
+                            return;
+                        }
+
+                        editedPart.bindingStates[static_cast<size_t>(stateIndex)].visible = stateVisible;
+                    });
                 }
             }
         }

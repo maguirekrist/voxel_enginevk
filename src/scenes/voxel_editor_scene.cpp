@@ -14,6 +14,7 @@
 
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
+#include "editor_shortcuts.h"
 #include "imgui.h"
 #include "orbit_orientation_gizmo.h"
 #include "render/material_manager.h"
@@ -219,6 +220,38 @@ void VoxelEditorScene::update(const float deltaTime)
 
 void VoxelEditorScene::handle_input(const SDL_Event& event)
 {
+    if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
+    {
+        const SDL_Keymod modifiers = SDL_GetModState();
+        if (editor_shortcuts::has_primary_modifier(modifiers))
+        {
+            if (event.key.keysym.sym == SDLK_z)
+            {
+                if (editor_shortcuts::has_shift_modifier(modifiers))
+                {
+                    redo_model_edit();
+                }
+                else
+                {
+                    undo_model_edit();
+                }
+                return;
+            }
+
+            if (event.key.keysym.sym == SDLK_y)
+            {
+                redo_model_edit();
+                return;
+            }
+
+            if (event.key.keysym.sym == SDLK_s)
+            {
+                save_model();
+                return;
+            }
+        }
+    }
+
     if (event.type == SDL_MOUSEMOTION)
     {
         if (_orbitDragging)
@@ -254,9 +287,13 @@ void VoxelEditorScene::handle_input(const SDL_Event& event)
             {
                 if (_hoveredTarget.has_value() && _model.remove_voxel(_hoveredTarget->voxel))
                 {
-                    _statusMessage = std::format("Removed voxel {}, {}, {}", _hoveredTarget->voxel.x, _hoveredTarget->voxel.y, _hoveredTarget->voxel.z);
-                    mark_model_dirty();
-                    sync_hover_target();
+                    const VoxelCoord removedCoord = _hoveredTarget->voxel;
+                    apply_model_edit(
+                        std::format("Remove voxel {}, {}, {}", removedCoord.x, removedCoord.y, removedCoord.z),
+                        [removedCoord](VoxelModel& model)
+                        {
+                            model.remove_voxel(removedCoord);
+                        });
                 }
             }
             else if (_hoveredTarget.has_value())
@@ -270,10 +307,13 @@ void VoxelEditorScene::handle_input(const SDL_Event& event)
 
                 if (is_within_grid(placedCoord))
                 {
-                    _model.set_voxel(placedCoord, _paintColor);
-                    _statusMessage = std::format("Placed voxel {}, {}, {}", placedCoord.x, placedCoord.y, placedCoord.z);
-                    mark_model_dirty();
-                    sync_hover_target();
+                    const VoxelColor placedColor = _paintColor;
+                    apply_model_edit(
+                        std::format("Place voxel {}, {}, {}", placedCoord.x, placedCoord.y, placedCoord.z),
+                        [placedCoord, placedColor](VoxelModel& model)
+                        {
+                            model.set_voxel(placedCoord, placedColor);
+                        });
                 }
             }
         }
@@ -281,9 +321,13 @@ void VoxelEditorScene::handle_input(const SDL_Event& event)
         {
             if (_hoveredTarget.has_value() && _model.remove_voxel(_hoveredTarget->voxel))
             {
-                _statusMessage = std::format("Removed voxel {}, {}, {}", _hoveredTarget->voxel.x, _hoveredTarget->voxel.y, _hoveredTarget->voxel.z);
-                mark_model_dirty();
-                sync_hover_target();
+                const VoxelCoord removedCoord = _hoveredTarget->voxel;
+                apply_model_edit(
+                    std::format("Remove voxel {}, {}, {}", removedCoord.x, removedCoord.y, removedCoord.z),
+                    [removedCoord](VoxelModel& model)
+                    {
+                        model.remove_voxel(removedCoord);
+                    });
             }
         }
     }
@@ -877,36 +921,59 @@ void VoxelEditorScene::draw_editor_window()
 
     if (ImGui::InputText("Asset Id", assetIdBuffer, IM_ARRAYSIZE(assetIdBuffer)))
     {
-        _model.assetId = assetIdBuffer;
+        const std::string nextAssetId = assetIdBuffer;
+        apply_model_edit("Rename voxel asset id", [nextAssetId](VoxelModel& model)
+        {
+            model.assetId = nextAssetId;
+        });
     }
     if (ImGui::InputText("Display Name", displayNameBuffer, IM_ARRAYSIZE(displayNameBuffer)))
     {
-        _model.displayName = displayNameBuffer;
+        const std::string nextDisplayName = displayNameBuffer;
+        apply_model_edit("Rename voxel display name", [nextDisplayName](VoxelModel& model)
+        {
+            model.displayName = nextDisplayName;
+        });
     }
-    if (ImGui::InputFloat("Voxel Size", &_model.voxelSize, 0.0f, 0.0f, "%.4f"))
+    float voxelSize = _model.voxelSize;
+    if (ImGui::InputFloat("Voxel Size", &voxelSize, 0.0f, 0.0f, "%.4f"))
     {
-        _model.voxelSize = std::max(_model.voxelSize, 0.001f);
-        mark_model_dirty();
+        const float nextVoxelSize = std::max(voxelSize, 0.001f);
+        apply_model_edit("Change voxel size", [nextVoxelSize](VoxelModel& model)
+        {
+            model.voxelSize = nextVoxelSize;
+        });
     }
 
     glm::vec3 pivotVoxelUnits = _model.pivot / _model.voxelSize;
     if (ImGui::InputFloat3("Pivot (Voxel Units)", &pivotVoxelUnits.x, "%.3f"))
     {
-        _model.pivot = pivotVoxelUnits * _model.voxelSize;
-        mark_model_dirty();
+        const glm::vec3 nextPivot = pivotVoxelUnits * _model.voxelSize;
+        apply_model_edit("Move pivot", [nextPivot](VoxelModel& model)
+        {
+            model.pivot = nextPivot;
+        });
     }
 
     if (ImGui::Button("Pivot To Grid Center XZ"))
     {
-        _model.pivot.x = static_cast<float>(_gridDimensions.x) * 0.5f * _model.voxelSize;
-        _model.pivot.z = static_cast<float>(_gridDimensions.z) * 0.5f * _model.voxelSize;
-        mark_model_dirty();
+        const glm::vec3 nextPivot = glm::vec3(
+            static_cast<float>(_gridDimensions.x) * 0.5f * _model.voxelSize,
+            _model.pivot.y,
+            static_cast<float>(_gridDimensions.z) * 0.5f * _model.voxelSize);
+        apply_model_edit("Move pivot to grid center XZ", [nextPivot](VoxelModel& model)
+        {
+            model.pivot = nextPivot;
+        });
     }
     ImGui::SameLine();
     if (ImGui::Button("Pivot To Bounds Center"))
     {
-        _model.pivot = _model.bounds().center() * _model.voxelSize;
-        mark_model_dirty();
+        const glm::vec3 nextPivot = _model.bounds().center() * _model.voxelSize;
+        apply_model_edit("Move pivot to bounds center", [nextPivot](VoxelModel& model)
+        {
+            model.pivot = nextPivot;
+        });
     }
 
     if (ImGui::Checkbox("Show Pivot Marker", &_showPivotMarker))
@@ -945,303 +1012,36 @@ void VoxelEditorScene::draw_editor_window()
     {
         save_model();
     }
-
-    ImGui::SeparatorText("Attachments");
-    ImGui::TextWrapped("Attachments are named socket/anchor points stored on this voxel model. Assemblies bind children against these names.");
-
-    if (ImGui::Button("Add Attachment"))
+    ImGui::SameLine();
+    if (! _history.can_undo())
     {
-        sync_hover_target();
-
-        VoxelAttachment attachment{};
-        attachment.name = make_unique_attachment_name("attachment");
-        attachment.position = _model.pivot;
-
-        if (_hoveredTarget.has_value())
-        {
-            attachment.position = voxel_face_center_position(_hoveredTarget->voxel, _hoveredTarget->face, _model.voxelSize);
-            attachment.forward = normalize_or_fallback(glm::vec3(
-                static_cast<float>(faceOffsetX[_hoveredTarget->face]),
-                static_cast<float>(faceOffsetY[_hoveredTarget->face]),
-                static_cast<float>(faceOffsetZ[_hoveredTarget->face])),
-                glm::vec3(1.0f, 0.0f, 0.0f));
-        }
-        sanitize_attachment_basis(attachment);
-
-        _model.attachments.push_back(std::move(attachment));
-        _selectedAttachmentIndex = static_cast<int>(_model.attachments.size()) - 1;
-        _markerDirty = true;
-        _statusMessage = std::format("Added attachment '{}'", _model.attachments.back().name);
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("Undo"))
+    {
+        undo_model_edit();
+    }
+    if (! _history.can_undo())
+    {
+        ImGui::EndDisabled();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Remove Selected Attachment"))
+    if (! _history.can_redo())
     {
-        if (const VoxelAttachment* const attachment = selected_attachment(); attachment != nullptr)
-        {
-            const std::string removedName = attachment->name;
-            _model.attachments.erase(_model.attachments.begin() + _selectedAttachmentIndex);
-            ensure_attachment_selection();
-            _markerDirty = true;
-            _statusMessage = std::format("Removed attachment '{}'", removedName);
-        }
+        ImGui::BeginDisabled();
     }
-
-    if (ImGui::BeginChild("AttachmentList", ImVec2(0.0f, 120.0f), true))
+    if (ImGui::Button("Redo"))
     {
-        if (_model.attachments.empty())
-        {
-            ImGui::TextDisabled("No attachments authored on this model.");
-        }
-        else
-        {
-            for (int attachmentIndex = 0; attachmentIndex < static_cast<int>(_model.attachments.size()); ++attachmentIndex)
-            {
-                ImGui::PushID(attachmentIndex);
-                const VoxelAttachment& attachment = _model.attachments[static_cast<size_t>(attachmentIndex)];
-                const bool selected = attachmentIndex == _selectedAttachmentIndex;
-                const char* label = attachment.name.empty() ? "<unnamed attachment>" : attachment.name.c_str();
-                if (ImGui::Selectable(label, selected))
-                {
-                    _selectedAttachmentIndex = attachmentIndex;
-                    _markerDirty = true;
-                }
-                ImGui::PopID();
-            }
-        }
+        redo_model_edit();
     }
-    ImGui::EndChild();
-
-    if (VoxelAttachment* const attachment = selected_attachment(); attachment != nullptr)
+    if (! _history.can_redo())
     {
-        char attachmentNameBuffer[128]{};
-        copy_cstr_truncating(attachmentNameBuffer, attachment->name);
-        if (ImGui::InputText("Attachment Name", attachmentNameBuffer, IM_ARRAYSIZE(attachmentNameBuffer)))
-        {
-            attachment->name = attachmentNameBuffer;
-            _markerDirty = true;
-        }
-
-        bool duplicateAttachmentName = false;
-        if (!attachment->name.empty())
-        {
-            int duplicateCount = 0;
-            for (const VoxelAttachment& otherAttachment : _model.attachments)
-            {
-                if (otherAttachment.name == attachment->name)
-                {
-                    ++duplicateCount;
-                }
-            }
-            duplicateAttachmentName = duplicateCount > 1;
-        }
-
-        if (attachment->name.empty())
-        {
-            ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.38f, 1.0f), "Attachment name is empty. Assemblies will not be able to target it.");
-        }
-        else if (duplicateAttachmentName)
-        {
-            ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.38f, 1.0f), "Attachment name '%s' is duplicated on this model.", attachment->name.c_str());
-        }
-
-        glm::vec3 attachmentVoxelUnits = _model.voxelSize > 0.0f
-            ? attachment->position / _model.voxelSize
-            : glm::vec3(0.0f);
-        if (ImGui::InputFloat3("Attachment Position (Voxel Units)", &attachmentVoxelUnits.x, "%.3f"))
-        {
-            attachment->position = attachmentVoxelUnits * _model.voxelSize;
-            _markerDirty = true;
-        }
-
-        sync_hover_target();
-        if (ImGui::Button("Set Attachment To Pivot"))
-        {
-            attachment->position = _model.pivot;
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (_hoveredTarget.has_value())
-        {
-            if (ImGui::Button("Set To Hovered Voxel"))
-            {
-                attachment->position = voxel_center_position(_hoveredTarget->voxel, _model.voxelSize);
-                _markerDirty = true;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Set To Hovered Face"))
-            {
-                attachment->position = voxel_face_center_position(_hoveredTarget->voxel, _hoveredTarget->face, _model.voxelSize);
-                _markerDirty = true;
-            }
-        }
-        else
-        {
-            ImGui::BeginDisabled();
-            ImGui::Button("Set To Hovered Voxel");
-            ImGui::SameLine();
-            ImGui::Button("Set To Hovered Face");
-            ImGui::EndDisabled();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Set To Bounds Center"))
-        {
-            attachment->position = _model.bounds().center() * _model.voxelSize;
-            _markerDirty = true;
-        }
-
-        ImGui::Text("Attachment Nudge: 1 voxel (%.4f world units)", _model.voxelSize);
-        if (ImGui::Button("-X##AttachmentNudge"))
-        {
-            attachment->position += glm::vec3(-_model.voxelSize, 0.0f, 0.0f);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("+X##AttachmentNudge"))
-        {
-            attachment->position += glm::vec3(_model.voxelSize, 0.0f, 0.0f);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("-Y##AttachmentNudge"))
-        {
-            attachment->position += glm::vec3(0.0f, -_model.voxelSize, 0.0f);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("+Y##AttachmentNudge"))
-        {
-            attachment->position += glm::vec3(0.0f, _model.voxelSize, 0.0f);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("-Z##AttachmentNudge"))
-        {
-            attachment->position += glm::vec3(0.0f, 0.0f, -_model.voxelSize);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("+Z##AttachmentNudge"))
-        {
-            attachment->position += glm::vec3(0.0f, 0.0f, _model.voxelSize);
-            _markerDirty = true;
-        }
-
-        ImGui::TextWrapped("Forward/Up define the attachment orientation that assembly child bindings inherit.");
-        if (ImGui::InputFloat3("Attachment Forward", &attachment->forward.x, "%.3f"))
-        {
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        if (ImGui::Button("+X##AttachmentForward"))
-        {
-            attachment->forward = glm::vec3(1.0f, 0.0f, 0.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("-X##AttachmentForward"))
-        {
-            attachment->forward = glm::vec3(-1.0f, 0.0f, 0.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("+Y##AttachmentForward"))
-        {
-            attachment->forward = glm::vec3(0.0f, 1.0f, 0.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("-Y##AttachmentForward"))
-        {
-            attachment->forward = glm::vec3(0.0f, -1.0f, 0.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("+Z##AttachmentForward"))
-        {
-            attachment->forward = glm::vec3(0.0f, 0.0f, 1.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("-Z##AttachmentForward"))
-        {
-            attachment->forward = glm::vec3(0.0f, 0.0f, -1.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-
-        if (ImGui::InputFloat3("Attachment Up", &attachment->up.x, "%.3f"))
-        {
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        if (ImGui::Button("+X##AttachmentUp"))
-        {
-            attachment->up = glm::vec3(1.0f, 0.0f, 0.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("-X##AttachmentUp"))
-        {
-            attachment->up = glm::vec3(-1.0f, 0.0f, 0.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("+Y##AttachmentUp"))
-        {
-            attachment->up = glm::vec3(0.0f, 1.0f, 0.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("-Y##AttachmentUp"))
-        {
-            attachment->up = glm::vec3(0.0f, -1.0f, 0.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("+Z##AttachmentUp"))
-        {
-            attachment->up = glm::vec3(0.0f, 0.0f, 1.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("-Z##AttachmentUp"))
-        {
-            attachment->up = glm::vec3(0.0f, 0.0f, -1.0f);
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-
-        if (ImGui::Button("Normalize Attachment Basis"))
-        {
-            sanitize_attachment_basis(*attachment);
-            _markerDirty = true;
-        }
-
-        if (_hoveredTarget.has_value())
-        {
-            ImGui::SameLine();
-            if (ImGui::Button("Forward = Hovered Face"))
-            {
-                attachment->forward = normalize_or_fallback(glm::vec3(
-                    static_cast<float>(faceOffsetX[_hoveredTarget->face]),
-                    static_cast<float>(faceOffsetY[_hoveredTarget->face]),
-                    static_cast<float>(faceOffsetZ[_hoveredTarget->face])),
-                    glm::vec3(1.0f, 0.0f, 0.0f));
-                sanitize_attachment_basis(*attachment);
-                _markerDirty = true;
-            }
-        }
+        ImGui::EndDisabled();
     }
+    ImGui::TextDisabled(
+        "History: %zu undo / %zu redo (Ctrl+Z / Ctrl+Y, Ctrl+Shift+Z)",
+        _history.undo_count(),
+        _history.redo_count());
 
     ImGui::SeparatorText("Saved Assets");
     if (ImGui::Button("Refresh List"))
@@ -1289,6 +1089,551 @@ void VoxelEditorScene::draw_editor_window()
     if (_selectedSavedAssetIndex < 0 || _selectedSavedAssetIndex >= static_cast<int>(_savedAssetIds.size()))
     {
         ImGui::EndDisabled();
+    }
+
+    ImGui::SeparatorText("Attachments");
+    ImGui::TextWrapped("Attachments are named socket/anchor points stored on this voxel model. Assemblies bind children against these names.");
+
+    if (ImGui::Button("Add Attachment"))
+    {
+        sync_hover_target();
+
+        VoxelAttachment attachment{};
+        attachment.name = make_unique_attachment_name("attachment");
+        attachment.position = _model.pivot;
+
+        if (_hoveredTarget.has_value())
+        {
+            attachment.position = voxel_face_center_position(_hoveredTarget->voxel, _hoveredTarget->face, _model.voxelSize);
+            attachment.forward = normalize_or_fallback(glm::vec3(
+                static_cast<float>(faceOffsetX[_hoveredTarget->face]),
+                static_cast<float>(faceOffsetY[_hoveredTarget->face]),
+                static_cast<float>(faceOffsetZ[_hoveredTarget->face])),
+                glm::vec3(1.0f, 0.0f, 0.0f));
+        }
+        sanitize_attachment_basis(attachment);
+
+        const std::string attachmentName = attachment.name;
+        apply_model_edit(
+            std::format("Add attachment '{}'", attachmentName),
+            [attachment = std::move(attachment)](VoxelModel& model) mutable
+            {
+                model.attachments.push_back(std::move(attachment));
+            });
+        _selectedAttachmentIndex = static_cast<int>(_model.attachments.size()) - 1;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Remove Selected Attachment"))
+    {
+        if (const VoxelAttachment* const attachment = selected_attachment(); attachment != nullptr)
+        {
+            const std::string removedName = attachment->name;
+            const int removedIndex = _selectedAttachmentIndex;
+            apply_model_edit(
+                std::format("Remove attachment '{}'", removedName),
+                [removedIndex](VoxelModel& model)
+                {
+                    if (removedIndex >= 0 && removedIndex < static_cast<int>(model.attachments.size()))
+                    {
+                        model.attachments.erase(model.attachments.begin() + removedIndex);
+                    }
+                });
+        }
+    }
+
+    if (ImGui::BeginChild("AttachmentList", ImVec2(0.0f, 120.0f), true))
+    {
+        if (_model.attachments.empty())
+        {
+            ImGui::TextDisabled("No attachments authored on this model.");
+        }
+        else
+        {
+            for (int attachmentIndex = 0; attachmentIndex < static_cast<int>(_model.attachments.size()); ++attachmentIndex)
+            {
+                ImGui::PushID(attachmentIndex);
+                const VoxelAttachment& attachment = _model.attachments[static_cast<size_t>(attachmentIndex)];
+                const bool selected = attachmentIndex == _selectedAttachmentIndex;
+                const char* label = attachment.name.empty() ? "<unnamed attachment>" : attachment.name.c_str();
+                if (ImGui::Selectable(label, selected))
+                {
+                    _selectedAttachmentIndex = attachmentIndex;
+                    _markerDirty = true;
+                }
+                ImGui::PopID();
+            }
+        }
+    }
+    ImGui::EndChild();
+
+    if (VoxelAttachment* const attachment = selected_attachment(); attachment != nullptr)
+    {
+        char attachmentNameBuffer[128]{};
+        copy_cstr_truncating(attachmentNameBuffer, attachment->name);
+        if (ImGui::InputText("Attachment Name", attachmentNameBuffer, IM_ARRAYSIZE(attachmentNameBuffer)))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const std::string nextName = attachmentNameBuffer;
+            apply_model_edit("Rename attachment", [attachmentIndex, nextName](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].name = nextName;
+                }
+            });
+        }
+
+        bool duplicateAttachmentName = false;
+        if (!attachment->name.empty())
+        {
+            int duplicateCount = 0;
+            for (const VoxelAttachment& otherAttachment : _model.attachments)
+            {
+                if (otherAttachment.name == attachment->name)
+                {
+                    ++duplicateCount;
+                }
+            }
+            duplicateAttachmentName = duplicateCount > 1;
+        }
+
+        if (attachment->name.empty())
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.38f, 1.0f), "Attachment name is empty. Assemblies will not be able to target it.");
+        }
+        else if (duplicateAttachmentName)
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.38f, 1.0f), "Attachment name '%s' is duplicated on this model.", attachment->name.c_str());
+        }
+
+        glm::vec3 attachmentVoxelUnits = _model.voxelSize > 0.0f
+            ? attachment->position / _model.voxelSize
+            : glm::vec3(0.0f);
+        if (ImGui::InputFloat3("Attachment Position (Voxel Units)", &attachmentVoxelUnits.x, "%.3f"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextPosition = attachmentVoxelUnits * _model.voxelSize;
+            apply_model_edit("Move attachment", [attachmentIndex, nextPosition](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                }
+            });
+        }
+
+        sync_hover_target();
+        if (ImGui::Button("Set Attachment To Pivot"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextPosition = _model.pivot;
+            apply_model_edit("Move attachment to pivot", [attachmentIndex, nextPosition](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (_hoveredTarget.has_value())
+        {
+            if (ImGui::Button("Set To Hovered Voxel"))
+            {
+                const int attachmentIndex = _selectedAttachmentIndex;
+                const glm::vec3 nextPosition = voxel_center_position(_hoveredTarget->voxel, _model.voxelSize);
+                apply_model_edit("Move attachment to hovered voxel", [attachmentIndex, nextPosition](VoxelModel& model)
+                {
+                    if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                    {
+                        model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                    }
+                });
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Set To Hovered Face"))
+            {
+                const int attachmentIndex = _selectedAttachmentIndex;
+                const glm::vec3 nextPosition = voxel_face_center_position(_hoveredTarget->voxel, _hoveredTarget->face, _model.voxelSize);
+                apply_model_edit("Move attachment to hovered face", [attachmentIndex, nextPosition](VoxelModel& model)
+                {
+                    if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                    {
+                        model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                    }
+                });
+            }
+        }
+        else
+        {
+            ImGui::BeginDisabled();
+            ImGui::Button("Set To Hovered Voxel");
+            ImGui::SameLine();
+            ImGui::Button("Set To Hovered Face");
+            ImGui::EndDisabled();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Set To Bounds Center"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextPosition = _model.bounds().center() * _model.voxelSize;
+            apply_model_edit("Move attachment to bounds center", [attachmentIndex, nextPosition](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                }
+            });
+        }
+
+        ImGui::Text("Attachment Nudge: 1 voxel (%.4f world units)", _model.voxelSize);
+        if (ImGui::Button("-X##AttachmentNudge"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextPosition = attachment->position + glm::vec3(-_model.voxelSize, 0.0f, 0.0f);
+            apply_model_edit("Nudge attachment -X", [attachmentIndex, nextPosition](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+X##AttachmentNudge"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextPosition = attachment->position + glm::vec3(_model.voxelSize, 0.0f, 0.0f);
+            apply_model_edit("Nudge attachment +X", [attachmentIndex, nextPosition](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("-Y##AttachmentNudge"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextPosition = attachment->position + glm::vec3(0.0f, -_model.voxelSize, 0.0f);
+            apply_model_edit("Nudge attachment -Y", [attachmentIndex, nextPosition](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+Y##AttachmentNudge"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextPosition = attachment->position + glm::vec3(0.0f, _model.voxelSize, 0.0f);
+            apply_model_edit("Nudge attachment +Y", [attachmentIndex, nextPosition](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("-Z##AttachmentNudge"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextPosition = attachment->position + glm::vec3(0.0f, 0.0f, -_model.voxelSize);
+            apply_model_edit("Nudge attachment -Z", [attachmentIndex, nextPosition](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+Z##AttachmentNudge"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextPosition = attachment->position + glm::vec3(0.0f, 0.0f, _model.voxelSize);
+            apply_model_edit("Nudge attachment +Z", [attachmentIndex, nextPosition](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].position = nextPosition;
+                }
+            });
+        }
+
+        ImGui::TextWrapped("Forward/Up define the attachment orientation that assembly child bindings inherit.");
+        glm::vec3 attachmentForward = attachment->forward;
+        if (ImGui::InputFloat3("Attachment Forward", &attachmentForward.x, "%.3f"))
+        {
+            VoxelAttachment preview = *attachment;
+            preview.forward = attachmentForward;
+            sanitize_attachment_basis(preview);
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextForward = preview.forward;
+            const glm::vec3 nextUp = preview.up;
+            apply_model_edit("Edit attachment forward", [attachmentIndex, nextForward, nextUp](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    VoxelAttachment& selectedAttachment = model.attachments[static_cast<size_t>(attachmentIndex)];
+                    selectedAttachment.forward = nextForward;
+                    selectedAttachment.up = nextUp;
+                }
+            });
+        }
+        if (ImGui::Button("+X##AttachmentForward"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.forward = glm::vec3(1.0f, 0.0f, 0.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment forward +X", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("-X##AttachmentForward"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.forward = glm::vec3(-1.0f, 0.0f, 0.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment forward -X", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+Y##AttachmentForward"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.forward = glm::vec3(0.0f, 1.0f, 0.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment forward +Y", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("-Y##AttachmentForward"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.forward = glm::vec3(0.0f, -1.0f, 0.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment forward -Y", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+Z##AttachmentForward"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.forward = glm::vec3(0.0f, 0.0f, 1.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment forward +Z", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("-Z##AttachmentForward"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.forward = glm::vec3(0.0f, 0.0f, -1.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment forward -Z", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+
+        glm::vec3 attachmentUp = attachment->up;
+        if (ImGui::InputFloat3("Attachment Up", &attachmentUp.x, "%.3f"))
+        {
+            VoxelAttachment preview = *attachment;
+            preview.up = attachmentUp;
+            sanitize_attachment_basis(preview);
+            const int attachmentIndex = _selectedAttachmentIndex;
+            const glm::vec3 nextForward = preview.forward;
+            const glm::vec3 nextUp = preview.up;
+            apply_model_edit("Edit attachment up", [attachmentIndex, nextForward, nextUp](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    VoxelAttachment& selectedAttachment = model.attachments[static_cast<size_t>(attachmentIndex)];
+                    selectedAttachment.forward = nextForward;
+                    selectedAttachment.up = nextUp;
+                }
+            });
+        }
+        if (ImGui::Button("+X##AttachmentUp"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.up = glm::vec3(1.0f, 0.0f, 0.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment up +X", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("-X##AttachmentUp"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.up = glm::vec3(-1.0f, 0.0f, 0.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment up -X", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+Y##AttachmentUp"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.up = glm::vec3(0.0f, 1.0f, 0.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment up +Y", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("-Y##AttachmentUp"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.up = glm::vec3(0.0f, -1.0f, 0.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment up -Y", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+Z##AttachmentUp"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.up = glm::vec3(0.0f, 0.0f, 1.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment up +Z", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("-Z##AttachmentUp"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            preview.up = glm::vec3(0.0f, 0.0f, -1.0f);
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Set attachment up -Z", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+
+        if (ImGui::Button("Normalize Attachment Basis"))
+        {
+            const int attachmentIndex = _selectedAttachmentIndex;
+            VoxelAttachment preview = *attachment;
+            sanitize_attachment_basis(preview);
+            apply_model_edit("Normalize attachment basis", [attachmentIndex, preview](VoxelModel& model)
+            {
+                if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                {
+                    model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                    model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                }
+            });
+        }
+
+        if (_hoveredTarget.has_value())
+        {
+            ImGui::SameLine();
+            if (ImGui::Button("Forward = Hovered Face"))
+            {
+                VoxelAttachment preview = *attachment;
+                preview.forward = normalize_or_fallback(glm::vec3(
+                    static_cast<float>(faceOffsetX[_hoveredTarget->face]),
+                    static_cast<float>(faceOffsetY[_hoveredTarget->face]),
+                    static_cast<float>(faceOffsetZ[_hoveredTarget->face])),
+                    glm::vec3(1.0f, 0.0f, 0.0f));
+                sanitize_attachment_basis(preview);
+                const int attachmentIndex = _selectedAttachmentIndex;
+                apply_model_edit("Set attachment forward from hovered face", [attachmentIndex, preview](VoxelModel& model)
+                {
+                    if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
+                    {
+                        model.attachments[static_cast<size_t>(attachmentIndex)].forward = preview.forward;
+                        model.attachments[static_cast<size_t>(attachmentIndex)].up = preview.up;
+                    }
+                });
+            }
+        }
     }
 
     ImGui::SeparatorText("Editing");
@@ -1441,20 +1786,35 @@ void VoxelEditorScene::draw_editor_window()
             {
                 if (_model.remove_voxel(voxelCoord))
                 {
-                    mark_model_dirty();
+                    apply_model_edit(
+                        std::format("Remove voxel {}, {}, {}", voxelCoord.x, voxelCoord.y, voxelCoord.z),
+                        [voxelCoord](VoxelModel& model)
+                        {
+                            model.remove_voxel(voxelCoord);
+                        });
                 }
             }
             else
             {
-                _model.set_voxel(voxelCoord, _paintColor);
-                mark_model_dirty();
+                const VoxelColor paintedColor = _paintColor;
+                apply_model_edit(
+                    std::format("Paint voxel {}, {}, {}", voxelCoord.x, voxelCoord.y, voxelCoord.z),
+                    [voxelCoord, paintedColor](VoxelModel& model)
+                    {
+                        model.set_voxel(voxelCoord, paintedColor);
+                    });
             }
         }
         else if (ImGui::IsMouseDown(ImGuiMouseButton_Right))
         {
             if (_model.remove_voxel(voxelCoord))
             {
-                mark_model_dirty();
+                apply_model_edit(
+                    std::format("Remove voxel {}, {}, {}", voxelCoord.x, voxelCoord.y, voxelCoord.z),
+                    [voxelCoord](VoxelModel& model)
+                    {
+                        model.remove_voxel(voxelCoord);
+                    });
             }
         }
 
@@ -1483,9 +1843,56 @@ void VoxelEditorScene::mark_model_dirty()
 
 }
 
+void VoxelEditorScene::apply_model_edit(const std::string_view description, const std::function<void(VoxelModel&)>& edit)
+{
+    if (edit == nullptr)
+    {
+        return;
+    }
+
+    if (!editing::apply_snapshot_edit(_history, _model, std::string(description), edit))
+    {
+        return;
+    }
+
+    mark_model_dirty();
+    sync_hover_target();
+    ensure_attachment_selection();
+    _statusMessage = std::format("Edited model: {}", description);
+}
+
+void VoxelEditorScene::undo_model_edit()
+{
+    if (!_history.undo(_model))
+    {
+        _statusMessage = "Nothing to undo";
+        return;
+    }
+
+    mark_model_dirty();
+    sync_hover_target();
+    ensure_attachment_selection();
+    _statusMessage = std::format("Undo: {}", _history.redo_description());
+}
+
+void VoxelEditorScene::redo_model_edit()
+{
+    if (!_history.redo(_model))
+    {
+        _statusMessage = "Nothing to redo";
+        return;
+    }
+
+    mark_model_dirty();
+    sync_hover_target();
+    ensure_attachment_selection();
+    _statusMessage = std::format("Redo: {}", _history.undo_description());
+}
+
 void VoxelEditorScene::reset_model()
 {
     _model = VoxelModel{};
+    _history.clear();
     _model.assetId = "untitled";
     _model.displayName = "Untitled";
     _model.voxelSize = 1.0f / 16.0f;
@@ -1525,6 +1932,7 @@ void VoxelEditorScene::load_model(const std::string& assetId)
     if (const auto loaded = _repository.load(assetId); loaded.has_value())
     {
         _model = loaded.value();
+        _history.clear();
         _selectedAttachmentIndex = _model.attachments.empty() ? -1 : 0;
         const glm::ivec3 bounds = _model.bounds().dimensions();
         _gridDimensions.x = std::max(_gridDimensions.x, std::max(bounds.x, 1));

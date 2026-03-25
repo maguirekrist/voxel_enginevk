@@ -18,6 +18,8 @@ struct VoxelAssemblyBindingState
     glm::quat localRotationOffset{1.0f, 0.0f, 0.0f, 0.0f};
     glm::vec3 localScale{1.0f};
     bool visible{true};
+
+    [[nodiscard]] bool operator==(const VoxelAssemblyBindingState& other) const = default;
 };
 
 struct VoxelAssemblyPartDefinition
@@ -29,6 +31,8 @@ struct VoxelAssemblyPartDefinition
     std::string slotId{};
     std::string defaultStateId{};
     std::vector<VoxelAssemblyBindingState> bindingStates{};
+
+    [[nodiscard]] bool operator==(const VoxelAssemblyPartDefinition& other) const = default;
 };
 
 struct VoxelAssemblySlotDefinition
@@ -37,6 +41,8 @@ struct VoxelAssemblySlotDefinition
     std::string displayName{};
     std::string fallbackPartId{};
     bool required{false};
+
+    [[nodiscard]] bool operator==(const VoxelAssemblySlotDefinition& other) const = default;
 };
 
 class VoxelAssemblyAsset
@@ -93,4 +99,6 @@ public:
 
         return find_binding_state(partId, part->defaultStateId);
     }
+
+    [[nodiscard]] bool operator==(const VoxelAssemblyAsset& other) const = default;
 };

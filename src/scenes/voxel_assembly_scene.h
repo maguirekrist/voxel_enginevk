@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -9,6 +10,7 @@
 
 #include "camera.h"
 #include "config/json_document_store.h"
+#include "editing/document_command_history.h"
 #include "render/mesh.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
@@ -110,6 +112,10 @@ private:
     void load_assembly(const std::string& assetId);
     void refresh_saved_assets();
     void draw_editor_window();
+    void apply_assembly_edit(std::string_view description, const std::function<void(VoxelAssemblyAsset&)>& edit);
+    void undo_assembly_edit();
+    void redo_assembly_edit();
+    void sync_selection_indices();
 
     SceneServices _services;
     SceneRenderState _renderState;
@@ -131,6 +137,7 @@ private:
     VoxelRenderRegistry _previewRenderRegistry;
     std::unordered_map<std::string, VoxelRenderInstance> _resolvedPreviewInstances{};
     VoxelAssemblyAsset _assembly;
+    editing::DocumentCommandHistory<VoxelAssemblyAsset> _history{50};
     std::unique_ptr<Camera> _camera;
     std::vector<std::string> _savedModelAssetIds{};
     std::vector<std::string> _savedAssemblyAssetIds{};

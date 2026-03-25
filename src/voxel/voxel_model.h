@@ -191,6 +191,8 @@ public:
         return it != attachments.end() ? &(*it) : nullptr;
     }
 
+    [[nodiscard]] bool operator==(const VoxelModel& other) const = default;
+
 private:
     Storage _voxels{};
 };

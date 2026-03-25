@@ -5,15 +5,18 @@
 #include <format>
 #include <limits>
 #include <ranges>
+#include <unordered_set>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/quaternion_trigonometric.hpp>
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
+#include "orbit_orientation_gizmo.h"
 #include "render/mesh_release_queue.h"
 #include "components/voxel_model_component.h"
 #include "string_utils.h"
+#include "voxel/voxel_component_render_adapter.h"
 #include "voxel/voxel_model_component_adapter.h"
 
 namespace
@@ -343,7 +346,9 @@ namespace
 
 GameScene::GameScene(const SceneServices& services):
     _voxelRepository(_voxelDocumentStore),
+    _voxelAssemblyRepository(_voxelDocumentStore),
     _voxelAssetManager(_voxelRepository),
+    _voxelAssemblyAssetManager(_voxelAssemblyRepository),
     _services(services)
 {
     const ResourceBackendContext resourceBackend{
@@ -373,8 +378,21 @@ GameScene::GameScene(const SceneServices& services):
     }
     bind_settings();
     sync_world_gen_draft();
+    refresh_player_assembly_assets();
     sync_camera_to_game(0.0f);
     _worldLightSampler = std::make_unique<world_lighting::WorldLightSampler>(_game.chunk_manager(), _dynamicLightRegistry);
+
+    const auto preferredPlayerAssemblyIt = std::ranges::find_if(_savedPlayerAssemblyIds, [](const std::string& assetId)
+    {
+        return assetId.starts_with("player");
+    });
+    if (preferredPlayerAssemblyIt != _savedPlayerAssemblyIds.end())
+    {
+        _playerAssemblyAssetId = *preferredPlayerAssemblyIt;
+        _selectedPlayerAssemblyIndex = static_cast<int>(std::distance(_savedPlayerAssemblyIds.begin(), preferredPlayerAssemblyIt));
+        _game.set_player_render_assembly_asset_id(_playerAssemblyAssetId);
+        _playerAssemblyStatus = std::format("Player assembly '{}' selected.", _playerAssemblyAssetId);
+    }
 
 	std::println("GameScene created!");
 }
@@ -549,8 +567,15 @@ void GameScene::draw_imgui()
 		draw_debug_map();
 	}
 
-	ImGuiIO& io = ImGui::GetIO();
+    draw_camera_orientation_gizmo();
+
 	ImGui::Render();
+}
+
+void GameScene::draw_camera_orientation_gizmo() const
+{
+    glm::mat4 gizmoView = _camera->_view;
+    (void)draw_orbit_orientation_gizmo(gizmoView, 4.0f);
 }
 
 void GameScene::rebuild_pipelines()
@@ -953,6 +978,87 @@ void GameScene::draw_debug_map()
 
             ImGui::TextWrapped("Fly mode uses WASD for camera-relative movement, Space to rise, and Left Ctrl or C to descend.");
 
+            ImGui::SeparatorText("Player Render");
+            ImGui::TextWrapped("Player render now resolves through generic voxel components. When an assembly asset id is set, the assembly component is used; otherwise it falls back to the legacy single-model asset 'player'.");
+
+            char playerAssemblyBuffer[128]{};
+            copy_cstr_truncating(playerAssemblyBuffer, _playerAssemblyAssetId);
+            if (ImGui::InputText("Assembly Asset Id", playerAssemblyBuffer, IM_ARRAYSIZE(playerAssemblyBuffer)))
+            {
+                _playerAssemblyAssetId = playerAssemblyBuffer;
+                refresh_player_assembly_assets();
+            }
+
+            if (ImGui::Button("Apply Assembly"))
+            {
+                _game.set_player_render_assembly_asset_id(_playerAssemblyAssetId);
+                _playerAssemblyStatus = _playerAssemblyAssetId.empty()
+                    ? "Cleared player assembly override. Using voxel model 'player'."
+                    : std::format("Player assembly '{}' queued for runtime render.", _playerAssemblyAssetId);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Use Voxel Model"))
+            {
+                _playerAssemblyAssetId.clear();
+                _selectedPlayerAssemblyIndex = -1;
+                _game.set_player_render_assembly_asset_id({});
+                _playerAssemblyStatus = "Cleared player assembly override. Using voxel model 'player'.";
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Refresh Assemblies"))
+            {
+                refresh_player_assembly_assets();
+            }
+
+            ImGui::Text("%d saved assembly file(s)", static_cast<int>(_savedPlayerAssemblyIds.size()));
+            const float playerAssemblyListHeight = std::min(
+                180.0f,
+                28.0f + (static_cast<float>(_savedPlayerAssemblyIds.size()) * ImGui::GetTextLineHeightWithSpacing()));
+            if (ImGui::BeginChild("PlayerAssemblyAssetList", ImVec2(0.0f, playerAssemblyListHeight), true))
+            {
+                if (_savedPlayerAssemblyIds.empty())
+                {
+                    ImGui::TextDisabled("No saved .vxma assets found in %s", _voxelAssemblyRepository.root_path().string().c_str());
+                }
+                else
+                {
+                    for (int index = 0; index < static_cast<int>(_savedPlayerAssemblyIds.size()); ++index)
+                    {
+                        const bool selected = index == _selectedPlayerAssemblyIndex;
+                        if (ImGui::Selectable(_savedPlayerAssemblyIds[static_cast<size_t>(index)].c_str(), selected))
+                        {
+                            _selectedPlayerAssemblyIndex = index;
+                            _playerAssemblyAssetId = _savedPlayerAssemblyIds[static_cast<size_t>(index)];
+                        }
+
+                        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                        {
+                            _playerAssemblyAssetId = _savedPlayerAssemblyIds[static_cast<size_t>(index)];
+                            _game.set_player_render_assembly_asset_id(_playerAssemblyAssetId);
+                            _playerAssemblyStatus = std::format("Player assembly '{}' queued for runtime render.", _playerAssemblyAssetId);
+                        }
+                    }
+                }
+            }
+            ImGui::EndChild();
+
+            if (_selectedPlayerAssemblyIndex < 0 || _selectedPlayerAssemblyIndex >= static_cast<int>(_savedPlayerAssemblyIds.size()))
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::Button("Apply Selected Assembly"))
+            {
+                _playerAssemblyAssetId = _savedPlayerAssemblyIds[static_cast<size_t>(_selectedPlayerAssemblyIndex)];
+                _game.set_player_render_assembly_asset_id(_playerAssemblyAssetId);
+                _playerAssemblyStatus = std::format("Player assembly '{}' queued for runtime render.", _playerAssemblyAssetId);
+            }
+            if (_selectedPlayerAssemblyIndex < 0 || _selectedPlayerAssemblyIndex >= static_cast<int>(_savedPlayerAssemblyIds.size()))
+            {
+                ImGui::EndDisabled();
+            }
+
+            ImGui::TextWrapped("%s", _playerAssemblyStatus.c_str());
+
             auto playerSettings = persistence.player;
             bool playerSettingsChanged = false;
             playerSettingsChanged |= ImGui::SliderFloat("Move Speed", &playerSettings.moveSpeed, 0.0f, 20.0f, "%.2f");
@@ -1238,19 +1344,108 @@ void GameScene::sync_player_render_instance()
         return;
     }
 
-    const std::optional<VoxelRenderInstance> renderInstance = build_voxel_render_instance(player->render_component(), _voxelAssetManager);
-    if (!renderInstance.has_value())
+    const bool usingAssembly = !player->assembly_render_component().assetId.empty();
+    const VoxelComponentRenderBundle renderBundle =
+        build_voxel_component_render_bundle(*player, _voxelAssemblyAssetManager, _voxelAssetManager);
+
+    if (usingAssembly)
     {
+        if (_playerVoxelInstanceId.has_value())
+        {
+            (void)_playerVoxelRenderRegistry.remove_instance(_playerVoxelInstanceId.value(), _renderState);
+            _playerVoxelInstanceId.reset();
+        }
+
+        std::unordered_set<std::string> activePartIds{};
+        activePartIds.reserve(renderBundle.entries.size());
+        for (const VoxelComponentRenderEntry& entry : renderBundle.entries)
+        {
+            activePartIds.insert(entry.stableId);
+
+            if (const auto instanceIt = _playerAssemblyInstanceIds.find(entry.stableId);
+                instanceIt != _playerAssemblyInstanceIds.end())
+            {
+                (void)_playerVoxelRenderRegistry.update_instance(instanceIt->second, entry.renderInstance);
+            }
+            else
+            {
+                const VoxelRenderRegistry::InstanceId instanceId = _playerVoxelRenderRegistry.add_instance(entry.renderInstance);
+                _playerAssemblyInstanceIds.insert_or_assign(entry.stableId, instanceId);
+            }
+        }
+
+        for (auto it = _playerAssemblyInstanceIds.begin(); it != _playerAssemblyInstanceIds.end();)
+        {
+            if (!activePartIds.contains(it->first))
+            {
+                (void)_playerVoxelRenderRegistry.remove_instance(it->second, _renderState);
+                it = _playerAssemblyInstanceIds.erase(it);
+                continue;
+            }
+
+            ++it;
+        }
+
+        if (renderBundle.has_error())
+        {
+            _playerAssemblyStatus = renderBundle.diagnostic;
+        }
+        else
+        {
+            _playerAssemblyStatus = std::format(
+                "Rendering player assembly '{}' as {} part(s).",
+                player->assembly_render_component().assetId,
+                renderBundle.entries.size());
+        }
         return;
     }
 
+    for (const auto& [partId, instanceId] : _playerAssemblyInstanceIds)
+    {
+        (void)partId;
+        (void)_playerVoxelRenderRegistry.remove_instance(instanceId, _renderState);
+    }
+    _playerAssemblyInstanceIds.clear();
+    _playerAssemblyStatus = "Player render using voxel model 'player'.";
+
+    if (renderBundle.entries.empty())
+    {
+        if (_playerVoxelInstanceId.has_value())
+        {
+            (void)_playerVoxelRenderRegistry.remove_instance(_playerVoxelInstanceId.value(), _renderState);
+            _playerVoxelInstanceId.reset();
+        }
+        return;
+    }
+
+    const VoxelRenderInstance& renderInstance = renderBundle.entries.front().renderInstance;
     if (!_playerVoxelInstanceId.has_value())
     {
-        _playerVoxelInstanceId = _playerVoxelRenderRegistry.add_instance(renderInstance.value());
+        _playerVoxelInstanceId = _playerVoxelRenderRegistry.add_instance(renderInstance);
         return;
     }
 
-    (void)_playerVoxelRenderRegistry.update_instance(_playerVoxelInstanceId.value(), renderInstance.value());
+    (void)_playerVoxelRenderRegistry.update_instance(_playerVoxelInstanceId.value(), renderInstance);
+}
+
+void GameScene::refresh_player_assembly_assets()
+{
+    _savedPlayerAssemblyIds = _voxelAssemblyRepository.list_asset_ids();
+    _selectedPlayerAssemblyIndex = -1;
+
+    if (_playerAssemblyAssetId.empty())
+    {
+        return;
+    }
+
+    for (int index = 0; index < static_cast<int>(_savedPlayerAssemblyIds.size()); ++index)
+    {
+        if (_savedPlayerAssemblyIds[static_cast<size_t>(index)] == _playerAssemblyAssetId)
+        {
+            _selectedPlayerAssemblyIndex = index;
+            break;
+        }
+    }
 }
 
 void GameScene::sync_target_block()

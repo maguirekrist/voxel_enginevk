@@ -129,9 +129,16 @@ add_executable(vulkan_guide
         physics/aabb.h
         components/player_input_component.cpp
         components/player_input_component.h
+        components/voxel_assembly_component.h
         components/voxel_model_component.h
         components/game_object.h
         components/component.h
+        voxel/voxel_assembly_asset_manager.h
+        voxel/voxel_assembly_asset_manager.cpp
+        voxel/voxel_assembly_component_adapter.h
+        voxel/voxel_assembly_component_adapter.cpp
+        voxel/voxel_component_render_adapter.h
+        voxel/voxel_component_render_adapter.cpp
         world/thread_pool.cpp
         world/thread_pool.h
         world/neighbor_barrier.cpp

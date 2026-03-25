@@ -29,6 +29,16 @@ void CubeEngine::configure_player(const PlayerPhysicsTuning& tuning, const bool 
     refresh_snapshot();
 }
 
+void CubeEngine::set_player_render_assembly_asset_id(const std::string_view assetId)
+{
+    if (_player == nullptr)
+    {
+        return;
+    }
+
+    _player->set_render_assembly_asset_id(std::string(assetId));
+}
+
 void CubeEngine::update(const float deltaTime)
 {
     ZoneScopedN("GameUpdate");

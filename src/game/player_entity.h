@@ -1,7 +1,10 @@
 #pragma once
 
+#include <string>
+
 #include "entity.h"
 #include "game/world_collision.h"
+#include "components/voxel_assembly_component.h"
 #include "components/voxel_model_component.h"
 
 struct PlayerInputState;
@@ -55,6 +58,8 @@ public:
     [[nodiscard]] const PlayerBodyDef& body() const noexcept;
     [[nodiscard]] const PlayerPhysicsTuning& tuning() const noexcept;
     [[nodiscard]] const VoxelModelComponent& render_component() const;
+    [[nodiscard]] const VoxelAssemblyComponent& assembly_render_component() const;
+    void set_render_assembly_asset_id(std::string assetId);
 
 private:
     void update_render_component();

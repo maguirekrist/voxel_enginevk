@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <unordered_map>
+#include <vector>
 #include "camera.h"
 #include "scene.h"
 #include "scene_services.h"
@@ -16,6 +18,9 @@
 #include "world/dynamic_light_registry.h"
 #include "world/world_light_sampler.h"
 #include "voxel/voxel_asset_manager.h"
+#include "voxel/voxel_assembly_asset_manager.h"
+#include "voxel/voxel_assembly_repository.h"
+#include "voxel/voxel_component_render_adapter.h"
 #include "voxel/voxel_model_repository.h"
 #include "voxel/voxel_render_registry.h"
 
@@ -83,6 +88,7 @@ private:
     void update_fog_ubo() const;
     void update_lighting_ubo() const;
     void update_uniform_buffer() const;
+    void draw_camera_orientation_gizmo() const;
 
     std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Resource> _cameraUboResource;
@@ -93,7 +99,9 @@ private:
     ChunkDecorationRenderRegistry _chunkDecorationRenderRegistry;
     config::JsonFileDocumentStore _voxelDocumentStore{};
     VoxelModelRepository _voxelRepository;
+    VoxelAssemblyRepository _voxelAssemblyRepository;
     VoxelAssetManager _voxelAssetManager;
+    VoxelAssemblyAssetManager _voxelAssemblyAssetManager;
     VoxelRenderRegistry _playerVoxelRenderRegistry;
     VoxelRenderRegistry _voxelRenderRegistry;
     world_lighting::DynamicLightRegistry _dynamicLightRegistry;
@@ -124,10 +132,16 @@ private:
     std::optional<world_lighting::DynamicLightRegistry::LightId> _playerTorchLightId{};
     std::unique_ptr<world_lighting::WorldLightSampler> _worldLightSampler;
     std::optional<VoxelRenderRegistry::InstanceId> _playerVoxelInstanceId{};
+    std::unordered_map<std::string, VoxelRenderRegistry::InstanceId> _playerAssemblyInstanceIds{};
+    std::vector<std::string> _savedPlayerAssemblyIds{};
+    int _selectedPlayerAssemblyIndex{-1};
+    std::string _playerAssemblyAssetId{};
+    std::string _playerAssemblyStatus{"Player render using voxel model 'player'."};
 
     void create_camera();
     void sync_camera_to_game(float deltaTime);
     void sync_player_render_instance();
+    void refresh_player_assembly_assets();
     void sync_runtime_lights();
     void sync_target_block();
     void sync_target_block_outline();

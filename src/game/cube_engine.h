@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <string_view>
 
 #include "camera.h"
 #include "player_input_state.h"
@@ -38,6 +39,7 @@ public:
 
     void set_player_input(const PlayerInputState& input);
     void configure_player(const PlayerPhysicsTuning& tuning, bool flyModeEnabled);
+    void set_player_render_assembly_asset_id(std::string_view assetId);
     void update(float deltaTime);
 
     [[nodiscard]] const GameSnapshot& snapshot() const;
