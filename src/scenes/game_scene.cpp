@@ -979,7 +979,7 @@ void GameScene::draw_debug_map()
             ImGui::TextWrapped("Fly mode uses WASD for camera-relative movement, Space to rise, and Left Ctrl or C to descend.");
 
             ImGui::SeparatorText("Player Render");
-            ImGui::TextWrapped("Player render now resolves through generic voxel components. When an assembly asset id is set, the assembly component is used; otherwise it falls back to the legacy single-model asset 'player'.");
+            ImGui::TextWrapped("Player render is assembly-driven. Select a saved assembly asset to represent the player at runtime.");
 
             char playerAssemblyBuffer[128]{};
             copy_cstr_truncating(playerAssemblyBuffer, _playerAssemblyAssetId);
@@ -993,16 +993,8 @@ void GameScene::draw_debug_map()
             {
                 _game.set_player_render_assembly_asset_id(_playerAssemblyAssetId);
                 _playerAssemblyStatus = _playerAssemblyAssetId.empty()
-                    ? "Cleared player assembly override. Using voxel model 'player'."
+                    ? "Cleared player assembly selection."
                     : std::format("Player assembly '{}' queued for runtime render.", _playerAssemblyAssetId);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Use Voxel Model"))
-            {
-                _playerAssemblyAssetId.clear();
-                _selectedPlayerAssemblyIndex = -1;
-                _game.set_player_render_assembly_asset_id({});
-                _playerAssemblyStatus = "Cleared player assembly override. Using voxel model 'player'.";
             }
             ImGui::SameLine();
             if (ImGui::Button("Refresh Assemblies"))
@@ -1066,6 +1058,12 @@ void GameScene::draw_debug_map()
             playerSettingsChanged |= ImGui::SliderFloat("Gravity", &playerSettings.gravity, 0.0f, 60.0f, "%.2f");
             playerSettingsChanged |= ImGui::SliderFloat("Jump Velocity", &playerSettings.jumpVelocity, 0.0f, 20.0f, "%.2f");
             playerSettingsChanged |= ImGui::SliderFloat("Max Fall Speed", &playerSettings.maxFallSpeed, 0.0f, 80.0f, "%.2f");
+            ImGui::SeparatorText("Collision Body");
+            playerSettingsChanged |= ImGui::SliderFloat("Collision Half Width", &playerSettings.collisionHalfWidth, 0.0f, 2.0f, "%.2f");
+            playerSettingsChanged |= ImGui::SliderFloat("Collision Half Depth", &playerSettings.collisionHalfDepth, 0.0f, 2.0f, "%.2f");
+            playerSettingsChanged |= ImGui::SliderFloat("Collision Height", &playerSettings.collisionHeight, 0.0f, 4.0f, "%.2f");
+            ImGui::SeparatorText("Camera");
+            playerSettingsChanged |= ImGui::DragFloat3("Camera Target Offset", &playerSettings.cameraTargetOffset.x, 0.01f, -10.0f, 10.0f, "%.2f");
             if (playerSettingsChanged)
             {
                 _settings.mutate([playerSettings](settings::GameSettingsPersistence& updated)
@@ -1344,88 +1342,53 @@ void GameScene::sync_player_render_instance()
         return;
     }
 
-    const bool usingAssembly = !player->assembly_render_component().assetId.empty();
     const VoxelComponentRenderBundle renderBundle =
         build_voxel_component_render_bundle(*player, _voxelAssemblyAssetManager, _voxelAssetManager);
-
-    if (usingAssembly)
+    std::unordered_set<std::string> activePartIds{};
+    activePartIds.reserve(renderBundle.entries.size());
+    for (const VoxelComponentRenderEntry& entry : renderBundle.entries)
     {
-        if (_playerVoxelInstanceId.has_value())
+        activePartIds.insert(entry.stableId);
+
+        if (const auto instanceIt = _playerAssemblyInstanceIds.find(entry.stableId);
+            instanceIt != _playerAssemblyInstanceIds.end())
         {
-            (void)_playerVoxelRenderRegistry.remove_instance(_playerVoxelInstanceId.value(), _renderState);
-            _playerVoxelInstanceId.reset();
-        }
-
-        std::unordered_set<std::string> activePartIds{};
-        activePartIds.reserve(renderBundle.entries.size());
-        for (const VoxelComponentRenderEntry& entry : renderBundle.entries)
-        {
-            activePartIds.insert(entry.stableId);
-
-            if (const auto instanceIt = _playerAssemblyInstanceIds.find(entry.stableId);
-                instanceIt != _playerAssemblyInstanceIds.end())
-            {
-                (void)_playerVoxelRenderRegistry.update_instance(instanceIt->second, entry.renderInstance);
-            }
-            else
-            {
-                const VoxelRenderRegistry::InstanceId instanceId = _playerVoxelRenderRegistry.add_instance(entry.renderInstance);
-                _playerAssemblyInstanceIds.insert_or_assign(entry.stableId, instanceId);
-            }
-        }
-
-        for (auto it = _playerAssemblyInstanceIds.begin(); it != _playerAssemblyInstanceIds.end();)
-        {
-            if (!activePartIds.contains(it->first))
-            {
-                (void)_playerVoxelRenderRegistry.remove_instance(it->second, _renderState);
-                it = _playerAssemblyInstanceIds.erase(it);
-                continue;
-            }
-
-            ++it;
-        }
-
-        if (renderBundle.has_error())
-        {
-            _playerAssemblyStatus = renderBundle.diagnostic;
+            (void)_playerVoxelRenderRegistry.update_instance(instanceIt->second, entry.renderInstance);
         }
         else
         {
-            _playerAssemblyStatus = std::format(
-                "Rendering player assembly '{}' as {} part(s).",
-                player->assembly_render_component().assetId,
-                renderBundle.entries.size());
+            const VoxelRenderRegistry::InstanceId instanceId = _playerVoxelRenderRegistry.add_instance(entry.renderInstance);
+            _playerAssemblyInstanceIds.insert_or_assign(entry.stableId, instanceId);
         }
-        return;
     }
 
-    for (const auto& [partId, instanceId] : _playerAssemblyInstanceIds)
+    for (auto it = _playerAssemblyInstanceIds.begin(); it != _playerAssemblyInstanceIds.end();)
     {
-        (void)partId;
-        (void)_playerVoxelRenderRegistry.remove_instance(instanceId, _renderState);
-    }
-    _playerAssemblyInstanceIds.clear();
-    _playerAssemblyStatus = "Player render using voxel model 'player'.";
-
-    if (renderBundle.entries.empty())
-    {
-        if (_playerVoxelInstanceId.has_value())
+        if (!activePartIds.contains(it->first))
         {
-            (void)_playerVoxelRenderRegistry.remove_instance(_playerVoxelInstanceId.value(), _renderState);
-            _playerVoxelInstanceId.reset();
+            (void)_playerVoxelRenderRegistry.remove_instance(it->second, _renderState);
+            it = _playerAssemblyInstanceIds.erase(it);
+            continue;
         }
-        return;
+
+        ++it;
     }
 
-    const VoxelRenderInstance& renderInstance = renderBundle.entries.front().renderInstance;
-    if (!_playerVoxelInstanceId.has_value())
+    if (renderBundle.has_error())
     {
-        _playerVoxelInstanceId = _playerVoxelRenderRegistry.add_instance(renderInstance);
-        return;
+        _playerAssemblyStatus = renderBundle.diagnostic;
     }
-
-    (void)_playerVoxelRenderRegistry.update_instance(_playerVoxelInstanceId.value(), renderInstance);
+    else if (player->assembly_render_component().assetId.empty())
+    {
+        _playerAssemblyStatus = "No player assembly selected.";
+    }
+    else
+    {
+        _playerAssemblyStatus = std::format(
+            "Rendering player assembly '{}' as {} part(s).",
+            player->assembly_render_component().assetId,
+            renderBundle.entries.size());
+    }
 }
 
 void GameScene::refresh_player_assembly_assets()
@@ -1568,6 +1531,7 @@ void GameScene::rebuild_runtime_voxel_demo()
         component.position = runtime_voxel_demo_position(offsets[index]);
         component.rotation = glm::angleAxis(glm::radians(yawDegrees), glm::vec3(0.0f, 1.0f, 0.0f));
         component.scale = 1.0f;
+        component.placementPolicy = VoxelPlacementPolicy::BottomCenter;
         component.visible = true;
 
         const std::optional<VoxelRenderInstance> renderInstance = build_voxel_render_instance(component, _voxelAssetManager);
@@ -1665,13 +1629,21 @@ void GameScene::apply_ambient_occlusion_settings(const settings::AmbientOcclusio
 
 void GameScene::apply_player_settings(const settings::PlayerRuntimeSettings& settings)
 {
-    _game.configure_player(PlayerPhysicsTuning{
-        .moveSpeed = settings.moveSpeed,
-        .airControl = settings.airControl,
-        .gravity = settings.gravity,
-        .jumpVelocity = settings.jumpVelocity,
-        .maxFallSpeed = settings.maxFallSpeed
-    }, settings.flyModeEnabled);
+    CharacterBodyComponent body{};
+    body.collisionHalfExtents = glm::vec2(settings.collisionHalfWidth, settings.collisionHalfDepth);
+    body.collisionHeight = settings.collisionHeight;
+    body.cameraTargetOffset = settings.cameraTargetOffset;
+
+    _game.configure_player(
+        PlayerPhysicsTuning{
+            .moveSpeed = settings.moveSpeed,
+            .airControl = settings.airControl,
+            .gravity = settings.gravity,
+            .jumpVelocity = settings.jumpVelocity,
+            .maxFallSpeed = settings.maxFallSpeed
+        },
+        body,
+        settings.flyModeEnabled);
 }
 
 void GameScene::sync_world_gen_draft()

@@ -38,7 +38,7 @@ public:
     ~CubeEngine();
 
     void set_player_input(const PlayerInputState& input);
-    void configure_player(const PlayerPhysicsTuning& tuning, bool flyModeEnabled);
+    void configure_player(const PlayerPhysicsTuning& tuning, const CharacterBodyComponent& body, bool flyModeEnabled);
     void set_player_render_assembly_asset_id(std::string_view assetId);
     void update(float deltaTime);
 

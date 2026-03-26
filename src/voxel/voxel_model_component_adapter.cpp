@@ -1,5 +1,7 @@
 #include "voxel_model_component_adapter.h"
 
+#include "voxel_placement.h"
+
 std::optional<VoxelRenderInstance> build_voxel_render_instance(
     const VoxelModelComponent& component,
     VoxelAssetManager& assetManager)
@@ -20,7 +22,10 @@ std::optional<VoxelRenderInstance> build_voxel_render_instance(
         .position = component.position,
         .rotation = component.rotation,
         .scale = component.scale,
-        .renderAnchorOffset = component.renderAnchorOffset,
+        .renderAnchorOffset = resolve_voxel_model_placement_anchor(
+            asset->model,
+            component.placementPolicy,
+            component.placementAttachmentName) + component.renderAnchorOffset,
         .layer = RenderLayer::Opaque,
         .lightingMode = component.lightingMode,
         .lightSampleOffset = component.lightSampleOffset,

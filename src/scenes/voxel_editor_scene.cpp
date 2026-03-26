@@ -21,8 +21,10 @@
 #include "render/mesh_manager.h"
 #include "render/mesh_release_queue.h"
 #include "string_utils.h"
+#include "voxel/voxel_orientation.h"
 #include "voxel/voxel_picking.h"
 #include "voxel/voxel_mesher.h"
+#include "voxel/voxel_spatial_bounds.h"
 #include "vk_util.h"
 
 namespace
@@ -75,33 +77,6 @@ namespace
             std::cos(pitch) * std::cos(yaw),
             std::sin(pitch),
             std::cos(pitch) * std::sin(yaw)));
-    }
-
-    glm::vec3 normalize_or_fallback(const glm::vec3& value, const glm::vec3& fallback)
-    {
-        const float length = glm::length(value);
-        if (!std::isfinite(length) || length <= 0.0001f)
-        {
-            return fallback;
-        }
-
-        return value / length;
-    }
-
-    void sanitize_attachment_basis(VoxelAttachment& attachment)
-    {
-        attachment.forward = normalize_or_fallback(attachment.forward, glm::vec3(1.0f, 0.0f, 0.0f));
-
-        glm::vec3 upCandidate = normalize_or_fallback(attachment.up, glm::vec3(0.0f, 1.0f, 0.0f));
-        if (std::abs(glm::dot(attachment.forward, upCandidate)) >= 0.999f)
-        {
-            upCandidate = std::abs(glm::dot(attachment.forward, glm::vec3(0.0f, 1.0f, 0.0f))) < 0.999f
-                ? glm::vec3(0.0f, 1.0f, 0.0f)
-                : glm::vec3(0.0f, 0.0f, 1.0f);
-        }
-
-        const glm::vec3 right = glm::normalize(glm::cross(upCandidate, attachment.forward));
-        attachment.up = glm::normalize(glm::cross(attachment.forward, right));
     }
 
     glm::vec3 voxel_center_position(const VoxelCoord& voxel, const float voxelSize)
@@ -177,6 +152,11 @@ VoxelEditorScene::~VoxelEditorScene()
     {
         _renderState.transparentObjects.remove(_outlineHandle.value());
         _outlineHandle.reset();
+    }
+    if (_modelBoundsHandle.has_value())
+    {
+        _renderState.opaqueObjects.remove(_modelBoundsHandle.value());
+        _modelBoundsHandle.reset();
     }
     if (_pivotMarkerHandle.has_value())
     {
@@ -633,6 +613,23 @@ void VoxelEditorScene::sync_marker_overlays()
         });
     }
 
+    if (_showModelBounds)
+    {
+        const VoxelSpatialBounds modelBounds = evaluate_voxel_model_local_bounds(_model);
+        if (modelBounds.valid)
+        {
+            _modelBoundsMesh = Mesh::create_box_outline_mesh(modelBounds.min, modelBounds.max, glm::vec3(1.0f, 0.40f, 0.18f));
+            _services.meshManager->UploadQueue.enqueue(_modelBoundsMesh);
+            _modelBoundsHandle = _renderState.opaqueObjects.insert(RenderObject{
+                .mesh = _modelBoundsMesh,
+                .material = _services.materialManager->get_material(VoxelEditorMaterialScope, "chunkboundary"),
+                .transform = glm::mat4(1.0f),
+                .layer = RenderLayer::Opaque,
+                .lightingMode = LightingMode::Unlit
+            });
+        }
+    }
+
     if (_showPivotVoxel && _model.voxelSize > 0.0f)
     {
         const glm::vec3 pivotVoxelUnits = _model.pivot / _model.voxelSize;
@@ -733,6 +730,10 @@ void VoxelEditorScene::release_marker_meshes()
     if (_pivotMarkerMesh != nullptr)
     {
         render::enqueue_mesh_release(std::move(_pivotMarkerMesh));
+    }
+    if (_modelBoundsMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_modelBoundsMesh));
     }
     if (_pivotVoxelMesh != nullptr)
     {
@@ -981,6 +982,11 @@ void VoxelEditorScene::draw_editor_window()
         _markerDirty = true;
     }
     ImGui::SameLine();
+    if (ImGui::Checkbox("Show Model Bounds", &_showModelBounds))
+    {
+        _markerDirty = true;
+    }
+    ImGui::SameLine();
     if (ImGui::Checkbox("Show Pivot Voxel", &_showPivotVoxel))
     {
         _markerDirty = true;
@@ -990,6 +996,8 @@ void VoxelEditorScene::draw_editor_window()
     {
         _markerDirty = true;
     }
+
+    ImGui::TextDisabled("Orientation Standard: +X forward, +Y up. Pivot is the local transform origin and may be outside the mesh.");
     ImGui::SameLine();
     if (ImGui::Checkbox("Show Selected Attachment Voxel", &_showSelectedAttachmentVoxel))
     {
@@ -1105,13 +1113,13 @@ void VoxelEditorScene::draw_editor_window()
         if (_hoveredTarget.has_value())
         {
             attachment.position = voxel_face_center_position(_hoveredTarget->voxel, _hoveredTarget->face, _model.voxelSize);
-            attachment.forward = normalize_or_fallback(glm::vec3(
+            attachment.forward = voxel::orientation::normalize_or_fallback(glm::vec3(
                 static_cast<float>(faceOffsetX[_hoveredTarget->face]),
                 static_cast<float>(faceOffsetY[_hoveredTarget->face]),
                 static_cast<float>(faceOffsetZ[_hoveredTarget->face])),
-                glm::vec3(1.0f, 0.0f, 0.0f));
+                voxel::orientation::ForwardAxis);
         }
-        sanitize_attachment_basis(attachment);
+        voxel::orientation::sanitize_attachment_basis(attachment);
 
         const std::string attachmentName = attachment.name;
         apply_model_edit(
@@ -1371,7 +1379,7 @@ void VoxelEditorScene::draw_editor_window()
         {
             VoxelAttachment preview = *attachment;
             preview.forward = attachmentForward;
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             const int attachmentIndex = _selectedAttachmentIndex;
             const glm::vec3 nextForward = preview.forward;
             const glm::vec3 nextUp = preview.up;
@@ -1390,7 +1398,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.forward = glm::vec3(1.0f, 0.0f, 0.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment forward +X", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1406,7 +1414,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.forward = glm::vec3(-1.0f, 0.0f, 0.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment forward -X", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1422,7 +1430,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.forward = glm::vec3(0.0f, 1.0f, 0.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment forward +Y", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1438,7 +1446,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.forward = glm::vec3(0.0f, -1.0f, 0.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment forward -Y", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1454,7 +1462,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.forward = glm::vec3(0.0f, 0.0f, 1.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment forward +Z", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1470,7 +1478,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.forward = glm::vec3(0.0f, 0.0f, -1.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment forward -Z", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1486,7 +1494,7 @@ void VoxelEditorScene::draw_editor_window()
         {
             VoxelAttachment preview = *attachment;
             preview.up = attachmentUp;
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             const int attachmentIndex = _selectedAttachmentIndex;
             const glm::vec3 nextForward = preview.forward;
             const glm::vec3 nextUp = preview.up;
@@ -1505,7 +1513,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.up = glm::vec3(1.0f, 0.0f, 0.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment up +X", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1521,7 +1529,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.up = glm::vec3(-1.0f, 0.0f, 0.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment up -X", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1537,7 +1545,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.up = glm::vec3(0.0f, 1.0f, 0.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment up +Y", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1553,7 +1561,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.up = glm::vec3(0.0f, -1.0f, 0.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment up -Y", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1569,7 +1577,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.up = glm::vec3(0.0f, 0.0f, 1.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment up +Z", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1585,7 +1593,7 @@ void VoxelEditorScene::draw_editor_window()
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
             preview.up = glm::vec3(0.0f, 0.0f, -1.0f);
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Set attachment up -Z", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1600,7 +1608,7 @@ void VoxelEditorScene::draw_editor_window()
         {
             const int attachmentIndex = _selectedAttachmentIndex;
             VoxelAttachment preview = *attachment;
-            sanitize_attachment_basis(preview);
+            voxel::orientation::sanitize_attachment_basis(preview);
             apply_model_edit("Normalize attachment basis", [attachmentIndex, preview](VoxelModel& model)
             {
                 if (attachmentIndex >= 0 && attachmentIndex < static_cast<int>(model.attachments.size()))
@@ -1617,12 +1625,12 @@ void VoxelEditorScene::draw_editor_window()
             if (ImGui::Button("Forward = Hovered Face"))
             {
                 VoxelAttachment preview = *attachment;
-                preview.forward = normalize_or_fallback(glm::vec3(
+                preview.forward = voxel::orientation::normalize_or_fallback(glm::vec3(
                     static_cast<float>(faceOffsetX[_hoveredTarget->face]),
                     static_cast<float>(faceOffsetY[_hoveredTarget->face]),
                     static_cast<float>(faceOffsetZ[_hoveredTarget->face])),
-                    glm::vec3(1.0f, 0.0f, 0.0f));
-                sanitize_attachment_basis(preview);
+                    voxel::orientation::ForwardAxis);
+                voxel::orientation::sanitize_attachment_basis(preview);
                 const int attachmentIndex = _selectedAttachmentIndex;
                 apply_model_edit("Set attachment forward from hovered face", [attachmentIndex, preview](VoxelModel& model)
                 {

@@ -27,12 +27,11 @@ namespace
 PlayerEntity::PlayerEntity(const glm::vec3& position) :
     Entity(position)
 {
-    auto& voxelComponent = Add<VoxelModelComponent>();
-    voxelComponent.assetId = "player";
-    voxelComponent.position = position;
-    voxelComponent.visible = true;
+    Add<CharacterBodyComponent>();
+    Add<CharacterMotorComponent>();
     auto& assemblyComponent = Add<VoxelAssemblyComponent>();
     assemblyComponent.position = position;
+    assemblyComponent.placementPolicy = VoxelPlacementPolicy::BottomCenter;
     assemblyComponent.visible = true;
     _front = planar_forward_from_yaw(_cameraYawDegrees);
     update_render_component();
@@ -40,6 +39,7 @@ PlayerEntity::PlayerEntity(const glm::vec3& position) :
 
 void PlayerEntity::apply_input(const PlayerInputState& input)
 {
+    auto& motor = Get<CharacterMotorComponent>();
     const float forwardAxis = (input.moveForward ? 1.0f : 0.0f) - (input.moveBackward ? 1.0f : 0.0f);
     const float strafeAxis = (input.moveRight ? 1.0f : 0.0f) - (input.moveLeft ? 1.0f : 0.0f);
     _verticalIntent = (input.moveUp ? 1.0f : 0.0f) - (input.moveDown ? 1.0f : 0.0f);
@@ -57,15 +57,16 @@ void PlayerEntity::apply_input(const PlayerInputState& input)
 
     if (input.jumpPressed)
     {
-        _movement.jumpQueued = true;
-        _movement.jumpBufferTimeRemaining = JumpBufferDuration;
+        motor.state.jumpQueued = true;
+        motor.state.jumpBufferTimeRemaining = JumpBufferDuration;
     }
 }
 
 void PlayerEntity::simulate(const float deltaTime, const WorldCollision& collision)
 {
-    _movement.jumpBufferTimeRemaining = std::max(0.0f, _movement.jumpBufferTimeRemaining - deltaTime);
-    _movement.coyoteTimeRemaining = std::max(0.0f, _movement.coyoteTimeRemaining - deltaTime);
+    auto& motor = Get<CharacterMotorComponent>();
+    motor.state.jumpBufferTimeRemaining = std::max(0.0f, motor.state.jumpBufferTimeRemaining - deltaTime);
+    motor.state.coyoteTimeRemaining = std::max(0.0f, motor.state.coyoteTimeRemaining - deltaTime);
 
     const glm::vec3 planarForward = planar_forward_from_yaw(_cameraYawDegrees);
     const glm::vec3 planarRight = glm::normalize(glm::cross(planarForward, _up));
@@ -75,12 +76,12 @@ void PlayerEntity::simulate(const float deltaTime, const WorldCollision& collisi
         desiredMove = glm::normalize(desiredMove);
     }
 
-    if (_flyModeEnabled)
+    if (motor.flyModeEnabled)
     {
-        const glm::vec3 flyVelocity = (desiredMove * _tuning.moveSpeed) + (_up * (_verticalIntent * _tuning.moveSpeed));
-        _movement.velocity = flyVelocity;
-        _position += _movement.velocity * deltaTime;
-        _movement.grounded = false;
+        const glm::vec3 flyVelocity = (desiredMove * motor.tuning.moveSpeed) + (_up * (_verticalIntent * motor.tuning.moveSpeed));
+        motor.state.velocity = flyVelocity;
+        _position += motor.state.velocity * deltaTime;
+        motor.state.grounded = false;
         if (glm::length(desiredMove) > 0.0001f)
         {
             _bodyYawDegrees = glm::degrees(std::atan2(desiredMove.z, desiredMove.x));
@@ -90,41 +91,43 @@ void PlayerEntity::simulate(const float deltaTime, const WorldCollision& collisi
         _pitch = _cameraPitchDegrees;
         _front = camera_forward();
         update_render_component();
-        _movement.jumpQueued = false;
-        _movement.jumpBufferTimeRemaining = 0.0f;
-        _movement.coyoteTimeRemaining = 0.0f;
+        motor.state.jumpQueued = false;
+        motor.state.jumpBufferTimeRemaining = 0.0f;
+        motor.state.coyoteTimeRemaining = 0.0f;
         return;
     }
 
-    if (_movement.grounded)
+    if (motor.state.grounded)
     {
-        _movement.coyoteTimeRemaining = CoyoteTimeDuration;
+        motor.state.coyoteTimeRemaining = CoyoteTimeDuration;
     }
 
-    const float control = _movement.grounded ? 1.0f : _tuning.airControl;
-    _movement.velocity.x = desiredMove.x * _tuning.moveSpeed * control;
-    _movement.velocity.z = desiredMove.z * _tuning.moveSpeed * control;
+    const float control = motor.state.grounded ? 1.0f : motor.tuning.airControl;
+    motor.state.velocity.x = desiredMove.x * motor.tuning.moveSpeed * control;
+    motor.state.velocity.z = desiredMove.z * motor.tuning.moveSpeed * control;
 
-    if ((_movement.grounded || _movement.coyoteTimeRemaining > 0.0f) &&
-        (_movement.jumpQueued || _movement.jumpBufferTimeRemaining > 0.0f))
+    if ((motor.state.grounded || motor.state.coyoteTimeRemaining > 0.0f) &&
+        (motor.state.jumpQueued || motor.state.jumpBufferTimeRemaining > 0.0f))
     {
-        _movement.velocity.y = _tuning.jumpVelocity;
-        _movement.grounded = false;
-        _movement.jumpQueued = false;
-        _movement.jumpBufferTimeRemaining = 0.0f;
-        _movement.coyoteTimeRemaining = 0.0f;
+        motor.state.velocity.y = motor.tuning.jumpVelocity;
+        motor.state.grounded = false;
+        motor.state.jumpQueued = false;
+        motor.state.jumpBufferTimeRemaining = 0.0f;
+        motor.state.coyoteTimeRemaining = 0.0f;
     }
-    else if (_movement.jumpBufferTimeRemaining <= 0.0f)
+    else if (motor.state.jumpBufferTimeRemaining <= 0.0f)
     {
-        _movement.jumpQueued = false;
-    }
-
-    if (!_movement.grounded)
-    {
-        _movement.velocity.y = std::max(_movement.velocity.y - (_tuning.gravity * deltaTime), -_tuning.maxFallSpeed);
+        motor.state.jumpQueued = false;
     }
 
-    _movement.grounded = false;
+    if (!motor.state.grounded)
+    {
+        motor.state.velocity.y = std::max(
+            motor.state.velocity.y - (motor.tuning.gravity * deltaTime),
+            -motor.tuning.maxFallSpeed);
+    }
+
+    motor.state.grounded = false;
     resolve_axis(collision, 0, deltaTime);
     resolve_axis(collision, 2, deltaTime);
     resolve_axis(collision, 1, deltaTime);
@@ -148,10 +151,7 @@ void PlayerEntity::tick(const float deltaTime)
 
 AABB PlayerEntity::world_bounds() const noexcept
 {
-    return AABB{
-        .min = _position + glm::vec3(-_body.halfExtents.x, 0.0f, -_body.halfExtents.z),
-        .max = _position + glm::vec3(_body.halfExtents.x, _body.height, _body.halfExtents.z)
-    };
+    return Get<CharacterBodyComponent>().world_bounds(_position);
 }
 
 glm::vec3 PlayerEntity::body_facing() const noexcept
@@ -161,7 +161,7 @@ glm::vec3 PlayerEntity::body_facing() const noexcept
 
 glm::vec3 PlayerEntity::camera_target() const noexcept
 {
-    return _position + _body.cameraTargetOffset;
+    return Get<CharacterBodyComponent>().camera_target(_position);
 }
 
 glm::vec3 PlayerEntity::camera_forward() const noexcept
@@ -191,22 +191,17 @@ float PlayerEntity::camera_pitch_degrees() const noexcept
 
 const PlayerMovementState& PlayerEntity::movement() const noexcept
 {
-    return _movement;
+    return Get<CharacterMotorComponent>().state;
 }
 
-const PlayerBodyDef& PlayerEntity::body() const noexcept
+const CharacterBodyComponent& PlayerEntity::body() const noexcept
 {
-    return _body;
+    return Get<CharacterBodyComponent>();
 }
 
 const PlayerPhysicsTuning& PlayerEntity::tuning() const noexcept
 {
-    return _tuning;
-}
-
-const VoxelModelComponent& PlayerEntity::render_component() const
-{
-    return Get<VoxelModelComponent>();
+    return Get<CharacterMotorComponent>().tuning;
 }
 
 const VoxelAssemblyComponent& PlayerEntity::assembly_render_component() const
@@ -223,43 +218,46 @@ void PlayerEntity::set_render_assembly_asset_id(std::string assetId)
 
 void PlayerEntity::set_tuning(const PlayerPhysicsTuning& tuning) noexcept
 {
-    _tuning = tuning;
+    Get<CharacterMotorComponent>().tuning = tuning;
+}
+
+void PlayerEntity::set_body(const CharacterBodyComponent& body) noexcept
+{
+    Get<CharacterBodyComponent>() = body;
 }
 
 void PlayerEntity::set_fly_mode(const bool enabled) noexcept
 {
-    _flyModeEnabled = enabled;
+    auto& motor = Get<CharacterMotorComponent>();
+    motor.flyModeEnabled = enabled;
     if (enabled)
     {
-        _movement.velocity = glm::vec3(0.0f);
-        _movement.grounded = false;
-        _movement.jumpQueued = false;
-        _movement.jumpBufferTimeRemaining = 0.0f;
-        _movement.coyoteTimeRemaining = 0.0f;
+        motor.state.velocity = glm::vec3(0.0f);
+        motor.state.grounded = false;
+        motor.state.jumpQueued = false;
+        motor.state.jumpBufferTimeRemaining = 0.0f;
+        motor.state.coyoteTimeRemaining = 0.0f;
     }
 }
 
 bool PlayerEntity::fly_mode_enabled() const noexcept
 {
-    return _flyModeEnabled;
+    return Get<CharacterMotorComponent>().flyModeEnabled;
 }
 
 void PlayerEntity::update_render_component()
 {
-    auto& voxelComponent = Get<VoxelModelComponent>();
-    voxelComponent.position = _position;
-    voxelComponent.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    voxelComponent.visible = true;
-
     auto& assemblyComponent = Get<VoxelAssemblyComponent>();
     assemblyComponent.position = _position;
     assemblyComponent.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    assemblyComponent.placementPolicy = VoxelPlacementPolicy::BottomCenter;
     assemblyComponent.visible = true;
 }
 
 void PlayerEntity::resolve_axis(const WorldCollision& collision, const int axis, const float deltaTime)
 {
-    float* velocityComponent = axis == 0 ? &_movement.velocity.x : (axis == 1 ? &_movement.velocity.y : &_movement.velocity.z);
+    auto& motor = Get<CharacterMotorComponent>();
+    float* velocityComponent = axis == 0 ? &motor.state.velocity.x : (axis == 1 ? &motor.state.velocity.y : &motor.state.velocity.z);
     float delta = *velocityComponent * deltaTime;
     if (std::abs(delta) <= 0.000001f)
     {
@@ -298,7 +296,7 @@ void PlayerEntity::resolve_axis(const WorldCollision& collision, const int axis,
 
     if (axis == 1 && direction < 0.0f)
     {
-        _movement.grounded = true;
+        motor.state.grounded = true;
     }
 
     *velocityComponent = 0.0f;

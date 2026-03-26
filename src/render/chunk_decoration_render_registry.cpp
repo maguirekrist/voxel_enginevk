@@ -122,6 +122,8 @@ void ChunkDecorationRenderRegistry::rebuild_chunk(
         component.position = placement.worldPosition;
         component.rotation = placement.rotation;
         component.scale = placement.scale;
+        component.placementPolicy = placement.placementPolicy;
+        component.placementAttachmentName = placement.placementAttachmentName;
         component.visible = true;
 
         const std::optional<VoxelRenderInstance> renderInstance = build_voxel_render_instance(component, assetManager);

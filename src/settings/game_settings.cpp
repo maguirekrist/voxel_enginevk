@@ -55,6 +55,10 @@ namespace settings
                 lhs.player.gravity == rhs.player.gravity &&
                 lhs.player.jumpVelocity == rhs.player.jumpVelocity &&
                 lhs.player.maxFallSpeed == rhs.player.maxFallSpeed &&
+                lhs.player.collisionHalfWidth == rhs.player.collisionHalfWidth &&
+                lhs.player.collisionHalfDepth == rhs.player.collisionHalfDepth &&
+                lhs.player.collisionHeight == rhs.player.collisionHeight &&
+                equal_vec3(lhs.player.cameraTargetOffset, rhs.player.cameraTargetOffset) &&
                 lhs.player.flyModeEnabled == rhs.player.flyModeEnabled;
         }
     }
@@ -128,6 +132,10 @@ namespace settings
         persistence.player.gravity = std::max(0.0f, persistence.player.gravity);
         persistence.player.jumpVelocity = std::max(0.0f, persistence.player.jumpVelocity);
         persistence.player.maxFallSpeed = std::max(0.0f, persistence.player.maxFallSpeed);
+        persistence.player.collisionHalfWidth = std::max(0.0f, persistence.player.collisionHalfWidth);
+        persistence.player.collisionHalfDepth = std::max(0.0f, persistence.player.collisionHalfDepth);
+        persistence.player.collisionHeight = std::max(0.0f, persistence.player.collisionHeight);
+        persistence.player.cameraTargetOffset.y = std::max(0.0f, persistence.player.cameraTargetOffset.y);
     }
 
     ViewDistanceRuntimeSettings SettingsManager::make_view_distance_runtime(const GameSettingsPersistence& persistence) noexcept
@@ -155,6 +163,10 @@ namespace settings
             .gravity = persistence.player.gravity,
             .jumpVelocity = persistence.player.jumpVelocity,
             .maxFallSpeed = persistence.player.maxFallSpeed,
+            .collisionHalfWidth = persistence.player.collisionHalfWidth,
+            .collisionHalfDepth = persistence.player.collisionHalfDepth,
+            .collisionHeight = persistence.player.collisionHeight,
+            .cameraTargetOffset = persistence.player.cameraTargetOffset,
             .flyModeEnabled = persistence.player.flyModeEnabled
         };
     }
@@ -184,6 +196,10 @@ namespace settings
             previous.player.gravity != current.player.gravity ||
             previous.player.jumpVelocity != current.player.jumpVelocity ||
             previous.player.maxFallSpeed != current.player.maxFallSpeed ||
+            previous.player.collisionHalfWidth != current.player.collisionHalfWidth ||
+            previous.player.collisionHalfDepth != current.player.collisionHalfDepth ||
+            previous.player.collisionHeight != current.player.collisionHeight ||
+            !equal_vec3(previous.player.cameraTargetOffset, current.player.cameraTargetOffset) ||
             previous.player.flyModeEnabled != current.player.flyModeEnabled)
         {
             const PlayerRuntimeSettings runtime = make_player_runtime(current);

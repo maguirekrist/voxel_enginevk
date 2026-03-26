@@ -2,41 +2,17 @@
 
 #include <format>
 #include <functional>
+#include <vector>
 #include <unordered_map>
 #include <unordered_set>
 
 #include <glm/gtc/quaternion.hpp>
 
+#include "voxel_placement.h"
+#include "voxel_orientation.h"
+
 namespace
 {
-    glm::quat basis_from_attachment(const VoxelAttachment& attachment)
-    {
-        const glm::vec3 forward = glm::length(attachment.forward) > 0.0001f
-            ? glm::normalize(attachment.forward)
-            : glm::vec3(1.0f, 0.0f, 0.0f);
-        glm::vec3 up = glm::length(attachment.up) > 0.0001f
-            ? glm::normalize(attachment.up)
-            : glm::vec3(0.0f, 1.0f, 0.0f);
-        glm::vec3 right = glm::cross(up, forward);
-
-        if (glm::length(right) <= 0.0001f)
-        {
-            right = glm::vec3(0.0f, 0.0f, 1.0f);
-        }
-        else
-        {
-            right = glm::normalize(right);
-        }
-
-        up = glm::normalize(glm::cross(forward, right));
-
-        glm::mat3 basis{1.0f};
-        basis[0] = forward;
-        basis[1] = up;
-        basis[2] = right;
-        return glm::normalize(glm::quat_cast(basis));
-    }
-
     float uniform_scale_from_vec3(const glm::vec3& scale)
     {
         return (scale.x + scale.y + scale.z) / 3.0f;
@@ -182,7 +158,7 @@ VoxelAssemblyRenderBundle build_voxel_assembly_render_bundle(
                         parentInstance.asset->model.find_attachment(bindingState->parentAttachmentName);
                         attachment != nullptr)
                     {
-                        const glm::quat attachmentRotation = basis_from_attachment(*attachment);
+                        const glm::quat attachmentRotation = voxel::orientation::basis_quat_from_attachment(*attachment);
                         const glm::quat parentAttachmentRotation = parentInstance.rotation * attachmentRotation;
                         localInstance.rotation = parentAttachmentRotation * bindingState->localRotationOffset;
                         localInstance.position = parentInstance.world_point_from_asset_local(attachment->position) +
@@ -212,6 +188,9 @@ VoxelAssemblyRenderBundle build_voxel_assembly_render_bundle(
         return true;
     };
 
+    std::vector<VoxelAssemblyResolvedPart> localResolvedParts{};
+    localResolvedParts.reserve(assembly->parts.size());
+
     for (const VoxelAssemblyPartDefinition& part : assembly->parts)
     {
         VoxelRenderInstance localInstance{};
@@ -220,18 +199,34 @@ VoxelAssemblyRenderBundle build_voxel_assembly_render_bundle(
             continue;
         }
 
-        VoxelRenderInstance worldInstance = localInstance;
+        localResolvedParts.push_back(VoxelAssemblyResolvedPart{
+            .partId = part.partId,
+            .renderInstance = localInstance
+        });
+    }
+
+    const glm::vec3 placementAnchor = resolve_voxel_assembly_placement_anchor(
+        resolvedInstances,
+        assembly->rootPartId,
+        component.placementPolicy,
+        component.placementAttachmentName,
+        &bundle.diagnostic) + component.renderAnchorOffset;
+
+    bundle.parts.reserve(localResolvedParts.size());
+    for (const VoxelAssemblyResolvedPart& localPart : localResolvedParts)
+    {
+        VoxelRenderInstance worldInstance = localPart.renderInstance;
         worldInstance.position = component.position +
-            (component.rotation * ((localInstance.position - component.renderAnchorOffset) * component.scale));
-        worldInstance.rotation = component.rotation * localInstance.rotation;
-        worldInstance.scale = component.scale * localInstance.scale;
+            (component.rotation * ((localPart.renderInstance.position - placementAnchor) * component.scale));
+        worldInstance.rotation = component.rotation * localPart.renderInstance.rotation;
+        worldInstance.scale = component.scale * localPart.renderInstance.scale;
         worldInstance.renderAnchorOffset = glm::vec3(0.0f);
         worldInstance.lightingMode = component.lightingMode;
         worldInstance.lightSampleOffset = component.lightSampleOffset;
         worldInstance.lightAffectMask = component.lightAffectMask;
-        worldInstance.visible = localInstance.visible;
+        worldInstance.visible = localPart.renderInstance.visible;
         bundle.parts.push_back(VoxelAssemblyResolvedPart{
-            .partId = part.partId,
+            .partId = localPart.partId,
             .renderInstance = worldInstance
         });
     }

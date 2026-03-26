@@ -24,6 +24,8 @@
 #include "render/mesh_manager.h"
 #include "render/mesh_release_queue.h"
 #include "string_utils.h"
+#include "voxel/voxel_orientation.h"
+#include "voxel/voxel_spatial_bounds.h"
 #include "vk_util.h"
 
 namespace
@@ -40,34 +42,6 @@ namespace
             std::cos(pitch) * std::cos(yaw),
             std::sin(pitch),
             std::cos(pitch) * std::sin(yaw)));
-    }
-
-    glm::quat basis_from_attachment(const VoxelAttachment& attachment)
-    {
-        const glm::vec3 forward = glm::length(attachment.forward) > 0.0001f
-            ? glm::normalize(attachment.forward)
-            : glm::vec3(1.0f, 0.0f, 0.0f);
-        glm::vec3 up = glm::length(attachment.up) > 0.0001f
-            ? glm::normalize(attachment.up)
-            : glm::vec3(0.0f, 1.0f, 0.0f);
-        glm::vec3 right = glm::cross(up, forward);
-
-        if (glm::length(right) <= 0.0001f)
-        {
-            right = glm::vec3(0.0f, 0.0f, 1.0f);
-        }
-        else
-        {
-            right = glm::normalize(right);
-        }
-
-        up = glm::normalize(glm::cross(forward, right));
-
-        glm::mat3 basis{1.0f};
-        basis[0] = forward;
-        basis[1] = up;
-        basis[2] = right;
-        return glm::normalize(glm::quat_cast(basis));
     }
 
     float uniform_scale_from_vec3(const glm::vec3& scale)
@@ -125,10 +99,30 @@ VoxelAssemblyScene::VoxelAssemblyScene(const SceneServices& services) :
 VoxelAssemblyScene::~VoxelAssemblyScene()
 {
     clear_preview();
+    if (_assemblyBoundsHandle.has_value())
+    {
+        _renderState.opaqueObjects.remove(_assemblyBoundsHandle.value());
+        _assemblyBoundsHandle.reset();
+    }
+    if (_assemblyRootPivotHandle.has_value())
+    {
+        _renderState.opaqueObjects.remove(_assemblyRootPivotHandle.value());
+        _assemblyRootPivotHandle.reset();
+    }
     if (_selectedPartBoundsHandle.has_value())
     {
         _renderState.opaqueObjects.remove(_selectedPartBoundsHandle.value());
         _selectedPartBoundsHandle.reset();
+    }
+    if (_assemblyBoundsHandle.has_value())
+    {
+        _renderState.opaqueObjects.remove(_assemblyBoundsHandle.value());
+        _assemblyBoundsHandle.reset();
+    }
+    if (_assemblyRootPivotHandle.has_value())
+    {
+        _renderState.opaqueObjects.remove(_assemblyRootPivotHandle.value());
+        _assemblyRootPivotHandle.reset();
     }
     if (_selectedPartPivotHandle.has_value())
     {
@@ -463,7 +457,7 @@ void VoxelAssemblyScene::sync_preview_instances()
                             parentInstance.asset->model.find_attachment(bindingState->parentAttachmentName);
                             attachment != nullptr)
                         {
-                            const glm::quat attachmentRotation = basis_from_attachment(*attachment);
+                            const glm::quat attachmentRotation = voxel::orientation::basis_quat_from_attachment(*attachment);
                             const glm::quat parentAttachmentRotation = parentInstance.rotation * attachmentRotation;
                             instance.rotation = parentAttachmentRotation * bindingState->localRotationOffset;
                             instance.position = parentInstance.world_point_from_asset_local(attachment->position) +
@@ -548,6 +542,61 @@ void VoxelAssemblyScene::sync_selection_overlay()
     _selectedAttachmentMarkerHandles.clear();
     release_selection_meshes();
 
+    std::vector<VoxelRenderInstance> resolvedInstances{};
+    resolvedInstances.reserve(_resolvedPreviewInstances.size());
+    for (const auto& [partId, instance] : _resolvedPreviewInstances)
+    {
+        (void)partId;
+        if (instance.is_renderable())
+        {
+            resolvedInstances.push_back(instance);
+        }
+    }
+
+    VoxelSpatialBounds assemblyBounds{};
+    if (_showAssemblyBounds || _showAssemblyRootPivot)
+    {
+        assemblyBounds = evaluate_voxel_render_instances_bounds(resolvedInstances);
+    }
+
+    if (_showAssemblyBounds)
+    {
+        if (assemblyBounds.valid)
+        {
+            _assemblyBoundsMesh = Mesh::create_box_outline_mesh(
+                assemblyBounds.min,
+                assemblyBounds.max,
+                glm::vec3(1.0f, 0.40f, 0.18f));
+            _services.meshManager->UploadQueue.enqueue(_assemblyBoundsMesh);
+            _assemblyBoundsHandle = _renderState.opaqueObjects.insert(RenderObject{
+                .mesh = _assemblyBoundsMesh,
+                .material = _services.materialManager->get_material(VoxelAssemblyMaterialScope, "chunkboundary"),
+                .transform = glm::mat4(1.0f),
+                .layer = RenderLayer::Opaque,
+                .lightingMode = LightingMode::Unlit
+            });
+        }
+    }
+
+    if (_showAssemblyRootPivot)
+    {
+        const float markerSize = assemblyBounds.valid
+            ? std::max(std::max(assemblyBounds.size().x, assemblyBounds.size().y), assemblyBounds.size().z) * 0.04f
+            : 0.07f;
+        _assemblyRootPivotMesh = Mesh::create_point_marker_mesh(
+            glm::vec3(0.0f),
+            std::max(markerSize, 0.07f),
+            glm::vec3(1.0f, 0.40f, 0.18f));
+        _services.meshManager->UploadQueue.enqueue(_assemblyRootPivotMesh);
+        _assemblyRootPivotHandle = _renderState.opaqueObjects.insert(RenderObject{
+            .mesh = _assemblyRootPivotMesh,
+            .material = _services.materialManager->get_material(VoxelAssemblyMaterialScope, "defaultmesh"),
+            .transform = glm::mat4(1.0f),
+            .layer = RenderLayer::Opaque,
+            .lightingMode = LightingMode::Unlit
+        });
+    }
+
     const VoxelAssemblyPartDefinition* const part = selected_part();
     if (part == nullptr)
     {
@@ -563,24 +612,19 @@ void VoxelAssemblyScene::sync_selection_overlay()
     const VoxelRenderInstance& instance = instanceIt->second;
     if (_showSelectedPartBounds && instance.asset->bounds.valid)
     {
-        const VoxelBounds bounds = instance.asset->model.bounds();
-        const glm::vec3 minCorner = glm::vec3(
-            static_cast<float>(bounds.min.x),
-            static_cast<float>(bounds.min.y),
-            static_cast<float>(bounds.min.z)) * instance.asset->model.voxelSize - instance.asset->model.pivot;
-        const glm::vec3 maxCorner = glm::vec3(
-            static_cast<float>(bounds.max.x + 1),
-            static_cast<float>(bounds.max.y + 1),
-            static_cast<float>(bounds.max.z + 1)) * instance.asset->model.voxelSize - instance.asset->model.pivot;
-        _selectedPartBoundsMesh = Mesh::create_box_outline_mesh(minCorner, maxCorner, glm::vec3(0.28f, 0.92f, 1.0f));
-        _services.meshManager->UploadQueue.enqueue(_selectedPartBoundsMesh);
-        _selectedPartBoundsHandle = _renderState.opaqueObjects.insert(RenderObject{
-            .mesh = _selectedPartBoundsMesh,
-            .material = _services.materialManager->get_material(VoxelAssemblyMaterialScope, "chunkboundary"),
-            .transform = instance.model_matrix(),
-            .layer = RenderLayer::Opaque,
-            .lightingMode = LightingMode::Unlit
-        });
+        const VoxelSpatialBounds partLocalBounds = evaluate_voxel_model_local_bounds(instance.asset->model);
+        if (partLocalBounds.valid)
+        {
+            _selectedPartBoundsMesh = Mesh::create_box_outline_mesh(partLocalBounds.min, partLocalBounds.max, glm::vec3(0.28f, 0.92f, 1.0f));
+            _services.meshManager->UploadQueue.enqueue(_selectedPartBoundsMesh);
+            _selectedPartBoundsHandle = _renderState.opaqueObjects.insert(RenderObject{
+                .mesh = _selectedPartBoundsMesh,
+                .material = _services.materialManager->get_material(VoxelAssemblyMaterialScope, "chunkboundary"),
+                .transform = instance.model_matrix(),
+                .layer = RenderLayer::Opaque,
+                .lightingMode = LightingMode::Unlit
+            });
+        }
     }
 
     if (_showSelectedPartPivot)
@@ -663,6 +707,14 @@ void VoxelAssemblyScene::clear_preview()
 
 void VoxelAssemblyScene::release_selection_meshes()
 {
+    if (_assemblyBoundsMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_assemblyBoundsMesh));
+    }
+    if (_assemblyRootPivotMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_assemblyRootPivotMesh));
+    }
     if (_selectedPartBoundsMesh != nullptr)
     {
         render::enqueue_mesh_release(std::move(_selectedPartBoundsMesh));
@@ -1548,6 +1600,16 @@ void VoxelAssemblyScene::draw_editor_window()
     ImGui::Text("Zoom: Mouse Wheel");
     ImGui::Text("Parts Visible: %d", static_cast<int>(_assembly.parts.size()));
     ImGui::TextWrapped("The selected part previews the binding state chosen below. Other parts use their default state.");
+    ImGui::TextDisabled("Orientation Standard: +X forward, +Y up. Assembly root pivot is the assembly-space origin.");
+    if (ImGui::Checkbox("Show Assembly Bounds", &_showAssemblyBounds))
+    {
+        _selectionOverlayDirty = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Show Assembly Root Pivot", &_showAssemblyRootPivot))
+    {
+        _selectionOverlayDirty = true;
+    }
     if (ImGui::Checkbox("Show Selected Bounds", &_showSelectedPartBounds))
     {
         _selectionOverlayDirty = true;

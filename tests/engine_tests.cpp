@@ -33,8 +33,10 @@
 #include "voxel/voxel_component_render_adapter.h"
 #include "voxel/voxel_assembly_repository.h"
 #include "voxel/voxel_asset_manager.h"
+#include "voxel/voxel_model_component_adapter.h"
 #include "voxel/voxel_picking.h"
 #include "voxel/voxel_render_instance.h"
+#include "voxel/voxel_spatial_bounds.h"
 #include "voxel/voxel_model_repository.h"
 #include "world/dynamic_light_registry.h"
 #include "world/chunk_lighting.h"
@@ -387,11 +389,11 @@ TEST(PlayerEntityTest, WorldBoundsUseFeetPositionAsBase)
     EXPECT_NEAR(bounds.max.z, -1.65f, 0.0001f);
 }
 
-TEST(PlayerEntityTest, RenderComponentStartsWithIdentityRotation)
+TEST(PlayerEntityTest, AssemblyRenderComponentStartsWithIdentityRotation)
 {
     PlayerEntity player{ glm::vec3(4.0f, 10.0f, -2.0f) };
 
-    const glm::quat rotation = player.render_component().rotation;
+    const glm::quat rotation = player.assembly_render_component().rotation;
     EXPECT_NEAR(rotation.w, 1.0f, 0.0001f);
     EXPECT_NEAR(rotation.x, 0.0f, 0.0001f);
     EXPECT_NEAR(rotation.y, 0.0f, 0.0001f);
@@ -560,6 +562,10 @@ TEST(GameSettingsConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     persistence.player.gravity = 18.0f;
     persistence.player.jumpVelocity = 11.0f;
     persistence.player.maxFallSpeed = 42.0f;
+    persistence.player.collisionHalfWidth = 0.45f;
+    persistence.player.collisionHalfDepth = 0.30f;
+    persistence.player.collisionHeight = 2.1f;
+    persistence.player.cameraTargetOffset = glm::vec3(0.1f, 1.6f, -0.2f);
     persistence.player.flyModeEnabled = true;
     persistence.dayNight.paused = true;
     persistence.dayNight.timeOfDay = 0.71f;
@@ -586,6 +592,12 @@ TEST(GameSettingsConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     EXPECT_FLOAT_EQ(loaded.player.gravity, persistence.player.gravity);
     EXPECT_FLOAT_EQ(loaded.player.jumpVelocity, persistence.player.jumpVelocity);
     EXPECT_FLOAT_EQ(loaded.player.maxFallSpeed, persistence.player.maxFallSpeed);
+    EXPECT_FLOAT_EQ(loaded.player.collisionHalfWidth, persistence.player.collisionHalfWidth);
+    EXPECT_FLOAT_EQ(loaded.player.collisionHalfDepth, persistence.player.collisionHalfDepth);
+    EXPECT_FLOAT_EQ(loaded.player.collisionHeight, persistence.player.collisionHeight);
+    EXPECT_FLOAT_EQ(loaded.player.cameraTargetOffset.x, persistence.player.cameraTargetOffset.x);
+    EXPECT_FLOAT_EQ(loaded.player.cameraTargetOffset.y, persistence.player.cameraTargetOffset.y);
+    EXPECT_FLOAT_EQ(loaded.player.cameraTargetOffset.z, persistence.player.cameraTargetOffset.z);
     EXPECT_EQ(loaded.player.flyModeEnabled, persistence.player.flyModeEnabled);
     EXPECT_EQ(loaded.dayNight.paused, persistence.dayNight.paused);
     EXPECT_FLOAT_EQ(loaded.dayNight.timeOfDay, persistence.dayNight.timeOfDay);
@@ -744,6 +756,42 @@ TEST(SettingsManagerTest, AmbientOcclusionUpdatesOnlyRelevantSubscribers)
     EXPECT_TRUE(ambientEnabled);
     EXPECT_EQ(ambientNotifications, 2);
     EXPECT_EQ(viewDistanceNotifications, 1);
+}
+
+TEST(SettingsManagerTest, PlayerHandlersReceiveBodyAndCameraRuntimeValues)
+{
+    settings::SettingsManager manager;
+    settings::PlayerRuntimeSettings last{};
+    int notifications = 0;
+
+    manager.bind_player_settings_handler([&](const settings::PlayerRuntimeSettings& runtime)
+    {
+        last = runtime;
+        ++notifications;
+    });
+
+    EXPECT_EQ(notifications, 1);
+    EXPECT_FLOAT_EQ(last.collisionHalfWidth, 0.35f);
+    EXPECT_FLOAT_EQ(last.collisionHalfDepth, 0.35f);
+    EXPECT_FLOAT_EQ(last.collisionHeight, 1.8f);
+    EXPECT_FLOAT_EQ(last.cameraTargetOffset.y, 1.4f);
+
+    const bool changed = manager.mutate([](settings::GameSettingsPersistence& persistence)
+    {
+        persistence.player.collisionHalfWidth = 0.5f;
+        persistence.player.collisionHalfDepth = 0.25f;
+        persistence.player.collisionHeight = 2.25f;
+        persistence.player.cameraTargetOffset = glm::vec3(0.1f, 1.8f, -0.3f);
+    });
+
+    EXPECT_TRUE(changed);
+    EXPECT_EQ(notifications, 2);
+    EXPECT_FLOAT_EQ(last.collisionHalfWidth, 0.5f);
+    EXPECT_FLOAT_EQ(last.collisionHalfDepth, 0.25f);
+    EXPECT_FLOAT_EQ(last.collisionHeight, 2.25f);
+    EXPECT_FLOAT_EQ(last.cameraTargetOffset.x, 0.1f);
+    EXPECT_FLOAT_EQ(last.cameraTargetOffset.y, 1.8f);
+    EXPECT_FLOAT_EQ(last.cameraTargetOffset.z, -0.3f);
 }
 
 TEST(VoxelModelRepositoryTest, SavesAndLoadsVoxelAssetRoundTrip)
@@ -1014,6 +1062,149 @@ TEST(VoxelComponentRenderAdapterTest, ResolvesAssemblyPartsRelativeToParentAttac
     EXPECT_FLOAT_EQ(weaponIt->renderInstance.position.x, 13.0f);
     EXPECT_FLOAT_EQ(weaponIt->renderInstance.position.y, 0.0f);
     EXPECT_FLOAT_EQ(weaponIt->renderInstance.position.z, 0.0f);
+
+    std::vector<VoxelRenderInstance> instances{};
+    instances.reserve(bundle.entries.size());
+    for (const VoxelComponentRenderEntry& entry : bundle.entries)
+    {
+        instances.push_back(entry.renderInstance);
+    }
+
+    const VoxelSpatialBounds aggregateBounds = evaluate_voxel_render_instances_bounds(instances);
+    EXPECT_TRUE(aggregateBounds.valid);
+    EXPECT_FLOAT_EQ(aggregateBounds.min.x, 10.0f);
+    EXPECT_FLOAT_EQ(aggregateBounds.max.x, 15.0f);
+}
+
+TEST(VoxelModelComponentAdapterTest, BottomCenterPlacementAlignsVisualBoundsToWorldPosition)
+{
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_model_placement_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const VoxelModelRepository modelRepository(documentStore, "models");
+
+    VoxelModel model{};
+    model.assetId = "crate";
+    model.voxelSize = 1.0f;
+    model.pivot = glm::vec3(0.5f, 0.5f, 0.5f);
+    model.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 255, 255, 255});
+    modelRepository.save(model);
+
+    VoxelAssetManager assetManager(modelRepository);
+    VoxelModelComponent component{};
+    component.assetId = "crate";
+    component.position = glm::vec3(8.0f, 3.0f, -2.0f);
+    component.placementPolicy = VoxelPlacementPolicy::BottomCenter;
+
+    const std::optional<VoxelRenderInstance> renderInstance = build_voxel_render_instance(component, assetManager);
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_TRUE(renderInstance.has_value());
+    const VoxelSpatialBounds worldBounds = evaluate_voxel_render_instance_bounds(renderInstance.value());
+    ASSERT_TRUE(worldBounds.valid);
+    EXPECT_FLOAT_EQ(worldBounds.min.x, 7.5f);
+    EXPECT_FLOAT_EQ(worldBounds.min.y, 3.0f);
+    EXPECT_FLOAT_EQ(worldBounds.min.z, -2.5f);
+    EXPECT_FLOAT_EQ(worldBounds.max.x, 8.5f);
+    EXPECT_FLOAT_EQ(worldBounds.max.y, 4.0f);
+    EXPECT_FLOAT_EQ(worldBounds.max.z, -1.5f);
+}
+
+TEST(VoxelSpatialBoundsTest, EvaluatesModelBoundsRelativeToPivot)
+{
+    VoxelModel model{};
+    model.voxelSize = 0.5f;
+    model.pivot = glm::vec3(0.5f, 0.25f, 0.5f);
+    model.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 255, 255, 255});
+    model.set_voxel(VoxelCoord{1, 0, 0}, VoxelColor{255, 255, 255, 255});
+
+    const VoxelSpatialBounds bounds = evaluate_voxel_model_local_bounds(model);
+    ASSERT_TRUE(bounds.valid);
+    EXPECT_FLOAT_EQ(bounds.min.x, -0.5f);
+    EXPECT_FLOAT_EQ(bounds.min.y, -0.25f);
+    EXPECT_FLOAT_EQ(bounds.min.z, -0.5f);
+    EXPECT_FLOAT_EQ(bounds.max.x, 0.5f);
+    EXPECT_FLOAT_EQ(bounds.max.y, 0.25f);
+    EXPECT_FLOAT_EQ(bounds.max.z, 0.0f);
+}
+
+TEST(VoxelComponentRenderAdapterTest, AssemblyBottomCenterPlacementAlignsAggregateBoundsToWorldPosition)
+{
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_assembly_bottom_center_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const VoxelModelRepository modelRepository(documentStore, "models");
+    const VoxelAssemblyRepository assemblyRepository(documentStore, "assemblies");
+
+    VoxelModel torso{};
+    torso.assetId = "torso";
+    torso.voxelSize = 1.0f;
+    torso.pivot = glm::vec3(0.5f, 0.5f, 0.5f);
+    torso.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 255, 255, 255});
+    torso.attachments.push_back(VoxelAttachment{
+        .name = "top",
+        .position = glm::vec3(0.5f, 1.5f, 0.5f),
+        .forward = glm::vec3(1.0f, 0.0f, 0.0f),
+        .up = glm::vec3(0.0f, 1.0f, 0.0f)
+    });
+    modelRepository.save(torso);
+
+    VoxelModel hat{};
+    hat.assetId = "hat";
+    hat.voxelSize = 1.0f;
+    hat.pivot = glm::vec3(0.5f, 0.5f, 0.5f);
+    hat.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 255, 255, 255});
+    modelRepository.save(hat);
+
+    VoxelAssemblyAsset assembly{};
+    assembly.assetId = "stack";
+    assembly.rootPartId = "torso";
+    assembly.parts.push_back(VoxelAssemblyPartDefinition{
+        .partId = "torso",
+        .defaultModelAssetId = "torso",
+        .visibleByDefault = true
+    });
+    assembly.parts.push_back(VoxelAssemblyPartDefinition{
+        .partId = "hat",
+        .defaultModelAssetId = "hat",
+        .visibleByDefault = true,
+        .defaultStateId = "default",
+        .bindingStates = {
+            VoxelAssemblyBindingState{
+                .stateId = "default",
+                .parentPartId = "torso",
+                .parentAttachmentName = "top",
+                .localScale = glm::vec3(1.0f),
+                .visible = true
+            }
+        }
+    });
+    assemblyRepository.save(assembly);
+
+    VoxelAssetManager modelAssetManager(modelRepository);
+    VoxelAssemblyAssetManager assemblyAssetManager(assemblyRepository);
+
+    GameObject object(glm::vec3(0.0f));
+    auto& component = object.Add<VoxelAssemblyComponent>();
+    component.assetId = "stack";
+    component.position = glm::vec3(4.0f, 2.0f, 6.0f);
+    component.placementPolicy = VoxelPlacementPolicy::BottomCenter;
+    component.visible = true;
+
+    const VoxelComponentRenderBundle bundle =
+        build_voxel_component_render_bundle(object, assemblyAssetManager, modelAssetManager);
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_FALSE(bundle.has_error());
+    std::vector<VoxelRenderInstance> instances{};
+    for (const VoxelComponentRenderEntry& entry : bundle.entries)
+    {
+        instances.push_back(entry.renderInstance);
+    }
+
+    const VoxelSpatialBounds aggregateBounds = evaluate_voxel_render_instances_bounds(instances);
+    ASSERT_TRUE(aggregateBounds.valid);
+    EXPECT_FLOAT_EQ(aggregateBounds.min.y, 2.0f);
 }
 
 TEST(VoxelMesherTest, GeneratesOnlyExteriorFacesForAdjacentVoxels)

@@ -137,12 +137,14 @@ private:
     std::shared_ptr<Resource> _fogResource;
     std::shared_ptr<Mesh> _previewMesh;
     std::shared_ptr<Mesh> _outlineMesh;
+    std::shared_ptr<Mesh> _modelBoundsMesh;
     std::shared_ptr<Mesh> _pivotMarkerMesh;
     std::shared_ptr<Mesh> _pivotVoxelMesh;
     std::shared_ptr<Mesh> _selectedAttachmentVoxelMesh;
     std::vector<std::shared_ptr<Mesh>> _attachmentMarkerMeshes{};
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _previewHandle;
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _outlineHandle;
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _modelBoundsHandle;
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _pivotMarkerHandle;
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _pivotVoxelHandle;
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _selectedAttachmentVoxelHandle;
@@ -163,6 +165,7 @@ private:
     bool _orbitDragging{false};
     bool _meshDirty{true};
     bool _markerDirty{true};
+    bool _showModelBounds{true};
     bool _showPivotMarker{true};
     bool _showPivotVoxel{true};
     bool _showAttachmentMarkers{true};

@@ -99,7 +99,8 @@ namespace
                             static_cast<float>(column.surfaceHeight + 1),
                             static_cast<float>(worldZ) + 0.5f),
                         .rotation = glm::angleAxis(glm::radians(yawDegrees), glm::vec3(0.0f, 1.0f, 0.0f)),
-                        .scale = scale
+                        .scale = scale,
+                        .placementPolicy = VoxelPlacementPolicy::BottomCenter
                     });
                 }
             }

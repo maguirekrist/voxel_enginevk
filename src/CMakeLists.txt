@@ -92,6 +92,11 @@ add_executable(vulkan_guide
     voxel/voxel_assembly_repository.h
     voxel/voxel_assembly_repository.cpp
     voxel/voxel_runtime_asset.h
+    voxel/voxel_spatial_bounds.h
+    voxel/voxel_spatial_bounds.cpp
+    voxel/voxel_orientation.h
+    voxel/voxel_placement.h
+    voxel/voxel_placement.cpp
     voxel/voxel_asset_manager.h
     voxel/voxel_asset_manager.cpp
     voxel/voxel_model_component_adapter.h
@@ -129,6 +134,8 @@ add_executable(vulkan_guide
         physics/aabb.h
         components/player_input_component.cpp
         components/player_input_component.h
+        components/character_body_component.h
+        components/character_motor_component.h
         components/voxel_assembly_component.h
         components/voxel_model_component.h
         components/game_object.h

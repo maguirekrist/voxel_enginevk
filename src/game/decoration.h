@@ -9,6 +9,7 @@
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 
+#include "voxel/voxel_placement.h"
 #include "world/terrain_gen.h"
 
 class TerrainGenerator;
@@ -20,6 +21,8 @@ struct VoxelDecorationPlacement
     glm::vec3 worldPosition{0.0f};
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
     float scale{1.0f};
+    VoxelPlacementPolicy placementPolicy{VoxelPlacementPolicy::Pivot};
+    std::string placementAttachmentName{};
 };
 
 struct DecorationGenerationContext

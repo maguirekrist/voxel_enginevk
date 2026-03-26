@@ -131,12 +131,11 @@ private:
     glm::vec3 _playerTorchColor{1.0f, 0.82f, 0.52f};
     std::optional<world_lighting::DynamicLightRegistry::LightId> _playerTorchLightId{};
     std::unique_ptr<world_lighting::WorldLightSampler> _worldLightSampler;
-    std::optional<VoxelRenderRegistry::InstanceId> _playerVoxelInstanceId{};
     std::unordered_map<std::string, VoxelRenderRegistry::InstanceId> _playerAssemblyInstanceIds{};
     std::vector<std::string> _savedPlayerAssemblyIds{};
     int _selectedPlayerAssemblyIndex{-1};
     std::string _playerAssemblyAssetId{};
-    std::string _playerAssemblyStatus{"Player render using voxel model 'player'."};
+    std::string _playerAssemblyStatus{"No player assembly selected."};
 
     void create_camera();
     void sync_camera_to_game(float deltaTime);

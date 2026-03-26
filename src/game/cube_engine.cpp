@@ -17,7 +17,7 @@ void CubeEngine::set_player_input(const PlayerInputState& input)
     _playerInput = input;
 }
 
-void CubeEngine::configure_player(const PlayerPhysicsTuning& tuning, const bool flyModeEnabled)
+void CubeEngine::configure_player(const PlayerPhysicsTuning& tuning, const CharacterBodyComponent& body, const bool flyModeEnabled)
 {
     if (_player == nullptr)
     {
@@ -25,6 +25,7 @@ void CubeEngine::configure_player(const PlayerPhysicsTuning& tuning, const bool 
     }
 
     _player->set_tuning(tuning);
+    _player->set_body(body);
     _player->set_fly_mode(flyModeEnabled);
     refresh_snapshot();
 }

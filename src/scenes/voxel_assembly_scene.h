@@ -122,12 +122,16 @@ private:
     std::shared_ptr<Resource> _cameraUboResource;
     std::shared_ptr<Resource> _lightingResource;
     std::shared_ptr<Resource> _fogResource;
+    std::shared_ptr<Mesh> _assemblyBoundsMesh;
+    std::shared_ptr<Mesh> _assemblyRootPivotMesh;
     std::shared_ptr<Mesh> _selectedPartBoundsMesh;
     std::shared_ptr<Mesh> _selectedPartPivotMesh;
     std::shared_ptr<Mesh> _parentAttachmentMarkerMesh;
     std::vector<std::shared_ptr<Mesh>> _selectedAttachmentMarkerMeshes{};
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _selectedPartBoundsHandle;
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _selectedPartPivotHandle;
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _assemblyBoundsHandle;
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _assemblyRootPivotHandle;
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _parentAttachmentMarkerHandle;
     std::vector<dev_collections::sparse_set<RenderObject>::Handle> _selectedAttachmentMarkerHandles{};
     config::JsonFileDocumentStore _documentStore;
@@ -149,6 +153,8 @@ private:
     bool _orbitDragging{false};
     bool _previewDirty{true};
     bool _selectionOverlayDirty{true};
+    bool _showAssemblyBounds{true};
+    bool _showAssemblyRootPivot{true};
     bool _showSelectedPartBounds{true};
     bool _showSelectedPartPivot{true};
     bool _showSelectedPartAttachments{true};

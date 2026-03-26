@@ -24,6 +24,8 @@ add_executable(engine_tests
     ../src/voxel/voxel_assembly_repository.cpp
     ../src/voxel/voxel_component_render_adapter.cpp
     ../src/voxel/voxel_model_component_adapter.cpp
+    ../src/voxel/voxel_placement.cpp
+    ../src/voxel/voxel_spatial_bounds.cpp
     ../src/voxel/voxel_render_instance.cpp
     ../src/voxel/voxel_mesher.cpp
     ../src/voxel/voxel_picking.cpp
