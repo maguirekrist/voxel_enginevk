@@ -28,11 +28,28 @@ struct VoxelAssemblyPartDefinition
     std::string displayName{};
     std::string defaultModelAssetId{};
     bool visibleByDefault{true};
+    bool contributesToCollision{true};
     std::string slotId{};
     std::string defaultStateId{};
     std::vector<VoxelAssemblyBindingState> bindingStates{};
 
     [[nodiscard]] bool operator==(const VoxelAssemblyPartDefinition& other) const = default;
+};
+
+enum class VoxelAssemblyCollisionMode
+{
+    None,
+    TaggedParts,
+    CustomBounds
+};
+
+struct VoxelAssemblyCollisionDefinition
+{
+    VoxelAssemblyCollisionMode mode{VoxelAssemblyCollisionMode::TaggedParts};
+    glm::vec3 customBoundsMin{-0.35f, 0.0f, -0.35f};
+    glm::vec3 customBoundsMax{0.35f, 1.8f, 0.35f};
+
+    [[nodiscard]] bool operator==(const VoxelAssemblyCollisionDefinition& other) const = default;
 };
 
 struct VoxelAssemblySlotDefinition
@@ -51,6 +68,7 @@ public:
     std::string assetId{"untitled"};
     std::string displayName{"Untitled"};
     std::string rootPartId{};
+    VoxelAssemblyCollisionDefinition collision{};
     std::vector<VoxelAssemblyPartDefinition> parts{};
     std::vector<VoxelAssemblySlotDefinition> slots{};
 

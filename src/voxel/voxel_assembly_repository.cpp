@@ -7,7 +7,7 @@
 
 namespace
 {
-    constexpr int VoxelAssemblyVersion = 1;
+    constexpr int VoxelAssemblyVersion = 2;
     constexpr std::string_view VoxelAssemblyFileSuffix = ".vxma.json";
 
     std::string sanitize_asset_id(std::string_view rawAssetId)
@@ -71,6 +71,35 @@ namespace
             node.value("z", fallback.z));
     }
 
+    std::string_view collision_mode_to_string(const VoxelAssemblyCollisionMode mode)
+    {
+        switch (mode)
+        {
+        case VoxelAssemblyCollisionMode::None:
+            return "none";
+        case VoxelAssemblyCollisionMode::CustomBounds:
+            return "custom_bounds";
+        case VoxelAssemblyCollisionMode::TaggedParts:
+        default:
+            return "tagged_parts";
+        }
+    }
+
+    VoxelAssemblyCollisionMode collision_mode_from_string(const std::string_view value)
+    {
+        if (value == "none")
+        {
+            return VoxelAssemblyCollisionMode::None;
+        }
+
+        if (value == "custom_bounds")
+        {
+            return VoxelAssemblyCollisionMode::CustomBounds;
+        }
+
+        return VoxelAssemblyCollisionMode::TaggedParts;
+    }
+
     nlohmann::json binding_state_to_json(const VoxelAssemblyBindingState& bindingState)
     {
         return {
@@ -126,7 +155,8 @@ namespace
             { "partId", part.partId },
             { "displayName", part.displayName },
             { "defaultModelAssetId", part.defaultModelAssetId },
-            { "visibleByDefault", part.visibleByDefault }
+            { "visibleByDefault", part.visibleByDefault },
+            { "contributesToCollision", part.contributesToCollision }
         };
 
         if (!part.slotId.empty())
@@ -152,6 +182,7 @@ namespace
         part.displayName = node.value("displayName", part.displayName);
         part.defaultModelAssetId = node.value("defaultModelAssetId", part.defaultModelAssetId);
         part.visibleByDefault = node.value("visibleByDefault", part.visibleByDefault);
+        part.contributesToCollision = node.value("contributesToCollision", part.contributesToCollision);
         part.slotId = node.value("slotId", part.slotId);
 
         if (node.contains("binding") && node.at("binding").is_object())
@@ -200,6 +231,33 @@ namespace
         return slot;
     }
 
+    nlohmann::json collision_definition_to_json(const VoxelAssemblyCollisionDefinition& collision)
+    {
+        return {
+            { "mode", collision_mode_to_string(collision.mode) },
+            { "customBoundsMin", vec3_to_json(collision.customBoundsMin) },
+            { "customBoundsMax", vec3_to_json(collision.customBoundsMax) }
+        };
+    }
+
+    VoxelAssemblyCollisionDefinition collision_definition_from_json(const nlohmann::json& node)
+    {
+        VoxelAssemblyCollisionDefinition collision{};
+        collision.mode = collision_mode_from_string(node.value("mode", std::string(collision_mode_to_string(collision.mode))));
+
+        if (node.contains("customBoundsMin") && node.at("customBoundsMin").is_object())
+        {
+            collision.customBoundsMin = vec3_from_json(node.at("customBoundsMin"), collision.customBoundsMin);
+        }
+
+        if (node.contains("customBoundsMax") && node.at("customBoundsMax").is_object())
+        {
+            collision.customBoundsMax = vec3_from_json(node.at("customBoundsMax"), collision.customBoundsMax);
+        }
+
+        return collision;
+    }
+
     nlohmann::json serialize(const VoxelAssemblyAsset& asset)
     {
         nlohmann::json parts = nlohmann::json::array();
@@ -219,6 +277,7 @@ namespace
             { "assetId", asset.assetId },
             { "displayName", asset.displayName },
             { "rootPartId", asset.rootPartId },
+            { "collision", collision_definition_to_json(asset.collision) },
             { "parts", std::move(parts) },
             { "slots", std::move(slots) }
         };
@@ -230,6 +289,11 @@ namespace
         asset.assetId = sanitize_asset_id(document.value("assetId", asset.assetId));
         asset.displayName = document.value("displayName", asset.displayName);
         asset.rootPartId = document.value("rootPartId", asset.rootPartId);
+
+        if (document.contains("collision") && document.at("collision").is_object())
+        {
+            asset.collision = collision_definition_from_json(document.at("collision"));
+        }
 
         if (document.contains("parts") && document.at("parts").is_array())
         {

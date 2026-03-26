@@ -4,6 +4,7 @@
 
 #include "components/character_body_component.h"
 #include "components/character_motor_component.h"
+#include "components/spatial_collider_component.h"
 #include "entity.h"
 #include "game/world_collision.h"
 #include "components/voxel_assembly_component.h"

@@ -155,7 +155,7 @@ VoxelEditorScene::~VoxelEditorScene()
     }
     if (_modelBoundsHandle.has_value())
     {
-        _renderState.opaqueObjects.remove(_modelBoundsHandle.value());
+        _renderState.transparentObjects.remove(_modelBoundsHandle.value());
         _modelBoundsHandle.reset();
     }
     if (_pivotMarkerHandle.has_value())
@@ -382,7 +382,7 @@ void VoxelEditorScene::build_pipelines()
             MaterialBinding::from_resource(1, 0, _lightingResource)
         },
         { translate },
-        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Opaque, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
+        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Alpha, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
         "tri_mesh.vert.spv",
         "tri_mesh.frag.spv",
         "chunkboundary");
@@ -620,11 +620,11 @@ void VoxelEditorScene::sync_marker_overlays()
         {
             _modelBoundsMesh = Mesh::create_box_outline_mesh(modelBounds.min, modelBounds.max, glm::vec3(1.0f, 0.40f, 0.18f));
             _services.meshManager->UploadQueue.enqueue(_modelBoundsMesh);
-            _modelBoundsHandle = _renderState.opaqueObjects.insert(RenderObject{
+            _modelBoundsHandle = _renderState.transparentObjects.insert(RenderObject{
                 .mesh = _modelBoundsMesh,
                 .material = _services.materialManager->get_material(VoxelEditorMaterialScope, "chunkboundary"),
                 .transform = glm::mat4(1.0f),
-                .layer = RenderLayer::Opaque,
+                .layer = RenderLayer::Transparent,
                 .lightingMode = LightingMode::Unlit
             });
         }

@@ -29,6 +29,12 @@ PlayerEntity::PlayerEntity(const glm::vec3& position) :
 {
     Add<CharacterBodyComponent>();
     Add<CharacterMotorComponent>();
+    auto& collider = Add<SpatialColliderComponent>();
+    collider.valid = true;
+    collider.localBounds = AABB{
+        .min = glm::vec3(-0.35f, 0.0f, -0.35f),
+        .max = glm::vec3(0.35f, 1.8f, 0.35f)
+    };
     auto& assemblyComponent = Add<VoxelAssemblyComponent>();
     assemblyComponent.position = position;
     assemblyComponent.placementPolicy = VoxelPlacementPolicy::BottomCenter;
@@ -151,7 +157,8 @@ void PlayerEntity::tick(const float deltaTime)
 
 AABB PlayerEntity::world_bounds() const noexcept
 {
-    return Get<CharacterBodyComponent>().world_bounds(_position);
+    const SpatialColliderComponent& collider = Get<SpatialColliderComponent>();
+    return collider.world_bounds(_position);
 }
 
 glm::vec3 PlayerEntity::body_facing() const noexcept

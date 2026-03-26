@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <string>
 #include <unordered_map>
 #include <vector>
 #include "camera.h"
@@ -12,16 +13,12 @@
 #include "render/scene_render_state.h"
 #include "render/mesh.h"
 #include "settings/game_settings.h"
-#include "config/json_document_store.h"
 #include "game/cube_engine.h"
+#include "physics/aabb.h"
 #include "world/terrain_gen.h"
 #include "world/dynamic_light_registry.h"
 #include "world/world_light_sampler.h"
-#include "voxel/voxel_asset_manager.h"
-#include "voxel/voxel_assembly_asset_manager.h"
-#include "voxel/voxel_assembly_repository.h"
 #include "voxel/voxel_component_render_adapter.h"
-#include "voxel/voxel_model_repository.h"
 #include "voxel/voxel_render_registry.h"
 
 
@@ -43,6 +40,16 @@ public:
 
     void draw_debug_map();
 private:
+    struct SpatialColliderDebugMeshCacheEntry
+    {
+        std::shared_ptr<Mesh> mesh{};
+        AABB localBounds{
+            .min = glm::vec3(0.0f),
+            .max = glm::vec3(0.0f)
+        };
+        bool boundsCached{false};
+    };
+
     struct CameraUBO {
         glm::mat4 projection;
         glm::mat4 view;
@@ -97,11 +104,6 @@ private:
     std::shared_ptr<Mesh> _targetBlockOutlineMesh;
     ChunkRenderRegistry _chunkRenderRegistry;
     ChunkDecorationRenderRegistry _chunkDecorationRenderRegistry;
-    config::JsonFileDocumentStore _voxelDocumentStore{};
-    VoxelModelRepository _voxelRepository;
-    VoxelAssemblyRepository _voxelAssemblyRepository;
-    VoxelAssetManager _voxelAssetManager;
-    VoxelAssemblyAssetManager _voxelAssemblyAssetManager;
     VoxelRenderRegistry _playerVoxelRenderRegistry;
     VoxelRenderRegistry _voxelRenderRegistry;
     world_lighting::DynamicLightRegistry _dynamicLightRegistry;
@@ -109,6 +111,7 @@ private:
     SceneServices _services;
     PlayerInputState _playerInput{};
     std::vector<dev_collections::sparse_set<RenderObject>::Handle> _chunkBoundaryHandles{};
+    std::vector<dev_collections::sparse_set<RenderObject>::Handle> _spatialColliderDebugHandles{};
     std::optional<dev_collections::sparse_set<RenderObject>::Handle> _targetBlockOutlineHandle{};
     settings::SettingsManager _settings{};
     int _viewDistanceDraft{GameConfig::DEFAULT_VIEW_DISTANCE};
@@ -136,10 +139,13 @@ private:
     int _selectedPlayerAssemblyIndex{-1};
     std::string _playerAssemblyAssetId{};
     std::string _playerAssemblyStatus{"No player assembly selected."};
+    bool _showSpatialColliderBounds{false};
+    std::unordered_map<std::string, SpatialColliderDebugMeshCacheEntry> _spatialColliderDebugMeshCache{};
 
     void create_camera();
     void sync_camera_to_game(float deltaTime);
     void sync_player_render_instance();
+    void sync_spatial_collider_debug();
     void refresh_player_assembly_assets();
     void sync_runtime_lights();
     void sync_target_block();
@@ -153,5 +159,7 @@ private:
     void apply_player_settings(const settings::PlayerRuntimeSettings& settings);
     void sync_world_gen_draft();
     void clear_target_block_outline();
+    void clear_spatial_collider_debug();
+    void release_spatial_collider_debug_meshes();
     void clear_chunk_boundary_debug();
 };

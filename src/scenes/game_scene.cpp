@@ -23,6 +23,16 @@ namespace
 {
     constexpr std::string_view GameSceneMaterialScope = "game";
 
+    bool equal_aabb(const AABB& lhs, const AABB& rhs) noexcept
+    {
+        return lhs.min.x == rhs.min.x &&
+            lhs.min.y == rhs.min.y &&
+            lhs.min.z == rhs.min.z &&
+            lhs.max.x == rhs.max.x &&
+            lhs.max.y == rhs.max.y &&
+            lhs.max.z == rhs.max.z;
+    }
+
     bool equal_spline_points(const std::vector<SplinePoint>& lhs, const std::vector<SplinePoint>& rhs)
     {
         if (lhs.size() != rhs.size())
@@ -345,10 +355,6 @@ namespace
 
 
 GameScene::GameScene(const SceneServices& services):
-    _voxelRepository(_voxelDocumentStore),
-    _voxelAssemblyRepository(_voxelDocumentStore),
-    _voxelAssetManager(_voxelRepository),
-    _voxelAssemblyAssetManager(_voxelAssemblyRepository),
     _services(services)
 {
     const ResourceBackendContext resourceBackend{
@@ -400,6 +406,8 @@ GameScene::GameScene(const SceneServices& services):
 GameScene::~GameScene()
 {
     clear_target_block_outline();
+    clear_spatial_collider_debug();
+    release_spatial_collider_debug_meshes();
     clear_chunk_boundary_debug();
     _chunkDecorationRenderRegistry.clear(_renderState);
     _playerVoxelRenderRegistry.clear(_renderState);
@@ -431,7 +439,7 @@ void GameScene::update_buffers() {
         _game.chunk_manager(),
         centerChunk,
         _settings.persistence().world.viewDistance,
-        _voxelAssetManager,
+        _game.voxel_asset_manager(),
         *_services.meshManager,
         *_services.materialManager,
         GameSceneMaterialScope,
@@ -440,6 +448,7 @@ void GameScene::update_buffers() {
     _playerVoxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, GameSceneMaterialScope, _renderState, _worldLightSampler.get());
     _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, GameSceneMaterialScope, _renderState, _worldLightSampler.get());
     sync_target_block_outline();
+    sync_spatial_collider_debug();
     sync_chunk_boundary_debug();
 	update_uniform_buffer();
     update_lighting_ubo();
@@ -644,7 +653,7 @@ void GameScene::build_pipelines()
             MaterialBinding::from_resource(1, 0, _lightingResource)
         },
         { translate },
-        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Opaque, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
+        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Alpha, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
         "tri_mesh.vert.spv",
         "tri_mesh.frag.spv",
         "chunkboundary"
@@ -697,6 +706,7 @@ void GameScene::draw_debug_map()
     };
 
 	ImGui::Begin("World Debug");
+    const std::vector<DebugSpatialColliderSnapshot> colliderSnapshots = _game.debug_spatial_colliders();
     if (ImGui::BeginTabBar("WorldDebugTabs"))
     {
         if (ImGui::BeginTabItem("Chunk Debug"))
@@ -793,8 +803,8 @@ void GameScene::draw_debug_map()
             }
 
             ImGui::TextWrapped("Loads a saved voxel asset and spawns a small shared-mesh prop cluster on terrain near the player.");
-            ImGui::Text("Repository Path: %s", _voxelRepository.resolve_path(_runtimeVoxelAssetId).string().c_str());
-            ImGui::Text("Loaded Assets: %llu", static_cast<unsigned long long>(_voxelAssetManager.loaded_asset_count()));
+            ImGui::Text("Repository Path: %s", _game.voxel_repository().resolve_path(_runtimeVoxelAssetId).string().c_str());
+            ImGui::Text("Loaded Assets: %llu", static_cast<unsigned long long>(_game.voxel_asset_manager().loaded_asset_count()));
             ImGui::Text("Active Instances: %llu", static_cast<unsigned long long>(_voxelRenderRegistry.instance_count()));
             ImGui::Text("Chunk Decoration Chunks: %llu", static_cast<unsigned long long>(_chunkDecorationRenderRegistry.active_chunk_count()));
             ImGui::Text("Chunk Decoration Instances: %llu", static_cast<unsigned long long>(_chunkDecorationRenderRegistry.active_instance_count()));
@@ -1010,7 +1020,7 @@ void GameScene::draw_debug_map()
             {
                 if (_savedPlayerAssemblyIds.empty())
                 {
-                    ImGui::TextDisabled("No saved .vxma assets found in %s", _voxelAssemblyRepository.root_path().string().c_str());
+                    ImGui::TextDisabled("No saved .vxma assets found in %s", _game.voxel_assembly_repository().root_path().string().c_str());
                 }
                 else
                 {
@@ -1050,6 +1060,8 @@ void GameScene::draw_debug_map()
             }
 
             ImGui::TextWrapped("%s", _playerAssemblyStatus.c_str());
+            ImGui::TextWrapped("Player world collision now comes from the active assembly's authored collision settings. Camera Target Offset remains a live gameplay tuning value.");
+            ImGui::TextWrapped("Live collider inspection and world-space collider overlays are in the Spatial Debug tab.");
 
             auto playerSettings = persistence.player;
             bool playerSettingsChanged = false;
@@ -1058,10 +1070,6 @@ void GameScene::draw_debug_map()
             playerSettingsChanged |= ImGui::SliderFloat("Gravity", &playerSettings.gravity, 0.0f, 60.0f, "%.2f");
             playerSettingsChanged |= ImGui::SliderFloat("Jump Velocity", &playerSettings.jumpVelocity, 0.0f, 20.0f, "%.2f");
             playerSettingsChanged |= ImGui::SliderFloat("Max Fall Speed", &playerSettings.maxFallSpeed, 0.0f, 80.0f, "%.2f");
-            ImGui::SeparatorText("Collision Body");
-            playerSettingsChanged |= ImGui::SliderFloat("Collision Half Width", &playerSettings.collisionHalfWidth, 0.0f, 2.0f, "%.2f");
-            playerSettingsChanged |= ImGui::SliderFloat("Collision Half Depth", &playerSettings.collisionHalfDepth, 0.0f, 2.0f, "%.2f");
-            playerSettingsChanged |= ImGui::SliderFloat("Collision Height", &playerSettings.collisionHeight, 0.0f, 4.0f, "%.2f");
             ImGui::SeparatorText("Camera");
             playerSettingsChanged |= ImGui::DragFloat3("Camera Target Offset", &playerSettings.cameraTargetOffset.x, 0.01f, -10.0f, 10.0f, "%.2f");
             if (playerSettingsChanged)
@@ -1070,6 +1078,69 @@ void GameScene::draw_debug_map()
                 {
                     updated.player = playerSettings;
                 });
+            }
+
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("Spatial Debug"))
+        {
+            if (ImGui::Checkbox("Show Spatial Collider Bounds In World", &_showSpatialColliderBounds))
+            {
+                if (!_showSpatialColliderBounds)
+                {
+                    clear_spatial_collider_debug();
+                    release_spatial_collider_debug_meshes();
+                }
+            }
+
+            ImGui::Text("%d runtime collider snapshot(s)", static_cast<int>(colliderSnapshots.size()));
+            if (colliderSnapshots.empty())
+            {
+                ImGui::TextDisabled("No spatial colliders are currently exposed by the runtime.");
+            }
+            else
+            {
+                for (size_t index = 0; index < colliderSnapshots.size(); ++index)
+                {
+                    const DebugSpatialColliderSnapshot& snapshot = colliderSnapshots[index];
+                    ImGui::PushID(static_cast<int>(index));
+                    if (ImGui::CollapsingHeader(snapshot.label.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        ImGui::Text("Id: %s", snapshot.id.c_str());
+                        ImGui::Text("Valid: %s", snapshot.valid ? "yes" : "no");
+                        ImGui::Text(
+                            "Origin: %.2f, %.2f, %.2f",
+                            snapshot.origin.x,
+                            snapshot.origin.y,
+                            snapshot.origin.z);
+                        ImGui::Text(
+                            "Local Bounds Min: %.2f, %.2f, %.2f",
+                            snapshot.localBounds.min.x,
+                            snapshot.localBounds.min.y,
+                            snapshot.localBounds.min.z);
+                        ImGui::Text(
+                            "Local Bounds Max: %.2f, %.2f, %.2f",
+                            snapshot.localBounds.max.x,
+                            snapshot.localBounds.max.y,
+                            snapshot.localBounds.max.z);
+                        ImGui::Text(
+                            "World Bounds Min: %.2f, %.2f, %.2f",
+                            snapshot.worldBounds.min.x,
+                            snapshot.worldBounds.min.y,
+                            snapshot.worldBounds.min.z);
+                        ImGui::Text(
+                            "World Bounds Max: %.2f, %.2f, %.2f",
+                            snapshot.worldBounds.max.x,
+                            snapshot.worldBounds.max.y,
+                            snapshot.worldBounds.max.z);
+                        if (!snapshot.diagnostic.empty())
+                        {
+                            ImGui::TextWrapped("Diagnostic: %s", snapshot.diagnostic.c_str());
+                        }
+                    }
+                    ImGui::PopID();
+                }
             }
 
             ImGui::EndTabItem();
@@ -1343,7 +1414,7 @@ void GameScene::sync_player_render_instance()
     }
 
     const VoxelComponentRenderBundle renderBundle =
-        build_voxel_component_render_bundle(*player, _voxelAssemblyAssetManager, _voxelAssetManager);
+        build_voxel_component_render_bundle(*player, _game.voxel_assembly_asset_manager(), _game.voxel_asset_manager());
     std::unordered_set<std::string> activePartIds{};
     activePartIds.reserve(renderBundle.entries.size());
     for (const VoxelComponentRenderEntry& entry : renderBundle.entries)
@@ -1391,9 +1462,76 @@ void GameScene::sync_player_render_instance()
     }
 }
 
+void GameScene::sync_spatial_collider_debug()
+{
+    clear_spatial_collider_debug();
+    if (!_showSpatialColliderBounds)
+    {
+        return;
+    }
+
+    const std::vector<DebugSpatialColliderSnapshot> snapshots = _game.debug_spatial_colliders();
+    std::unordered_set<std::string> activeSnapshotIds{};
+    activeSnapshotIds.reserve(snapshots.size());
+
+    const auto debugMaterial = _services.materialManager->get_material(GameSceneMaterialScope, "chunkboundary");
+    _spatialColliderDebugHandles.reserve(snapshots.size());
+
+    for (const DebugSpatialColliderSnapshot& snapshot : snapshots)
+    {
+        activeSnapshotIds.insert(snapshot.id);
+        if (!snapshot.valid)
+        {
+            continue;
+        }
+
+        SpatialColliderDebugMeshCacheEntry& cacheEntry = _spatialColliderDebugMeshCache[snapshot.id];
+        if (cacheEntry.mesh == nullptr ||
+            !cacheEntry.boundsCached ||
+            !equal_aabb(cacheEntry.localBounds, snapshot.localBounds))
+        {
+            if (cacheEntry.mesh != nullptr)
+            {
+                render::enqueue_mesh_release(std::move(cacheEntry.mesh));
+            }
+
+            cacheEntry.mesh = Mesh::create_box_outline_mesh(
+                snapshot.localBounds.min,
+                snapshot.localBounds.max,
+                glm::vec3(0.28f, 1.0f, 0.45f));
+            _services.meshManager->UploadQueue.enqueue(cacheEntry.mesh);
+            cacheEntry.localBounds = snapshot.localBounds;
+            cacheEntry.boundsCached = true;
+        }
+
+        _spatialColliderDebugHandles.push_back(_renderState.transparentObjects.insert(RenderObject{
+            .mesh = cacheEntry.mesh,
+            .material = debugMaterial,
+            .transform = glm::translate(glm::mat4(1.0f), snapshot.origin),
+            .layer = RenderLayer::Transparent,
+            .lightingMode = LightingMode::Unlit
+        }));
+    }
+
+    for (auto it = _spatialColliderDebugMeshCache.begin(); it != _spatialColliderDebugMeshCache.end();)
+    {
+        if (!activeSnapshotIds.contains(it->first))
+        {
+            if (it->second.mesh != nullptr)
+            {
+                render::enqueue_mesh_release(std::move(it->second.mesh));
+            }
+            it = _spatialColliderDebugMeshCache.erase(it);
+            continue;
+        }
+
+        ++it;
+    }
+}
+
 void GameScene::refresh_player_assembly_assets()
 {
-    _savedPlayerAssemblyIds = _voxelAssemblyRepository.list_asset_ids();
+    _savedPlayerAssemblyIds = _game.voxel_assembly_repository().list_asset_ids();
     _selectedPlayerAssemblyIndex = -1;
 
     if (_playerAssemblyAssetId.empty())
@@ -1444,14 +1582,14 @@ void GameScene::sync_target_block_outline()
     _services.meshManager->UploadQueue.enqueue(_targetBlockOutlineMesh);
     _outlinedBlockWorldPos = worldPos;
 
-    _targetBlockOutlineHandle = _renderState.opaqueObjects.insert(RenderObject{
+    _targetBlockOutlineHandle = _renderState.transparentObjects.insert(RenderObject{
         .mesh = _targetBlockOutlineMesh,
         .material = _services.materialManager->get_material(GameSceneMaterialScope, "chunkboundary"),
         .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
             static_cast<float>(chunkOrigin.x),
             0.0f,
             static_cast<float>(chunkOrigin.y))),
-        .layer = RenderLayer::Opaque,
+        .layer = RenderLayer::Transparent,
         .lightingMode = LightingMode::Unlit
     });
 }
@@ -1487,14 +1625,14 @@ void GameScene::sync_chunk_boundary_debug()
                 continue;
             }
 
-            _chunkBoundaryHandles.push_back(_renderState.opaqueObjects.insert(RenderObject{
+            _chunkBoundaryHandles.push_back(_renderState.transparentObjects.insert(RenderObject{
             .mesh = _chunkBoundaryMesh,
             .material = debugMaterial,
             .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
                 static_cast<float>(chunk->_data->position.x),
                 0.0f,
                 static_cast<float>(chunk->_data->position.y))),
-            .layer = RenderLayer::Opaque,
+            .layer = RenderLayer::Transparent,
             .lightingMode = LightingMode::Unlit
         }));
         }
@@ -1507,7 +1645,8 @@ void GameScene::rebuild_runtime_voxel_demo()
     _runtimeVoxelDemoDirty = false;
     _voxelRenderRegistry.clear(_renderState);
 
-    if (_voxelAssetManager.find_loaded(_runtimeVoxelAssetId) == nullptr && _voxelAssetManager.load_or_get(_runtimeVoxelAssetId) == nullptr)
+    if (_game.voxel_asset_manager().find_loaded(_runtimeVoxelAssetId) == nullptr &&
+        _game.voxel_asset_manager().load_or_get(_runtimeVoxelAssetId) == nullptr)
     {
         _runtimeVoxelStatus = std::format(
             "Could not load voxel asset '{}'. Save a model in the voxel editor first.",
@@ -1534,7 +1673,8 @@ void GameScene::rebuild_runtime_voxel_demo()
         component.placementPolicy = VoxelPlacementPolicy::BottomCenter;
         component.visible = true;
 
-        const std::optional<VoxelRenderInstance> renderInstance = build_voxel_render_instance(component, _voxelAssetManager);
+        const std::optional<VoxelRenderInstance> renderInstance =
+            build_voxel_render_instance(component, _game.voxel_asset_manager());
         if (!renderInstance.has_value())
         {
             continue;
@@ -1566,7 +1706,7 @@ void GameScene::clear_chunk_boundary_debug()
 {
     for (const auto handle : _chunkBoundaryHandles)
     {
-        _renderState.opaqueObjects.remove(handle);
+        _renderState.transparentObjects.remove(handle);
     }
 
     _chunkBoundaryHandles.clear();
@@ -1576,9 +1716,32 @@ void GameScene::clear_target_block_outline()
 {
     if (_targetBlockOutlineHandle.has_value())
     {
-        _renderState.opaqueObjects.remove(_targetBlockOutlineHandle.value());
+        _renderState.transparentObjects.remove(_targetBlockOutlineHandle.value());
         _targetBlockOutlineHandle.reset();
     }
+}
+
+void GameScene::clear_spatial_collider_debug()
+{
+    for (const auto handle : _spatialColliderDebugHandles)
+    {
+        _renderState.transparentObjects.remove(handle);
+    }
+
+    _spatialColliderDebugHandles.clear();
+}
+
+void GameScene::release_spatial_collider_debug_meshes()
+{
+    for (auto& [id, cacheEntry] : _spatialColliderDebugMeshCache)
+    {
+        if (cacheEntry.mesh != nullptr)
+        {
+            render::enqueue_mesh_release(std::move(cacheEntry.mesh));
+        }
+    }
+
+    _spatialColliderDebugMeshCache.clear();
 }
 
 void GameScene::bind_settings()
@@ -1630,8 +1793,6 @@ void GameScene::apply_ambient_occlusion_settings(const settings::AmbientOcclusio
 void GameScene::apply_player_settings(const settings::PlayerRuntimeSettings& settings)
 {
     CharacterBodyComponent body{};
-    body.collisionHalfExtents = glm::vec2(settings.collisionHalfWidth, settings.collisionHalfDepth);
-    body.collisionHeight = settings.collisionHeight;
     body.cameraTargetOffset = settings.cameraTargetOffset;
 
     _game.configure_player(

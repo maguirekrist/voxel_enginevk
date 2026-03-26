@@ -48,9 +48,6 @@ namespace config
                     { "gravity", settings.player.gravity },
                     { "jumpVelocity", settings.player.jumpVelocity },
                     { "maxFallSpeed", settings.player.maxFallSpeed },
-                    { "collisionHalfWidth", settings.player.collisionHalfWidth },
-                    { "collisionHalfDepth", settings.player.collisionHalfDepth },
-                    { "collisionHeight", settings.player.collisionHeight },
                     { "cameraTargetOffset", vec3_to_json(settings.player.cameraTargetOffset) },
                     { "flyModeEnabled", settings.player.flyModeEnabled }
                 } },
@@ -115,9 +112,6 @@ namespace config
                 settings.player.gravity = player.value("gravity", settings.player.gravity);
                 settings.player.jumpVelocity = player.value("jumpVelocity", settings.player.jumpVelocity);
                 settings.player.maxFallSpeed = player.value("maxFallSpeed", settings.player.maxFallSpeed);
-                settings.player.collisionHalfWidth = player.value("collisionHalfWidth", settings.player.collisionHalfWidth);
-                settings.player.collisionHalfDepth = player.value("collisionHalfDepth", settings.player.collisionHalfDepth);
-                settings.player.collisionHeight = player.value("collisionHeight", settings.player.collisionHeight);
                 read_vec3(player, "cameraTargetOffset", settings.player.cameraTargetOffset);
                 settings.player.flyModeEnabled = player.value("flyModeEnabled", settings.player.flyModeEnabled);
             }

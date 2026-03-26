@@ -64,12 +64,12 @@ namespace
     }
 }
 
-VoxelAssemblyRenderBundle build_voxel_assembly_render_bundle(
+VoxelAssemblyLocalBundle build_voxel_assembly_local_bundle(
     const VoxelAssemblyComponent& component,
     VoxelAssemblyAssetManager& assemblyAssetManager,
     VoxelAssetManager& assetManager)
 {
-    VoxelAssemblyRenderBundle bundle{};
+    VoxelAssemblyLocalBundle bundle{};
     if (!component.visible || component.assetId.empty())
     {
         return bundle;
@@ -215,16 +215,40 @@ VoxelAssemblyRenderBundle build_voxel_assembly_render_bundle(
     bundle.parts.reserve(localResolvedParts.size());
     for (const VoxelAssemblyResolvedPart& localPart : localResolvedParts)
     {
+        VoxelRenderInstance localInstance = localPart.renderInstance;
+        localInstance.position = (localPart.renderInstance.position - placementAnchor) * component.scale;
+        localInstance.scale = component.scale * localPart.renderInstance.scale;
+        localInstance.renderAnchorOffset = glm::vec3(0.0f);
+        localInstance.lightingMode = component.lightingMode;
+        localInstance.lightSampleOffset = component.lightSampleOffset;
+        localInstance.lightAffectMask = component.lightAffectMask;
+        localInstance.visible = localPart.renderInstance.visible;
+        bundle.parts.push_back(VoxelAssemblyResolvedPart{
+            .partId = localPart.partId,
+            .renderInstance = localInstance
+        });
+    }
+
+    return bundle;
+}
+
+VoxelAssemblyRenderBundle build_voxel_assembly_render_bundle(
+    const VoxelAssemblyComponent& component,
+    VoxelAssemblyAssetManager& assemblyAssetManager,
+    VoxelAssetManager& assetManager)
+{
+    const VoxelAssemblyLocalBundle localBundle =
+        build_voxel_assembly_local_bundle(component, assemblyAssetManager, assetManager);
+
+    VoxelAssemblyRenderBundle bundle{};
+    bundle.assemblyAssetId = localBundle.assemblyAssetId;
+    bundle.diagnostic = localBundle.diagnostic;
+    bundle.parts.reserve(localBundle.parts.size());
+    for (const VoxelAssemblyResolvedPart& localPart : localBundle.parts)
+    {
         VoxelRenderInstance worldInstance = localPart.renderInstance;
-        worldInstance.position = component.position +
-            (component.rotation * ((localPart.renderInstance.position - placementAnchor) * component.scale));
+        worldInstance.position = component.position + (component.rotation * localPart.renderInstance.position);
         worldInstance.rotation = component.rotation * localPart.renderInstance.rotation;
-        worldInstance.scale = component.scale * localPart.renderInstance.scale;
-        worldInstance.renderAnchorOffset = glm::vec3(0.0f);
-        worldInstance.lightingMode = component.lightingMode;
-        worldInstance.lightSampleOffset = component.lightSampleOffset;
-        worldInstance.lightAffectMask = component.lightAffectMask;
-        worldInstance.visible = localPart.renderInstance.visible;
         bundle.parts.push_back(VoxelAssemblyResolvedPart{
             .partId = localPart.partId,
             .renderInstance = worldInstance

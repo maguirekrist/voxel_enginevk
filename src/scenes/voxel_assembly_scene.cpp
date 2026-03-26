@@ -1,10 +1,12 @@
 #include "voxel_assembly_scene.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <exception>
 #include <format>
 #include <functional>
+#include <ranges>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -101,8 +103,13 @@ VoxelAssemblyScene::~VoxelAssemblyScene()
     clear_preview();
     if (_assemblyBoundsHandle.has_value())
     {
-        _renderState.opaqueObjects.remove(_assemblyBoundsHandle.value());
+        _renderState.transparentObjects.remove(_assemblyBoundsHandle.value());
         _assemblyBoundsHandle.reset();
+    }
+    if (_collisionBoundsHandle.has_value())
+    {
+        _renderState.transparentObjects.remove(_collisionBoundsHandle.value());
+        _collisionBoundsHandle.reset();
     }
     if (_assemblyRootPivotHandle.has_value())
     {
@@ -111,13 +118,8 @@ VoxelAssemblyScene::~VoxelAssemblyScene()
     }
     if (_selectedPartBoundsHandle.has_value())
     {
-        _renderState.opaqueObjects.remove(_selectedPartBoundsHandle.value());
+        _renderState.transparentObjects.remove(_selectedPartBoundsHandle.value());
         _selectedPartBoundsHandle.reset();
-    }
-    if (_assemblyBoundsHandle.has_value())
-    {
-        _renderState.opaqueObjects.remove(_assemblyBoundsHandle.value());
-        _assemblyBoundsHandle.reset();
     }
     if (_assemblyRootPivotHandle.has_value())
     {
@@ -281,7 +283,7 @@ void VoxelAssemblyScene::build_pipelines()
             MaterialBinding::from_resource(1, 0, _lightingResource)
         },
         { translate },
-        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Opaque, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
+        { .depthTest = true, .depthWrite = false, .compareOp = VK_COMPARE_OP_LESS_OR_EQUAL, .blendMode = BlendMode::Alpha, .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST },
         "tri_mesh.vert.spv",
         "tri_mesh.frag.spv",
         "chunkboundary");
@@ -522,13 +524,18 @@ void VoxelAssemblyScene::sync_selection_overlay()
 
     if (_selectedPartBoundsHandle.has_value())
     {
-        _renderState.opaqueObjects.remove(_selectedPartBoundsHandle.value());
+        _renderState.transparentObjects.remove(_selectedPartBoundsHandle.value());
         _selectedPartBoundsHandle.reset();
     }
     if (_selectedPartPivotHandle.has_value())
     {
         _renderState.opaqueObjects.remove(_selectedPartPivotHandle.value());
         _selectedPartPivotHandle.reset();
+    }
+    if (_collisionBoundsHandle.has_value())
+    {
+        _renderState.transparentObjects.remove(_collisionBoundsHandle.value());
+        _collisionBoundsHandle.reset();
     }
     if (_parentAttachmentMarkerHandle.has_value())
     {
@@ -559,6 +566,38 @@ void VoxelAssemblyScene::sync_selection_overlay()
         assemblyBounds = evaluate_voxel_render_instances_bounds(resolvedInstances);
     }
 
+    VoxelSpatialBounds collisionBounds{};
+    if (_showCollisionBounds)
+    {
+        switch (_assembly.collision.mode)
+        {
+        case VoxelAssemblyCollisionMode::CustomBounds:
+            collisionBounds = VoxelSpatialBounds{
+                .valid = true,
+                .min = _assembly.collision.customBoundsMin,
+                .max = _assembly.collision.customBoundsMax
+            };
+            break;
+
+        case VoxelAssemblyCollisionMode::TaggedParts:
+            for (const auto& [partId, instance] : _resolvedPreviewInstances)
+            {
+                const VoxelAssemblyPartDefinition* const previewPart = _assembly.find_part(partId);
+                if (previewPart == nullptr || !previewPart->contributesToCollision || !instance.is_renderable())
+                {
+                    continue;
+                }
+
+                collisionBounds = union_bounds(collisionBounds, evaluate_voxel_render_instance_bounds(instance));
+            }
+            break;
+
+        case VoxelAssemblyCollisionMode::None:
+        default:
+            break;
+        }
+    }
+
     if (_showAssemblyBounds)
     {
         if (assemblyBounds.valid)
@@ -568,14 +607,30 @@ void VoxelAssemblyScene::sync_selection_overlay()
                 assemblyBounds.max,
                 glm::vec3(1.0f, 0.40f, 0.18f));
             _services.meshManager->UploadQueue.enqueue(_assemblyBoundsMesh);
-            _assemblyBoundsHandle = _renderState.opaqueObjects.insert(RenderObject{
+            _assemblyBoundsHandle = _renderState.transparentObjects.insert(RenderObject{
                 .mesh = _assemblyBoundsMesh,
                 .material = _services.materialManager->get_material(VoxelAssemblyMaterialScope, "chunkboundary"),
                 .transform = glm::mat4(1.0f),
-                .layer = RenderLayer::Opaque,
+                .layer = RenderLayer::Transparent,
                 .lightingMode = LightingMode::Unlit
             });
         }
+    }
+
+    if (_showCollisionBounds && collisionBounds.valid)
+    {
+        _collisionBoundsMesh = Mesh::create_box_outline_mesh(
+            collisionBounds.min,
+            collisionBounds.max,
+            glm::vec3(0.28f, 1.0f, 0.45f));
+        _services.meshManager->UploadQueue.enqueue(_collisionBoundsMesh);
+        _collisionBoundsHandle = _renderState.transparentObjects.insert(RenderObject{
+            .mesh = _collisionBoundsMesh,
+            .material = _services.materialManager->get_material(VoxelAssemblyMaterialScope, "chunkboundary"),
+            .transform = glm::mat4(1.0f),
+            .layer = RenderLayer::Transparent,
+            .lightingMode = LightingMode::Unlit
+        });
     }
 
     if (_showAssemblyRootPivot)
@@ -617,11 +672,11 @@ void VoxelAssemblyScene::sync_selection_overlay()
         {
             _selectedPartBoundsMesh = Mesh::create_box_outline_mesh(partLocalBounds.min, partLocalBounds.max, glm::vec3(0.28f, 0.92f, 1.0f));
             _services.meshManager->UploadQueue.enqueue(_selectedPartBoundsMesh);
-            _selectedPartBoundsHandle = _renderState.opaqueObjects.insert(RenderObject{
+            _selectedPartBoundsHandle = _renderState.transparentObjects.insert(RenderObject{
                 .mesh = _selectedPartBoundsMesh,
                 .material = _services.materialManager->get_material(VoxelAssemblyMaterialScope, "chunkboundary"),
                 .transform = instance.model_matrix(),
-                .layer = RenderLayer::Opaque,
+                .layer = RenderLayer::Transparent,
                 .lightingMode = LightingMode::Unlit
             });
         }
@@ -714,6 +769,10 @@ void VoxelAssemblyScene::release_selection_meshes()
     if (_assemblyRootPivotMesh != nullptr)
     {
         render::enqueue_mesh_release(std::move(_assemblyRootPivotMesh));
+    }
+    if (_collisionBoundsMesh != nullptr)
+    {
+        render::enqueue_mesh_release(std::move(_collisionBoundsMesh));
     }
     if (_selectedPartBoundsMesh != nullptr)
     {
@@ -1175,6 +1234,7 @@ std::vector<std::string> VoxelAssemblyScene::collect_validation_messages()
     std::unordered_set<std::string> partIds{};
     std::unordered_set<std::string> slotIds{};
     std::unordered_map<std::string, std::string> defaultParentByPart{};
+    bool hasCollisionContributor = false;
 
     if (_assembly.rootPartId.empty())
     {
@@ -1185,9 +1245,20 @@ std::vector<std::string> VoxelAssemblyScene::collect_validation_messages()
         messages.push_back(std::format("Root part '{}' does not exist.", _assembly.rootPartId));
     }
 
+    if (_assembly.collision.mode == VoxelAssemblyCollisionMode::CustomBounds)
+    {
+        const glm::vec3& min = _assembly.collision.customBoundsMin;
+        const glm::vec3& max = _assembly.collision.customBoundsMax;
+        if (min.x > max.x || min.y > max.y || min.z > max.z)
+        {
+            messages.push_back("Assembly custom collision bounds are invalid: min must be <= max.");
+        }
+    }
+
     for (const VoxelAssemblyPartDefinition& part : _assembly.parts)
     {
         std::unordered_set<std::string> stateIds{};
+        hasCollisionContributor = hasCollisionContributor || part.contributesToCollision;
 
         if (part.partId.empty())
         {
@@ -1371,6 +1442,11 @@ std::vector<std::string> VoxelAssemblyScene::collect_validation_messages()
         }
     }
 
+    if (_assembly.collision.mode == VoxelAssemblyCollisionMode::TaggedParts && !hasCollisionContributor)
+    {
+        messages.push_back("Assembly collision mode is tagged_parts but no part contributes to collision.");
+    }
+
     return messages;
 }
 
@@ -1496,6 +1572,20 @@ void VoxelAssemblyScene::draw_editor_window()
         return slot.slotId;
     };
 
+    const auto collision_mode_label = [](const VoxelAssemblyCollisionMode mode)
+    {
+        switch (mode)
+        {
+        case VoxelAssemblyCollisionMode::None:
+            return "None";
+        case VoxelAssemblyCollisionMode::CustomBounds:
+            return "Custom Bounds";
+        case VoxelAssemblyCollisionMode::TaggedParts:
+        default:
+            return "Tagged Parts";
+        }
+    };
+
     char assetIdBuffer[128]{};
     copy_cstr_truncating(assetIdBuffer, _assembly.assetId);
     if (ImGui::InputText("Asset Id", assetIdBuffer, IM_ARRAYSIZE(assetIdBuffer)))
@@ -1547,6 +1637,51 @@ void VoxelAssemblyScene::draw_editor_window()
         }
 
         ImGui::EndCombo();
+    }
+
+    ImGui::SeparatorText("Collision");
+    ImGui::TextWrapped("Assembly collision is authored here and evaluated by generic runtime systems. Tagged parts mode includes only parts flagged as contributing to collision.");
+    const char* collisionModeLabel = collision_mode_label(_assembly.collision.mode);
+    if (ImGui::BeginCombo("Collision Mode", collisionModeLabel))
+    {
+        const std::array modes{
+            VoxelAssemblyCollisionMode::TaggedParts,
+            VoxelAssemblyCollisionMode::CustomBounds,
+            VoxelAssemblyCollisionMode::None
+        };
+        for (const VoxelAssemblyCollisionMode mode : modes)
+        {
+            const bool selected = _assembly.collision.mode == mode;
+            if (ImGui::Selectable(collision_mode_label(mode), selected))
+            {
+                apply_assembly_edit("Change collision mode", [mode](VoxelAssemblyAsset& assembly)
+                {
+                    assembly.collision.mode = mode;
+                });
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    if (_assembly.collision.mode == VoxelAssemblyCollisionMode::CustomBounds)
+    {
+        glm::vec3 customMin = _assembly.collision.customBoundsMin;
+        if (ImGui::DragFloat3("Collision Bounds Min", &customMin.x, 0.01f, -64.0f, 64.0f, "%.2f"))
+        {
+            apply_assembly_edit("Edit collision bounds min", [customMin](VoxelAssemblyAsset& assembly)
+            {
+                assembly.collision.customBoundsMin = customMin;
+            });
+        }
+
+        glm::vec3 customMax = _assembly.collision.customBoundsMax;
+        if (ImGui::DragFloat3("Collision Bounds Max", &customMax.x, 0.01f, -64.0f, 64.0f, "%.2f"))
+        {
+            apply_assembly_edit("Edit collision bounds max", [customMax](VoxelAssemblyAsset& assembly)
+            {
+                assembly.collision.customBoundsMax = customMax;
+            });
+        }
     }
 
     if (ImGui::Button("New Assembly"))
@@ -1602,6 +1737,11 @@ void VoxelAssemblyScene::draw_editor_window()
     ImGui::TextWrapped("The selected part previews the binding state chosen below. Other parts use their default state.");
     ImGui::TextDisabled("Orientation Standard: +X forward, +Y up. Assembly root pivot is the assembly-space origin.");
     if (ImGui::Checkbox("Show Assembly Bounds", &_showAssemblyBounds))
+    {
+        _selectionOverlayDirty = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Show Collision Bounds", &_showCollisionBounds))
     {
         _selectionOverlayDirty = true;
     }
@@ -1968,6 +2108,19 @@ void VoxelAssemblyScene::draw_editor_window()
                 if (partIndex >= 0 && partIndex < static_cast<int>(assembly.parts.size()))
                 {
                     assembly.parts[static_cast<size_t>(partIndex)].visibleByDefault = visibleByDefault;
+                }
+            });
+        }
+
+        bool contributesToCollision = part.contributesToCollision;
+        if (ImGui::Checkbox("Contributes To Collision", &contributesToCollision))
+        {
+            const int partIndex = _selectedPartIndex;
+            apply_assembly_edit("Toggle part collision contribution", [partIndex, contributesToCollision](VoxelAssemblyAsset& assembly)
+            {
+                if (partIndex >= 0 && partIndex < static_cast<int>(assembly.parts.size()))
+                {
+                    assembly.parts[static_cast<size_t>(partIndex)].contributesToCollision = contributesToCollision;
                 }
             });
         }
@@ -2576,6 +2729,11 @@ void VoxelAssemblyScene::draw_editor_window()
     ImGui::Text("Root Part: %s", _assembly.rootPartId.empty() ? "<none>" : _assembly.rootPartId.c_str());
     ImGui::Text("Part Count: %d", static_cast<int>(_assembly.parts.size()));
     ImGui::Text("Slot Count: %d", static_cast<int>(_assembly.slots.size()));
+    ImGui::Text("Collision Mode: %s", collision_mode_label(_assembly.collision.mode));
+    ImGui::Text("Collision Contributors: %d", static_cast<int>(std::ranges::count_if(_assembly.parts, [](const VoxelAssemblyPartDefinition& part)
+    {
+        return part.contributesToCollision;
+    })));
     ImGui::TextUnformatted("Phase 3: parent selection, attachment selection, binding editing, slot authoring, selection overlays, and validation are active.");
 
     ImGui::SeparatorText("Validation");

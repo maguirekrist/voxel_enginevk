@@ -1,7 +1,12 @@
 include(GoogleTest)
 
 add_executable(engine_tests
-    engine_tests.cpp
+    test_support.cpp
+    world_tests.cpp
+    gameplay_tests.cpp
+    settings_tests.cpp
+    voxel_asset_tests.cpp
+    voxel_geometry_tests.cpp
     ../src/settings/game_settings.cpp
     ../src/config/config_paths.cpp
     ../src/config/json_document_store.cpp
@@ -25,6 +30,7 @@ add_executable(engine_tests
     ../src/voxel/voxel_component_render_adapter.cpp
     ../src/voxel/voxel_model_component_adapter.cpp
     ../src/voxel/voxel_placement.cpp
+    ../src/voxel/voxel_spatial_collider.cpp
     ../src/voxel/voxel_spatial_bounds.cpp
     ../src/voxel/voxel_render_instance.cpp
     ../src/voxel/voxel_mesher.cpp

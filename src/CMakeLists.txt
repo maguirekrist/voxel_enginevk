@@ -136,6 +136,7 @@ add_executable(vulkan_guide
         components/player_input_component.h
         components/character_body_component.h
         components/character_motor_component.h
+        components/spatial_collider_component.h
         components/voxel_assembly_component.h
         components/voxel_model_component.h
         components/game_object.h
@@ -146,6 +147,8 @@ add_executable(vulkan_guide
         voxel/voxel_assembly_component_adapter.cpp
         voxel/voxel_component_render_adapter.h
         voxel/voxel_component_render_adapter.cpp
+        voxel/voxel_spatial_collider.h
+        voxel/voxel_spatial_collider.cpp
         world/thread_pool.cpp
         world/thread_pool.h
         world/neighbor_barrier.cpp

@@ -67,9 +67,6 @@ namespace settings
         float gravity{24.0f};
         float jumpVelocity{8.5f};
         float maxFallSpeed{30.0f};
-        float collisionHalfWidth{0.35f};
-        float collisionHalfDepth{0.35f};
-        float collisionHeight{1.8f};
         glm::vec3 cameraTargetOffset{0.0f, 1.4f, 0.0f};
         bool flyModeEnabled{false};
     };
@@ -103,9 +100,6 @@ namespace settings
         float gravity{24.0f};
         float jumpVelocity{8.5f};
         float maxFallSpeed{30.0f};
-        float collisionHalfWidth{0.35f};
-        float collisionHalfDepth{0.35f};
-        float collisionHeight{1.8f};
         glm::vec3 cameraTargetOffset{0.0f, 1.4f, 0.0f};
         bool flyModeEnabled{false};
     };

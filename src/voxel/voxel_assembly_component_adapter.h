@@ -14,6 +14,18 @@ struct VoxelAssemblyResolvedPart
     VoxelRenderInstance renderInstance{};
 };
 
+struct VoxelAssemblyLocalBundle
+{
+    std::string assemblyAssetId{};
+    std::vector<VoxelAssemblyResolvedPart> parts{};
+    std::string diagnostic{};
+
+    [[nodiscard]] bool has_error() const noexcept
+    {
+        return !diagnostic.empty();
+    }
+};
+
 struct VoxelAssemblyRenderBundle
 {
     std::string assemblyAssetId{};
@@ -25,6 +37,11 @@ struct VoxelAssemblyRenderBundle
         return !diagnostic.empty();
     }
 };
+
+[[nodiscard]] VoxelAssemblyLocalBundle build_voxel_assembly_local_bundle(
+    const VoxelAssemblyComponent& component,
+    VoxelAssemblyAssetManager& assemblyAssetManager,
+    VoxelAssetManager& assetManager);
 
 [[nodiscard]] VoxelAssemblyRenderBundle build_voxel_assembly_render_bundle(
     const VoxelAssemblyComponent& component,

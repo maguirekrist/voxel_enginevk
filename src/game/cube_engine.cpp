@@ -2,6 +2,8 @@
 #include "cube_engine.h"
 #include "tracy/Tracy.hpp"
 #include "camera.h"
+#include "components/spatial_collider_component.h"
+#include "voxel/voxel_spatial_collider.h"
 
 CubeEngine::CubeEngine()
 {
@@ -50,6 +52,15 @@ void CubeEngine::update(const float deltaTime)
 
     _player->tick(deltaTime);
     apply_player_input();
+    if (_player->Has<SpatialColliderComponent>())
+    {
+        SpatialColliderComponent& collider = _player->Get<SpatialColliderComponent>();
+        const VoxelSpatialColliderEvaluation evaluation =
+            evaluate_voxel_local_collider(*_player, _voxelAssemblyAssetManager, _voxelAssetManager);
+        collider.valid = evaluation.valid;
+        collider.localBounds = evaluation.localBounds;
+        collider.diagnostic = evaluation.diagnostic;
+    }
     _player->simulate(deltaTime, _worldCollision);
 
     _chunkManager.update_player_position(_player->_position);
@@ -77,6 +88,27 @@ const Block* CubeEngine::get_block(const glm::vec3& worldPos) const
 std::optional<RaycastResult> CubeEngine::raycast_target_block(const glm::vec3& origin, const glm::vec3& direction, const float maxDistance)
 {
     return Camera::get_target_block(_world, origin, direction, maxDistance);
+}
+
+std::vector<DebugSpatialColliderSnapshot> CubeEngine::debug_spatial_colliders() const
+{
+    std::vector<DebugSpatialColliderSnapshot> snapshots{};
+    if (_player == nullptr || !_player->Has<SpatialColliderComponent>())
+    {
+        return snapshots;
+    }
+
+    const SpatialColliderComponent& collider = _player->Get<SpatialColliderComponent>();
+    snapshots.push_back(DebugSpatialColliderSnapshot{
+        .id = "player",
+        .label = "Player",
+        .origin = _player->_position,
+        .localBounds = collider.localBounds,
+        .worldBounds = collider.world_bounds(_player->_position),
+        .valid = collider.valid,
+        .diagnostic = collider.diagnostic
+    });
+    return snapshots;
 }
 
 void CubeEngine::apply_block_edit(const BlockEdit& edit)
@@ -137,4 +169,34 @@ void CubeEngine::refresh_snapshot()
 const PlayerEntity* CubeEngine::player() const noexcept
 {
     return _player.get();
+}
+
+VoxelModelRepository& CubeEngine::voxel_repository() noexcept
+{
+    return _voxelRepository;
+}
+
+const VoxelModelRepository& CubeEngine::voxel_repository() const noexcept
+{
+    return _voxelRepository;
+}
+
+VoxelAssemblyRepository& CubeEngine::voxel_assembly_repository() noexcept
+{
+    return _voxelAssemblyRepository;
+}
+
+const VoxelAssemblyRepository& CubeEngine::voxel_assembly_repository() const noexcept
+{
+    return _voxelAssemblyRepository;
+}
+
+VoxelAssetManager& CubeEngine::voxel_asset_manager() noexcept
+{
+    return _voxelAssetManager;
+}
+
+VoxelAssemblyAssetManager& CubeEngine::voxel_assembly_asset_manager() noexcept
+{
+    return _voxelAssemblyAssetManager;
 }
