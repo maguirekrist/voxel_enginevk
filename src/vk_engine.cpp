@@ -124,6 +124,7 @@ void VulkanEngine::cleanup()
 
 void VulkanEngine::handle_input()
 {	
+	ZoneScopedN("Handle Input");
     Scene& currentScene = *_sceneRenderer.get_current_scene();
     const WindowEventState eventState = _windowSystem.poll_events(currentScene.wants_mouse_capture(), [this](const SDL_Event& event)
     {
@@ -322,7 +323,10 @@ void VulkanEngine::run()
 
 			handle_input();
 
-			_sceneRenderer.get_current_scene()->update(_deltaTime);
+			{
+				ZoneScopedN("Scene Update");
+				_sceneRenderer.get_current_scene()->update(_deltaTime);
+			}
 
 			if (bResizeRequest) {
 				resize_swapchain();
@@ -330,6 +334,7 @@ void VulkanEngine::run()
 			}
 
 			draw();
+			FrameMark;
 		}
 		catch (const std::exception& ex)
 		{
