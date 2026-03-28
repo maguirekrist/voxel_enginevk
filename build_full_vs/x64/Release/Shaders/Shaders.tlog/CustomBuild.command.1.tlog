@@ -1,0 +1,108 @@
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\E75D61142DC89316A727DD4A957F4B0B\FOG.COMP.SPV.RULE
+setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\E75D61142DC89316A727DD4A957F4B0B\PRESENT_FULL.FRAG.SPV.RULE
+setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\E75D61142DC89316A727DD4A957F4B0B\PRESENT_FULL.VERT.SPV.RULE
+setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\E75D61142DC89316A727DD4A957F4B0B\TRI_MESH.FRAG.SPV.RULE
+setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\E75D61142DC89316A727DD4A957F4B0B\TRI_MESH.VERT.SPV.RULE
+setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\E75D61142DC89316A727DD4A957F4B0B\WATER_MESH.FRAG.SPV.RULE
+setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\E75D61142DC89316A727DD4A957F4B0B\WATER_MESH.VERT.SPV.RULE
+setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\E75D61142DC89316A727DD4A957F4B0B\WIRE_MESH.FRAG.SPV.RULE
+setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\E75D61142DC89316A727DD4A957F4B0B\WIRE_MESH.VERT.SPV.RULE
+setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\BUILD_FULL_VS\CMAKEFILES\F66F2887FE43F3C7219733456838A233\SHADERS.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\MAGUI\.CODEX\WORKTREES\F1B2\VOXEL_ENGINEVK\CMAKELISTS.TXT
+setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

@@ -1,0 +1,225 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ResolveNugetPackages>false</ResolveNugetPackages>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{39CBF363-B525-3184-8472-A37DFA64D2A4}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>ALL_BUILD</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCXXCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeRCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCXXCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeRCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCXXCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeRCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCXXCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeRCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\ZERO_CHECK.vcxproj">
+      <Project>{3A675A06-8D0C-370C-9F60-93A16F73CFD7}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\third_party\FastNoise2\src\FastNoise.vcxproj">
+      <Project>{B03FEF1D-5FD2-389B-858C-406FFA6B4A1E}</Project>
+      <Name>FastNoise</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\SDL2.vcxproj">
+      <Project>{642D3D9D-EE84-3255-85B7-A5FE1C24B18E}</Project>
+      <Name>SDL2</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\SDL2-static.vcxproj">
+      <Project>{8299710A-4A90-3787-8FC2-A88CD683B6E7}</Project>
+      <Name>SDL2-static</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\SDL2_test.vcxproj">
+      <Project>{3AC01092-7EBC-33F9-90F3-43359D2E80F0}</Project>
+      <Name>SDL2_test</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\SDL2main.vcxproj">
+      <Project>{4AE70BA3-D07B-3E0F-872F-D14D01B68E29}</Project>
+      <Name>SDL2main</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\third_party\tracy\TracyClient.vcxproj">
+      <Project>{59229B2B-CE6C-3D3E-BB31-5FB8BFADECE3}</Project>
+      <Name>TracyClient</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\third_party\fmt\fmt.vcxproj">
+      <Project>{5A105CCA-F9E8-3906-A2EA-C1A4D8484017}</Project>
+      <Name>fmt</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\third_party\imgui.vcxproj">
+      <Project>{3785A661-7261-3FFE-9EBF-3B7EFFEA1620}</Project>
+      <Name>imgui</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\third_party\tinyobjloader.vcxproj">
+      <Project>{81E20549-2504-3C77-AC0A-D6A5A125689B}</Project>
+      <Name>tinyobjloader</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\third_party\vkbootstrap.vcxproj">
+      <Project>{CFD43819-9742-3939-9F1A-1B794A27DE8F}</Project>
+      <Name>vkbootstrap</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\src\vulkan_guide.vcxproj">
+      <Project>{C0B5E1E5-D2BA-3D02-9D52-5498F78CBB73}</Project>
+      <Name>vulkan_guide</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

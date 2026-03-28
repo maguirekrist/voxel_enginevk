@@ -1,0 +1,138 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_initializers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_mesh.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\camera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\world.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\chunk.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\block.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\chunk_mesher.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\chunk_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\cube_engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\player.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\terrain_gen.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_pipeline_builder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\render\mesh_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\render\material_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_engine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_initializers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\sdl_utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_mesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\camera.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\world.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\random.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\chunk.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\block.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\chunk_mesher.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\chunk_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\cube_engine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\player.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\terrain_gen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\constants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\utils\concurrentqueue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\utils\blockingconcurrentqueue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\utils\lightweightsemaphore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_pipeline_builder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\vk_util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\render\mesh_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\render\material_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\src\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{D6101AAD-1518-3CB4-82AF-A1365A2D5C1F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4A754A05-E075-358E-A97F-9134027020B6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

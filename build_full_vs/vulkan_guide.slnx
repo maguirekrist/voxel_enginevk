@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Solution>
+	<Configurations>
+		<BuildType Name="Debug"/>
+		<BuildType Name="Release"/>
+		<BuildType Name="MinSizeRel"/>
+		<BuildType Name="RelWithDebInfo"/>
+		<Platform Name="x64"/>
+	</Configurations>
+	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="39cbf363-b525-3184-8472-a37dfa64d2a4" DefaultStartup="true">
+		<BuildDependency Project="third_party/FastNoise2/src/FastNoise.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/SDL2.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/SDL2-static.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/SDL2_test.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/SDL2main.vcxproj"/>
+		<BuildDependency Project="third_party/tracy/TracyClient.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="third_party/fmt/fmt.vcxproj"/>
+		<BuildDependency Project="third_party/imgui.vcxproj"/>
+		<BuildDependency Project="third_party/tinyobjloader.vcxproj"/>
+		<BuildDependency Project="third_party/vkbootstrap.vcxproj"/>
+		<BuildDependency Project="src/vulkan_guide.vcxproj"/>
+	</Project>
+	<Project Path="third_party/FastNoise2/src/FastNoise.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="b03fef1d-5fd2-389b-858c-406ffa6b4a1e">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="INSTALL.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="3a26b185-a3e9-337c-8cc5-9826ad3ab856">
+		<BuildDependency Project="ALL_BUILD.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<Build Solution="Debug|*" Project="false"/>
+		<Build Solution="Release|*" Project="false"/>
+		<Build Solution="MinSizeRel|*" Project="false"/>
+		<Build Solution="RelWithDebInfo|*" Project="false"/>
+	</Project>
+	<Project Path="_deps/sdl2-build/SDL2.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="642d3d9d-ee84-3255-85b7-a5fe1c24b18e">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/sdl_headers_copy.vcxproj"/>
+	</Project>
+	<Project Path="_deps/sdl2-build/SDL2-static.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="8299710a-4a90-3787-8fc2-a88cd683b6e7">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/sdl_headers_copy.vcxproj"/>
+	</Project>
+	<Project Path="_deps/sdl2-build/SDL2_test.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="3ac01092-7ebc-33f9-90f3-43359d2e80f0">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/sdl_headers_copy.vcxproj"/>
+	</Project>
+	<Project Path="_deps/sdl2-build/SDL2main.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="4ae70ba3-d07b-3e0f-872f-d14d01b68e29">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/sdl_headers_copy.vcxproj"/>
+	</Project>
+	<Project Path="Shaders.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="f81a2f0e-d785-3e0b-a6dc-2f92b720c181">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="third_party/tracy/TracyClient.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="59229b2b-ce6c-3d3e-bb31-5fb8bfadece3">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="3a675a06-8d0c-370c-9f60-93a16f73cfd7"/>
+	<Project Path="third_party/fmt/fmt.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="5a105cca-f9e8-3906-a2ea-c1a4d8484017">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="third_party/imgui.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="3785a661-7261-3ffe-9ebf-3b7effea1620">
+		<BuildDependency Project="_deps/sdl2-build/SDL2.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/SDL2main.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="_deps/sdl2-build/sdl_headers_copy.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="1d233fe6-fa11-3924-9bc9-28468e127dbb">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="third_party/tinyobjloader.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="81e20549-2504-3c77-ac0a-d6a5a125689b">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="_deps/sdl2-build/uninstall.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="72502812-7cd5-31e2-95f5-51c20d9d25d7">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<Build Solution="Debug|*" Project="false"/>
+		<Build Solution="Release|*" Project="false"/>
+		<Build Solution="MinSizeRel|*" Project="false"/>
+		<Build Solution="RelWithDebInfo|*" Project="false"/>
+	</Project>
+	<Project Path="third_party/vkbootstrap.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="cfd43819-9742-3939-9f1a-1b794a27de8f">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="src/vulkan_guide.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c0b5e1e5-d2ba-3d02-9d52-5498f78cbb73">
+		<BuildDependency Project="third_party/FastNoise2/src/FastNoise.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/SDL2.vcxproj"/>
+		<BuildDependency Project="_deps/sdl2-build/SDL2main.vcxproj"/>
+		<BuildDependency Project="Shaders.vcxproj"/>
+		<BuildDependency Project="third_party/tracy/TracyClient.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="third_party/fmt/fmt.vcxproj"/>
+		<BuildDependency Project="third_party/imgui.vcxproj"/>
+		<BuildDependency Project="third_party/tinyobjloader.vcxproj"/>
+		<BuildDependency Project="third_party/vkbootstrap.vcxproj"/>
+	</Project>
+</Solution>

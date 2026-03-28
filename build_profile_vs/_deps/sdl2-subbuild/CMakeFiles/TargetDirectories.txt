@@ -1,0 +1,3 @@
+C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_profile_vs/_deps/sdl2-subbuild/CMakeFiles/sdl2-populate.dir
+C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_profile_vs/_deps/sdl2-subbuild/CMakeFiles/ALL_BUILD.dir
+C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_profile_vs/_deps/sdl2-subbuild/CMakeFiles/ZERO_CHECK.dir

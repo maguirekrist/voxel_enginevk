@@ -1,0 +1,14 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/cmake_install.cmake",
+		"C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/third_party/cmake_install.cmake",
+		"C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/third_party/fmt/cmake_install.cmake",
+		"C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/third_party/FastNoise2/cmake_install.cmake",
+		"C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/third_party/FastNoise2/src/cmake_install.cmake",
+		"C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/third_party/tracy/cmake_install.cmake",
+		"C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/_deps/sdl2-build/cmake_install.cmake",
+		"C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/src/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

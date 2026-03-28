@@ -1,0 +1,736 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{F81A2F0E-D785-3E0B-A6DC-2F92B720C181}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>Shaders</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\e75d61142dc89316a727dd4a957f4b0b\fog.comp.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/fog.comp.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\e75d61142dc89316a727dd4a957f4b0b\present_full.frag.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\e75d61142dc89316a727dd4a957f4b0b\present_full.vert.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/present_full.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\e75d61142dc89316a727dd4a957f4b0b\tri_mesh.frag.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\e75d61142dc89316a727dd4a957f4b0b\tri_mesh.vert.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/tri_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\e75d61142dc89316a727dd4a957f4b0b\water_mesh.frag.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\e75d61142dc89316a727dd4a957f4b0b\water_mesh.vert.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/water_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\e75d61142dc89316a727dd4a957f4b0b\wire_mesh.frag.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\e75d61142dc89316a727dd4a957f4b0b\wire_mesh.vert.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.4.321.1\Bin\glslangValidator.exe -V C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert -o C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/shaders/wire_mesh.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\f66f2887fe43f3c7219733456838a233\Shaders.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"></Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert.spv;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\Shaders</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'"></Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert.spv;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\Shaders</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'"></Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert.spv;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\Shaders</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'"></Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\fog.comp.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\present_full.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\tri_mesh.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\water_mesh.vert.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.frag.spv;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\shaders\wire_mesh.vert.spv;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\Shaders</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</VerifyInputsAndOutputsExist>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCXXCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeRCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCXXCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeRCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCXXCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeRCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeCXXCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeRCCompiler.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\4.2.0\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\CMakeFiles\Shaders">
+    </None>
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\ZERO_CHECK.vcxproj">
+      <Project>{3A675A06-8D0C-370C-9F60-93A16F73CFD7}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

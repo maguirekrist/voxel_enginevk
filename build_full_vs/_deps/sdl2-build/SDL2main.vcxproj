@@ -1,0 +1,331 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{4AE70BA3-D07B-3E0F-872F-D14D01B68E29}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>SDL2main</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">SDL2main.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">SDL2maind</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">SDL2main.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">SDL2main</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">SDL2main.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">SDL2main</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">SDL2main.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">SDL2main</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.lib</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-debug\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /Gs1048576</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;SDL_BUILD_MAJOR_VERSION=2;SDL_BUILD_MINOR_VERSION=28;SDL_BUILD_MICRO_VERSION=4;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;SDL_BUILD_MAJOR_VERSION=2;SDL_BUILD_MINOR_VERSION=28;SDL_BUILD_MICRO_VERSION=4;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-debug\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-debug\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-release\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /Gs1048576</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;SDL_BUILD_MAJOR_VERSION=2;SDL_BUILD_MINOR_VERSION=28;SDL_BUILD_MICRO_VERSION=4;NDEBUG;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;SDL_BUILD_MAJOR_VERSION=2;SDL_BUILD_MINOR_VERSION=28;SDL_BUILD_MICRO_VERSION=4;NDEBUG;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-release\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-release\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-minsizerel\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /Gs1048576</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;SDL_BUILD_MAJOR_VERSION=2;SDL_BUILD_MINOR_VERSION=28;SDL_BUILD_MICRO_VERSION=4;NDEBUG;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;SDL_BUILD_MAJOR_VERSION=2;SDL_BUILD_MINOR_VERSION=28;SDL_BUILD_MICRO_VERSION=4;NDEBUG;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-minsizerel\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-minsizerel\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-relwithdebinfo\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /Gs1048576</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;SDL_BUILD_MAJOR_VERSION=2;SDL_BUILD_MINOR_VERSION=28;SDL_BUILD_MICRO_VERSION=4;NDEBUG;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;SDL_BUILD_MAJOR_VERSION=2;SDL_BUILD_MINOR_VERSION=28;SDL_BUILD_MICRO_VERSION=4;NDEBUG;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-relwithdebinfo\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include-config-relwithdebinfo\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include\SDL2;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/_deps/sdl2-src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/_deps/sdl2-build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeDependentOption.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeParseArguments.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakePushCheckState.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCSourceRuns.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckIncludeFiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckLanguage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckStructHasMember.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckSymbolExists.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindGit.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPkgConfig.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\GNUInstallDirs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckSourceRuns.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\SDL_config.h.intermediate;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\SDL2.spec.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\CheckCPUArchitecture.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\macros.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlchecks.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlfind.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlplatform.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake_uninstall.cmake.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\include\SDL_config.h.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\include\SDL_revision.h.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\sdl2-config.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\sdl2.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/_deps/sdl2-src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/_deps/sdl2-build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeDependentOption.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeParseArguments.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakePushCheckState.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCSourceRuns.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckIncludeFiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckLanguage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckStructHasMember.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckSymbolExists.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindGit.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPkgConfig.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\GNUInstallDirs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckSourceRuns.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\SDL_config.h.intermediate;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\SDL2.spec.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\CheckCPUArchitecture.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\macros.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlchecks.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlfind.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlplatform.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake_uninstall.cmake.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\include\SDL_config.h.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\include\SDL_revision.h.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\sdl2-config.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\sdl2.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/_deps/sdl2-src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/_deps/sdl2-build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeDependentOption.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeParseArguments.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakePushCheckState.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCSourceRuns.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckIncludeFiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckLanguage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckStructHasMember.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckSymbolExists.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindGit.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPkgConfig.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\GNUInstallDirs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckSourceRuns.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\SDL_config.h.intermediate;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\SDL2.spec.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\CheckCPUArchitecture.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\macros.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlchecks.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlfind.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlplatform.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake_uninstall.cmake.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\include\SDL_config.h.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\include\SDL_revision.h.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\sdl2-config.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\sdl2.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/_deps/sdl2-src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files (x86)\CMake\bin\cmake.exe" -SC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk -BC:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs --check-stamp-file C:/Users/magui/.codex/worktrees/f1b2/voxel_enginevk/build_full_vs/_deps/sdl2-build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeDependentOption.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakeParseArguments.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CMakePushCheckState.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCSourceRuns.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckIncludeFiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckLanguage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckStructHasMember.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\CheckSymbolExists.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindGit.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\FindPkgConfig.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\GNUInstallDirs.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files (x86)\CMake\share\cmake-4.2\Modules\Internal\CheckSourceRuns.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\SDL_config.h.intermediate;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\SDL2.spec.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\CheckCPUArchitecture.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\macros.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlchecks.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlfind.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake\sdlplatform.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\cmake_uninstall.cmake.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\include\SDL_config.h.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\include\SDL_revision.h.cmake;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\sdl2-config.in;C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\sdl2.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-src\src\main\windows\SDL_windows_main.c" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\ZERO_CHECK.vcxproj">
+      <Project>{3A675A06-8D0C-370C-9F60-93A16F73CFD7}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\build_full_vs\_deps\sdl2-build\sdl_headers_copy.vcxproj">
+      <Project>{1D233FE6-FA11-3924-9BC9-28468E127DBB}</Project>
+      <Name>sdl_headers_copy</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

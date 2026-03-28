@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\third_party\vkbootstrap\VkBootstrap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\third_party\vkbootstrap\VkBootstrap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\magui\.codex\worktrees\f1b2\voxel_enginevk\third_party\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{D6101AAD-1518-3CB4-82AF-A1365A2D5C1F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4A754A05-E075-358E-A97F-9134027020B6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
