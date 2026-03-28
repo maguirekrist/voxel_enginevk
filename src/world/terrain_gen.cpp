@@ -22,8 +22,12 @@ namespace
     constexpr float MaxNoiseGain = 1.0f;
     constexpr float MinNoiseWeightedStrength = 0.0f;
     constexpr float MaxNoiseWeightedStrength = 1.0f;
+    constexpr float MinNoiseRemapValue = -1.0f;
+    constexpr float MaxNoiseRemapValue = 1.0f;
     constexpr float MinTerraceSmoothness = 0.0f;
     constexpr float MaxTerraceSmoothness = 1.0f;
+    constexpr int MinDensityBandHalfSpanBlocks = 0;
+    constexpr int MaxDensityBandHalfSpanBlocks = static_cast<int>(CHUNK_HEIGHT);
 
     [[nodiscard]] FastNoise::SmartNode<> build_noise_source(const TerrainNoiseBasis basis)
     {
@@ -41,12 +45,12 @@ namespace
         }
     }
 
-    [[nodiscard]] FastNoise::SmartNode<> build_noise_layer(const TerrainNoiseLayerSettings& settings)
+    [[nodiscard]] FastNoise::SmartNode<> build_noise_layer(const TerrainNoiseLayerSettings& settings, const bool allowTerrace = true)
     {
         FastNoise::SmartNode<> node = build_noise_source(settings.basis);
         if (settings.octaves <= 1)
         {
-            if (settings.terraceStepCount <= 1)
+            if (!allowTerrace || settings.terraceStepCount <= 1)
             {
                 return node;
             }
@@ -62,13 +66,26 @@ namespace
             node = fractal;
         }
 
-        if (settings.terraceStepCount > 1)
+        if (allowTerrace && settings.terraceStepCount > 1)
         {
             auto terrace = FastNoise::New<FastNoise::Terrace>();
             terrace->SetSource(node);
             terrace->SetMultiplier(static_cast<float>(settings.terraceStepCount));
             terrace->SetSmoothness(settings.terraceSmoothness);
             node = terrace;
+        }
+
+        if (settings.remapFromMin != settings.remapToMin ||
+            settings.remapFromMax != settings.remapToMax)
+        {
+            auto remap = FastNoise::New<FastNoise::Remap>();
+            remap->SetSource(node);
+            remap->SetRemap(
+                settings.remapFromMin,
+                settings.remapFromMax,
+                settings.remapToMin,
+                settings.remapToMax);
+            node = remap;
         }
 
         return node;
@@ -81,9 +98,35 @@ namespace
         settings.lacunarity = std::clamp(settings.lacunarity, MinNoiseLacunarity, MaxNoiseLacunarity);
         settings.gain = std::clamp(settings.gain, MinNoiseGain, MaxNoiseGain);
         settings.weightedStrength = std::clamp(settings.weightedStrength, MinNoiseWeightedStrength, MaxNoiseWeightedStrength);
+        settings.remapFromMin = std::clamp(settings.remapFromMin, MinNoiseRemapValue, MaxNoiseRemapValue);
+        settings.remapFromMax = std::clamp(settings.remapFromMax, MinNoiseRemapValue, MaxNoiseRemapValue);
+        settings.remapToMin = std::clamp(settings.remapToMin, MinNoiseRemapValue, MaxNoiseRemapValue);
+        settings.remapToMax = std::clamp(settings.remapToMax, MinNoiseRemapValue, MaxNoiseRemapValue);
+        if (settings.remapFromMax <= settings.remapFromMin)
+        {
+            settings.remapFromMax = std::min(MaxNoiseRemapValue, settings.remapFromMin + 0.01f);
+        }
+        if (settings.remapToMax <= settings.remapToMin)
+        {
+            settings.remapToMax = std::min(MaxNoiseRemapValue, settings.remapToMin + 0.01f);
+        }
         settings.terraceStepCount = std::clamp(settings.terraceStepCount, MinTerraceStepCount, MaxTerraceStepCount);
         settings.terraceSmoothness = std::clamp(settings.terraceSmoothness, MinTerraceSmoothness, MaxTerraceSmoothness);
         settings.strength = std::clamp(settings.strength, MinShapeStrength, MaxShapeStrength);
+    }
+
+    void normalize_density_settings(TerrainDensitySettings& settings)
+    {
+        settings.frequency = std::clamp(settings.frequency, MinShapeFrequency, MaxShapeFrequency);
+        settings.octaves = std::clamp(settings.octaves, MinNoiseOctaves, MaxNoiseOctaves);
+        settings.lacunarity = std::clamp(settings.lacunarity, MinNoiseLacunarity, MaxNoiseLacunarity);
+        settings.gain = std::clamp(settings.gain, MinNoiseGain, MaxNoiseGain);
+        settings.weightedStrength = std::clamp(settings.weightedStrength, MinNoiseWeightedStrength, MaxNoiseWeightedStrength);
+        settings.strength = std::clamp(settings.strength, MinShapeStrength, MaxShapeStrength);
+        settings.maxBandHalfSpanBlocks = std::clamp(
+            settings.maxBandHalfSpanBlocks,
+            MinDensityBandHalfSpanBlocks,
+            MaxDensityBandHalfSpanBlocks);
     }
 
     constexpr std::array<SplinePoint, 4> DefaultErosionSplines{
@@ -122,6 +165,8 @@ TerrainGenerator::TerrainGenerator() :
     _erosion(FastNoise::New<FastNoise::OpenSimplex2>()),
     _peaks(FastNoise::New<FastNoise::OpenSimplex2>()),
     _continental(FastNoise::New<FastNoise::OpenSimplex2S>()),
+    _weirdness(FastNoise::New<FastNoise::OpenSimplex2S>()),
+    _density(FastNoise::New<FastNoise::OpenSimplex2S>()),
     _settings(default_settings())
 {
     rebuild_noise();
@@ -162,6 +207,7 @@ ChunkTerrainData TerrainGenerator::build_chunk_data(const int chunkX, const int 
     terrain_generation::fill_column_scaffold(
         _erosion,
         _peaks,
+        _weirdness,
         _settings,
         regionScaffold,
         chunkData.chunkOrigin,
@@ -200,7 +246,12 @@ WorldGenerationChunkResult TerrainGenerator::GenerateChunkPipeline(const int chu
         .chunkOrigin = {chunkX, chunkZ},
         .cells = std::vector<TerrainVolumeCell>(static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE))
     };
-    terrain_generation::fill_heightfield_volume(result.columnScaffold, result.volumeBuffer.chunkOrigin, result.volumeBuffer);
+    terrain_generation::fill_density_volume(
+        result.columnScaffold,
+        _density,
+        _settings,
+        result.volumeBuffer.chunkOrigin,
+        result.volumeBuffer);
 
     result.surfaceClassification = SurfaceClassificationBuffer{
         .chunkOrigin = {chunkX, chunkZ}
@@ -285,7 +336,26 @@ void TerrainGenerator::apply_settings(const TerrainGeneratorSettings& settings)
 
 void TerrainGenerator::RasterizeChunkTerrain(const WorldGenerationChunkResult& generation, ChunkData& chunkData) const
 {
-    PopulateBaseTerrainBlocks(generation.columnScaffold, chunkData);
+    const int seaLevel = _settings.shape.seaLevel;
+    for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
+    {
+        for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
+        {
+            for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
+            {
+                Block& block = chunkData.blocks[x][y][z];
+                const TerrainVolumeCell& cell = generation.volumeBuffer.at(x, y, z);
+                if (cell.density > 0.0f && cell.material != MaterialClass::Air && cell.material != MaterialClass::Water)
+                {
+                    terrain_generation::set_solid_block(block, BlockType::STONE);
+                }
+                else
+                {
+                    terrain_generation::set_air_or_water_block(seaLevel, y, block);
+                }
+            }
+        }
+    }
 }
 
 void TerrainGenerator::PopulateBaseTerrainBlocks(const ChunkTerrainData& terrainData, ChunkData& chunkData) const
@@ -359,6 +429,8 @@ void TerrainGenerator::normalize_settings(TerrainGeneratorSettings& settings)
     normalize_noise_layer(settings.shape.continental);
     normalize_noise_layer(settings.shape.erosion);
     normalize_noise_layer(settings.shape.peaks);
+    normalize_noise_layer(settings.shape.weirdness);
+    normalize_density_settings(settings.density);
     normalize_spline(settings.erosionSplines, DefaultErosionSplines);
     normalize_spline(settings.peakSplines, DefaultPeakSplines);
     normalize_spline(settings.continentalSplines, DefaultContinentalSplines);
@@ -369,4 +441,22 @@ void TerrainGenerator::rebuild_noise()
     _continental = build_noise_layer(_settings.shape.continental);
     _erosion = build_noise_layer(_settings.shape.erosion);
     _peaks = build_noise_layer(_settings.shape.peaks);
+    _weirdness = build_noise_layer(_settings.shape.weirdness);
+    _density = build_noise_layer(
+        TerrainNoiseLayerSettings{
+            .basis = _settings.density.basis,
+            .frequency = _settings.density.frequency,
+            .octaves = _settings.density.octaves,
+            .lacunarity = _settings.density.lacunarity,
+            .gain = _settings.density.gain,
+            .weightedStrength = _settings.density.weightedStrength,
+            .remapFromMin = -1.0f,
+            .remapFromMax = 1.0f,
+            .remapToMin = -1.0f,
+            .remapToMax = 1.0f,
+            .terraceStepCount = 1,
+            .terraceSmoothness = 0.0f,
+            .strength = _settings.density.strength
+        },
+        false);
 }

@@ -64,7 +64,6 @@ namespace
             1,
             static_cast<int>(CHUNK_HEIGHT - 8));
     }
-
 }
 
 int terrain_generation::floor_to_int(const float value)
@@ -139,6 +138,7 @@ void terrain_generation::fill_region_scaffold(
 void terrain_generation::fill_column_scaffold(
     const FastNoise::SmartNode<>& erosionNoise,
     const FastNoise::SmartNode<>& peaksNoise,
+    const FastNoise::SmartNode<>& weirdnessNoise,
     const TerrainGeneratorSettings& settings,
     const WorldRegionScaffold2D& regionScaffold,
     const glm::ivec2& chunkOrigin,
@@ -150,6 +150,7 @@ void terrain_generation::fill_column_scaffold(
 
     std::vector<float> erosionMap(static_cast<size_t>(size * size));
     std::vector<float> peaksMap(static_cast<size_t>(size * size));
+    std::vector<float> weirdnessMap(static_cast<size_t>(size * size));
     erosionNoise->GenUniformGrid2D(
         erosionMap.data(),
         originX,
@@ -166,6 +167,14 @@ void terrain_generation::fill_column_scaffold(
         size,
         settings.shape.peaks.frequency,
         settings.seed + 101);
+    weirdnessNoise->GenUniformGrid2D(
+        weirdnessMap.data(),
+        originX,
+        originZ,
+        size,
+        size,
+        settings.shape.weirdness.frequency,
+        settings.seed + 211);
 
     for (int localZ = 0; localZ < size; ++localZ)
     {
@@ -178,7 +187,8 @@ void terrain_generation::fill_column_scaffold(
             column.noise = TerrainNoiseSample{
                 .continentalness = region.continentalness,
                 .erosion = erosionMap[index],
-                .peaksValleys = peaksMap[index]
+                .peaksValleys = peaksMap[index],
+                .weirdness = weirdnessMap[index]
             };
 
             const int shapedHeight = clamp_surface_height(compute_surface_height(
@@ -198,33 +208,99 @@ void terrain_generation::fill_column_scaffold(
     }
 }
 
-void terrain_generation::fill_heightfield_volume(
+void terrain_generation::fill_density_volume(
     const TerrainColumnScaffold2D& columnScaffold,
+    const FastNoise::SmartNode<>& densityNoise,
+    const TerrainGeneratorSettings& settings,
     const glm::ivec2& chunkOrigin,
     TerrainVolumeBuffer& volumeBuffer)
 {
     volumeBuffer.chunkOrigin = chunkOrigin;
+    std::vector<float> densitySamples(static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE));
+    densityNoise->GenUniformGrid3D(
+        densitySamples.data(),
+        chunkOrigin.x,
+        0,
+        chunkOrigin.y,
+        static_cast<int>(CHUNK_SIZE),
+        static_cast<int>(CHUNK_HEIGHT),
+        static_cast<int>(CHUNK_SIZE),
+        settings.density.frequency,
+        settings.seed + 907);
+
     for (int localZ = 0; localZ < static_cast<int>(CHUNK_SIZE); ++localZ)
     {
         for (int localX = 0; localX < static_cast<int>(CHUNK_SIZE); ++localX)
         {
             const TerrainColumnSample& column = columnScaffold.at(localX, localZ);
+            const float normalizedWeirdness = clamp01(
+                ((column.noise.weirdness + 1.0f) * 0.5f) * settings.shape.weirdness.strength);
+            const float bandHalfSpan = normalizedWeirdness * static_cast<float>(settings.density.maxBandHalfSpanBlocks);
+            const float surfaceCenter = static_cast<float>(column.surfaceHeight) + 0.5f;
+            const float lowerEdge = surfaceCenter - bandHalfSpan;
+            const float upperEdge = surfaceCenter + bandHalfSpan;
             for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
             {
                 TerrainVolumeCell& cell = volumeBuffer.at(localX, y, localZ);
-                if (y <= column.surfaceHeight)
+                const float sampleCenter = static_cast<float>(y) + 0.5f;
+                const size_t densityIndex = static_cast<size_t>(
+                    ((localZ * static_cast<int>(CHUNK_HEIGHT) + y) * static_cast<int>(CHUNK_SIZE)) + localX);
+
+                if (bandHalfSpan <= std::numeric_limits<float>::epsilon())
                 {
-                    cell.density = static_cast<float>(column.surfaceHeight + 1 - y);
+                    if (y <= column.surfaceHeight)
+                    {
+                        cell.density = static_cast<float>(column.surfaceHeight + 1 - y);
+                        cell.material = MaterialClass::Stone;
+                        cell.featureId = 0u;
+                        cell.surfaceAffinity = y == column.surfaceHeight ? 1.0f : 0.0f;
+                    }
+                    else
+                    {
+                        cell.density = -1.0f;
+                        cell.material = MaterialClass::Air;
+                        cell.featureId = 0u;
+                        cell.surfaceAffinity = 0.0f;
+                    }
+                    continue;
+                }
+
+                if (sampleCenter < lowerEdge)
+                {
+                    cell.density = 1.0f;
                     cell.material = MaterialClass::Stone;
                     cell.featureId = 0u;
-                    cell.surfaceAffinity = y == column.surfaceHeight ? 1.0f : 0.0f;
+                    cell.surfaceAffinity = 0.0f;
+                    continue;
                 }
-                else
+
+                if (sampleCenter > upperEdge)
                 {
                     cell.density = -1.0f;
                     cell.material = MaterialClass::Air;
                     cell.featureId = 0u;
                     cell.surfaceAffinity = 0.0f;
+                    continue;
+                }
+
+                const float verticalDistance = std::abs(sampleCenter - surfaceCenter);
+                const float normalizedDistance = clamp01(verticalDistance / bandHalfSpan);
+                const float noiseWeight = 1.0f - normalizedDistance;
+                const float surfaceAnchor = (surfaceCenter - sampleCenter) / bandHalfSpan;
+                const float densityValue =
+                    surfaceAnchor +
+                    (densitySamples[densityIndex] * settings.density.strength * noiseWeight);
+
+                cell.density = densityValue;
+                cell.featureId = 0u;
+                cell.surfaceAffinity = clamp01(1.0f - std::abs(surfaceCenter - sampleCenter));
+                if (densityValue > 0.0f)
+                {
+                    cell.material = MaterialClass::Stone;
+                }
+                else
+                {
+                    cell.material = MaterialClass::Air;
                 }
             }
         }

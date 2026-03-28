@@ -80,6 +80,28 @@ namespace
 
         return true;
     }
+
+    bool volume_matches_surface_height(const WorldGenerationChunkResult& generation)
+    {
+        for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
+        {
+            for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
+            {
+                const TerrainColumnSample& column = generation.columnScaffold.at(x, z);
+                for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
+                {
+                    const bool expectedSolid = y <= column.surfaceHeight;
+                    const bool actualSolid = generation.volumeBuffer.at(x, y, z).density > 0.0f;
+                    if (expectedSolid != actualSolid)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
 }
 
 TEST(WorldCoordinatesTest, WrapsPositiveAndNegativeCoordinatesCorrectly)
@@ -359,6 +381,70 @@ TEST(TerrainGeneratorTest, ChunkPipelineBuildsConsistentHeightfieldProducts)
     EXPECT_TRUE(appearance_buffer_is_empty(generation.appearanceBuffer));
 }
 
+TEST(TerrainGeneratorTest, WeirdnessDisabledPreservesExactHeightfieldVolume)
+{
+    TerrainGenerator& generator = TerrainGenerator::instance();
+    const TerrainGeneratorSettings originalSettings = generator.settings();
+
+    TerrainGeneratorSettings settings = originalSettings;
+    settings.shape.weirdness.strength = 0.0f;
+    settings.density.strength = 1.0f;
+    settings.density.maxBandHalfSpanBlocks = static_cast<int>(CHUNK_HEIGHT);
+    generator.apply_settings(settings);
+
+    const WorldGenerationChunkResult generation = generator.GenerateChunkPipeline(128, -64);
+
+    generator.apply_settings(originalSettings);
+
+    EXPECT_TRUE(volume_matches_surface_height(generation));
+}
+
+TEST(TerrainGeneratorTest, HighWeirdnessCanCreateMultiSpanColumns)
+{
+    TerrainGenerator& generator = TerrainGenerator::instance();
+    const TerrainGeneratorSettings originalSettings = generator.settings();
+
+    TerrainGeneratorSettings settings = originalSettings;
+    settings.seed = 424242u;
+    settings.shape.weirdness.frequency = 0.00005f;
+    settings.shape.weirdness.octaves = 1;
+    settings.shape.weirdness.terraceStepCount = 2;
+    settings.shape.weirdness.terraceSmoothness = 0.0f;
+    settings.shape.weirdness.strength = 1.0f;
+    settings.density.frequency = 0.0035f;
+    settings.density.octaves = 5;
+    settings.density.gain = 0.55f;
+    settings.density.strength = 1.0f;
+    settings.density.maxBandHalfSpanBlocks = static_cast<int>(CHUNK_HEIGHT);
+    generator.apply_settings(settings);
+
+    bool foundMultiSpanColumn = false;
+    for (int chunkZ = -2; chunkZ <= 2 && !foundMultiSpanColumn; ++chunkZ)
+    {
+        for (int chunkX = -2; chunkX <= 2 && !foundMultiSpanColumn; ++chunkX)
+        {
+            ChunkData chunkData{
+                .coord = ChunkCoord{chunkX, chunkZ},
+                .position = glm::ivec2(chunkX * static_cast<int>(CHUNK_SIZE), chunkZ * static_cast<int>(CHUNK_SIZE))
+            };
+            const WorldGenerationChunkResult generation = generator.GenerateChunkPipeline(chunkData.position.x, chunkData.position.y);
+            generator.RasterizeChunkTerrain(generation, chunkData);
+
+            for (int z = 0; z < static_cast<int>(CHUNK_SIZE) && !foundMultiSpanColumn; ++z)
+            {
+                for (int x = 0; x < static_cast<int>(CHUNK_SIZE) && !foundMultiSpanColumn; ++x)
+                {
+                    foundMultiSpanColumn = count_solid_spans(chunkData, x, z) > 1;
+                }
+            }
+        }
+    }
+
+    generator.apply_settings(originalSettings);
+
+    EXPECT_TRUE(foundMultiSpanColumn);
+}
+
 TEST(TerrainGeneratorTest, SeaLevelControlsAirWaterFillHeight)
 {
     TerrainGenerator& generator = TerrainGenerator::instance();
@@ -389,7 +475,7 @@ TEST(TerrainGeneratorTest, SeaLevelControlsAirWaterFillHeight)
     EXPECT_EQ(chunkData.blocks[0][75][0]._type, BlockType::AIR);
 }
 
-TEST(TerrainGeneratorTest, HeightfieldTerrainRasterizesAsStone)
+TEST(TerrainGeneratorTest, VolumetricTerrainRasterizesStoneSolids)
 {
     TerrainGenerator& generator = TerrainGenerator::instance();
     const TerrainGeneratorSettings originalSettings = generator.settings();
@@ -397,10 +483,10 @@ TEST(TerrainGeneratorTest, HeightfieldTerrainRasterizesAsStone)
     TerrainGeneratorSettings settings = originalSettings;
     generator.apply_settings(settings);
 
-    bool foundStoneColumn = false;
-    for (int chunkZ = -6; chunkZ <= 6 && !foundStoneColumn; ++chunkZ)
+    bool foundSolidStoneVoxel = false;
+    for (int chunkZ = -6; chunkZ <= 6 && !foundSolidStoneVoxel; ++chunkZ)
     {
-        for (int chunkX = -6; chunkX <= 6 && !foundStoneColumn; ++chunkX)
+        for (int chunkX = -6; chunkX <= 6 && !foundSolidStoneVoxel; ++chunkX)
         {
             ChunkData chunkData{
                 .coord = ChunkCoord{chunkX, chunkZ},
@@ -409,21 +495,23 @@ TEST(TerrainGeneratorTest, HeightfieldTerrainRasterizesAsStone)
             const WorldGenerationChunkResult generation = generator.GenerateChunkPipeline(chunkData.position.x, chunkData.position.y);
             generator.RasterizeChunkTerrain(generation, chunkData);
 
-            for (int z = 0; z < static_cast<int>(CHUNK_SIZE) && !foundStoneColumn; ++z)
+            for (int z = 0; z < static_cast<int>(CHUNK_SIZE) && !foundSolidStoneVoxel; ++z)
             {
-                for (int x = 0; x < static_cast<int>(CHUNK_SIZE) && !foundStoneColumn; ++x)
+                for (int x = 0; x < static_cast<int>(CHUNK_SIZE) && !foundSolidStoneVoxel; ++x)
                 {
-                    const TerrainColumnSample& column = generation.columnScaffold.at(x, z);
-                    if (column.surfaceHeight < 1)
+                    for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT) && !foundSolidStoneVoxel; ++y)
                     {
-                        continue;
-                    }
+                        const TerrainVolumeCell& cell = generation.volumeBuffer.at(x, y, z);
+                        if (cell.density <= 0.0f || cell.material != MaterialClass::Stone)
+                        {
+                            continue;
+                        }
 
-                    foundStoneColumn = true;
-                    EXPECT_EQ(chunkData.blocks[x][column.surfaceHeight][z]._type, BlockType::STONE);
-                    EXPECT_EQ(chunkData.blocks[x][column.surfaceHeight - 1][z]._type, BlockType::STONE);
-                    EXPECT_EQ(generation.volumeBuffer.at(x, column.surfaceHeight - 1, z).material, MaterialClass::Stone);
-                    EXPECT_TRUE(appearance_buffer_is_empty(generation.appearanceBuffer));
+                        foundSolidStoneVoxel = true;
+                        EXPECT_TRUE(chunkData.blocks[x][y][z]._solid);
+                        EXPECT_EQ(chunkData.blocks[x][y][z]._type, BlockType::STONE);
+                        EXPECT_TRUE(appearance_buffer_is_empty(generation.appearanceBuffer));
+                    }
                 }
             }
         }
@@ -431,7 +519,7 @@ TEST(TerrainGeneratorTest, HeightfieldTerrainRasterizesAsStone)
 
     generator.apply_settings(originalSettings);
 
-    EXPECT_TRUE(foundStoneColumn);
+    EXPECT_TRUE(foundSolidStoneVoxel);
 }
 
 TEST(TerrainGeneratorTest, ChunkGenerationKeepsDefaultTerrainAppearance)
@@ -456,12 +544,31 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     settings.shape.continental.lacunarity = 2.4f;
     settings.shape.continental.gain = 0.42f;
     settings.shape.continental.weightedStrength = 0.35f;
+    settings.shape.continental.remapFromMin = -0.45f;
+    settings.shape.continental.remapFromMax = 0.55f;
+    settings.shape.continental.remapToMin = -1.0f;
+    settings.shape.continental.remapToMax = 1.0f;
     settings.shape.continental.terraceStepCount = 6;
     settings.shape.continental.terraceSmoothness = 0.25f;
     settings.shape.continental.strength = 0.8f;
+    settings.shape.weirdness.frequency = 0.0019f;
+    settings.shape.weirdness.remapFromMin = -0.25f;
+    settings.shape.weirdness.remapFromMax = 0.25f;
+    settings.shape.weirdness.remapToMin = -1.0f;
+    settings.shape.weirdness.remapToMax = 1.0f;
+    settings.shape.weirdness.terraceStepCount = 5;
+    settings.shape.weirdness.terraceSmoothness = 0.3f;
     settings.shape.seaLevel = 71;
     settings.shape.peaks.frequency = 0.0031f;
     settings.shape.peaks.basis = TerrainNoiseBasis::Perlin;
+    settings.density.basis = TerrainNoiseBasis::Simplex;
+    settings.density.frequency = 0.0028f;
+    settings.density.octaves = 6;
+    settings.density.lacunarity = 2.2f;
+    settings.density.gain = 0.45f;
+    settings.density.weightedStrength = 0.2f;
+    settings.density.strength = 0.9f;
+    settings.density.maxBandHalfSpanBlocks = 44;
     settings.peakSplines[1].heightValue = 17.0f;
 
     const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_config_repo_test";
@@ -479,12 +586,31 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     EXPECT_FLOAT_EQ(loaded.shape.continental.lacunarity, settings.shape.continental.lacunarity);
     EXPECT_FLOAT_EQ(loaded.shape.continental.gain, settings.shape.continental.gain);
     EXPECT_FLOAT_EQ(loaded.shape.continental.weightedStrength, settings.shape.continental.weightedStrength);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.remapFromMin, settings.shape.continental.remapFromMin);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.remapFromMax, settings.shape.continental.remapFromMax);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.remapToMin, settings.shape.continental.remapToMin);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.remapToMax, settings.shape.continental.remapToMax);
     EXPECT_EQ(loaded.shape.continental.terraceStepCount, settings.shape.continental.terraceStepCount);
     EXPECT_FLOAT_EQ(loaded.shape.continental.terraceSmoothness, settings.shape.continental.terraceSmoothness);
     EXPECT_FLOAT_EQ(loaded.shape.continental.strength, settings.shape.continental.strength);
+    EXPECT_FLOAT_EQ(loaded.shape.weirdness.frequency, settings.shape.weirdness.frequency);
+    EXPECT_FLOAT_EQ(loaded.shape.weirdness.remapFromMin, settings.shape.weirdness.remapFromMin);
+    EXPECT_FLOAT_EQ(loaded.shape.weirdness.remapFromMax, settings.shape.weirdness.remapFromMax);
+    EXPECT_FLOAT_EQ(loaded.shape.weirdness.remapToMin, settings.shape.weirdness.remapToMin);
+    EXPECT_FLOAT_EQ(loaded.shape.weirdness.remapToMax, settings.shape.weirdness.remapToMax);
+    EXPECT_EQ(loaded.shape.weirdness.terraceStepCount, settings.shape.weirdness.terraceStepCount);
+    EXPECT_FLOAT_EQ(loaded.shape.weirdness.terraceSmoothness, settings.shape.weirdness.terraceSmoothness);
     EXPECT_EQ(loaded.shape.seaLevel, settings.shape.seaLevel);
     EXPECT_EQ(loaded.shape.peaks.basis, settings.shape.peaks.basis);
     EXPECT_FLOAT_EQ(loaded.shape.peaks.frequency, settings.shape.peaks.frequency);
+    EXPECT_EQ(loaded.density.basis, settings.density.basis);
+    EXPECT_FLOAT_EQ(loaded.density.frequency, settings.density.frequency);
+    EXPECT_EQ(loaded.density.octaves, settings.density.octaves);
+    EXPECT_FLOAT_EQ(loaded.density.lacunarity, settings.density.lacunarity);
+    EXPECT_FLOAT_EQ(loaded.density.gain, settings.density.gain);
+    EXPECT_FLOAT_EQ(loaded.density.weightedStrength, settings.density.weightedStrength);
+    EXPECT_FLOAT_EQ(loaded.density.strength, settings.density.strength);
+    EXPECT_EQ(loaded.density.maxBandHalfSpanBlocks, settings.density.maxBandHalfSpanBlocks);
     ASSERT_GT(loaded.peakSplines.size(), 1);
     EXPECT_FLOAT_EQ(loaded.peakSplines[1].heightValue, settings.peakSplines[1].heightValue);
 }

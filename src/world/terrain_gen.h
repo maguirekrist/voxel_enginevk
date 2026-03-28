@@ -48,6 +48,7 @@ struct TerrainNoiseSample
     float continentalness{};
     float erosion{};
     float peaksValleys{};
+    float weirdness{};
 };
 
 struct WorldRegionSample
@@ -74,6 +75,10 @@ struct TerrainNoiseLayerSettings
     float lacunarity{2.0f};
     float gain{0.5f};
     float weightedStrength{0.0f};
+    float remapFromMin{-1.0f};
+    float remapFromMax{1.0f};
+    float remapToMin{-1.0f};
+    float remapToMax{1.0f};
     int terraceStepCount{1};
     float terraceSmoothness{0.0f};
     float strength{1.0f};
@@ -115,12 +120,36 @@ struct TerrainShapeSettings
         .terraceSmoothness = 0.0f,
         .strength = 1.0f
     };
+    TerrainNoiseLayerSettings weirdness{
+        .basis = TerrainNoiseBasis::OpenSimplex2S,
+        .frequency = 0.00095f,
+        .octaves = 3,
+        .lacunarity = 2.0f,
+        .gain = 0.5f,
+        .weightedStrength = 0.0f,
+        .terraceStepCount = 1,
+        .terraceSmoothness = 0.0f,
+        .strength = 1.0f
+    };
+};
+
+struct TerrainDensitySettings
+{
+    TerrainNoiseBasis basis{TerrainNoiseBasis::OpenSimplex2S};
+    float frequency{0.0090f};
+    int octaves{4};
+    float lacunarity{2.0f};
+    float gain{0.5f};
+    float weightedStrength{0.0f};
+    float strength{1.0f};
+    int maxBandHalfSpanBlocks{16};
 };
 
 struct TerrainGeneratorSettings
 {
     uint32_t seed{1337};
     TerrainShapeSettings shape{};
+    TerrainDensitySettings density{};
     std::vector<SplinePoint> erosionSplines{};
     std::vector<SplinePoint> peakSplines{};
     std::vector<SplinePoint> continentalSplines{};
@@ -315,6 +344,8 @@ private:
     FastNoise::SmartNode<> _erosion;
     FastNoise::SmartNode<> _peaks;
     FastNoise::SmartNode<> _continental;
+    FastNoise::SmartNode<> _weirdness;
+    FastNoise::SmartNode<> _density;
 
     TerrainGeneratorSettings _settings{};
 

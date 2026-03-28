@@ -21,13 +21,16 @@ namespace terrain_generation
     void fill_column_scaffold(
         const FastNoise::SmartNode<>& erosionNoise,
         const FastNoise::SmartNode<>& peaksNoise,
+        const FastNoise::SmartNode<>& weirdnessNoise,
         const TerrainGeneratorSettings& settings,
         const WorldRegionScaffold2D& regionScaffold,
         const glm::ivec2& chunkOrigin,
         TerrainColumnScaffold2D& scaffold);
 
-    void fill_heightfield_volume(
+    void fill_density_volume(
         const TerrainColumnScaffold2D& columnScaffold,
+        const FastNoise::SmartNode<>& densityNoise,
+        const TerrainGeneratorSettings& settings,
         const glm::ivec2& chunkOrigin,
         TerrainVolumeBuffer& volumeBuffer);
 
