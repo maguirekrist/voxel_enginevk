@@ -78,7 +78,8 @@ VoxelSpatialColliderEvaluation evaluate_voxel_model_local_collider(
 VoxelSpatialColliderEvaluation evaluate_voxel_assembly_local_collider(
     const VoxelAssemblyComponent& component,
     VoxelAssemblyAssetManager& assemblyAssetManager,
-    VoxelAssetManager& assetManager)
+    VoxelAssetManager& assetManager,
+    const VoxelAssemblyPose* pose)
 {
     if (!component.visible || component.assetId.empty())
     {
@@ -111,7 +112,7 @@ VoxelSpatialColliderEvaluation evaluate_voxel_assembly_local_collider(
     }
 
     const VoxelAssemblyLocalBundle localBundle =
-        build_voxel_assembly_local_bundle(component, assemblyAssetManager, assetManager);
+        build_voxel_assembly_local_bundle(component, assemblyAssetManager, assetManager, pose);
     if (localBundle.has_error())
     {
         return VoxelSpatialColliderEvaluation{
@@ -151,7 +152,11 @@ VoxelSpatialColliderEvaluation evaluate_voxel_local_collider(
         const VoxelAssemblyComponent& component = object.Get<VoxelAssemblyComponent>();
         if (!component.assetId.empty())
         {
-            return evaluate_voxel_assembly_local_collider(component, assemblyAssetManager, assetManager);
+            return evaluate_voxel_assembly_local_collider(
+                component,
+                assemblyAssetManager,
+                assetManager,
+                object.Has<VoxelAnimationComponent>() ? &object.Get<VoxelAnimationComponent>().currentPose : nullptr);
         }
     }
 

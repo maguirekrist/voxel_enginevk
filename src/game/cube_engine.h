@@ -12,6 +12,10 @@
 #include "player_entity.h"
 #include "voxel/voxel_assembly_asset_manager.h"
 #include "voxel/voxel_assembly_repository.h"
+#include "voxel/voxel_animation_clip_asset_manager.h"
+#include "voxel/voxel_animation_clip_repository.h"
+#include "voxel/voxel_animation_controller_asset_manager.h"
+#include "voxel/voxel_animation_controller_repository.h"
 #include "voxel/voxel_asset_manager.h"
 #include "voxel/voxel_model_repository.h"
 #include "world.h"
@@ -65,6 +69,7 @@ public:
     void set_player_input(const PlayerInputState& input);
     void configure_player(const PlayerPhysicsTuning& tuning, const CharacterBodyComponent& body, bool flyModeEnabled);
     void set_player_render_assembly_asset_id(std::string_view assetId);
+    void set_player_animation_controller_asset_id(std::string_view assetId);
     void update(float deltaTime);
 
     [[nodiscard]] const GameSnapshot& snapshot() const;
@@ -81,8 +86,14 @@ public:
     [[nodiscard]] const VoxelModelRepository& voxel_repository() const noexcept;
     [[nodiscard]] VoxelAssemblyRepository& voxel_assembly_repository() noexcept;
     [[nodiscard]] const VoxelAssemblyRepository& voxel_assembly_repository() const noexcept;
+    [[nodiscard]] VoxelAnimationClipRepository& voxel_animation_clip_repository() noexcept;
+    [[nodiscard]] const VoxelAnimationClipRepository& voxel_animation_clip_repository() const noexcept;
+    [[nodiscard]] VoxelAnimationControllerRepository& voxel_animation_controller_repository() noexcept;
+    [[nodiscard]] const VoxelAnimationControllerRepository& voxel_animation_controller_repository() const noexcept;
     [[nodiscard]] VoxelAssetManager& voxel_asset_manager() noexcept;
     [[nodiscard]] VoxelAssemblyAssetManager& voxel_assembly_asset_manager() noexcept;
+    [[nodiscard]] VoxelAnimationClipAssetManager& voxel_animation_clip_asset_manager() noexcept;
+    [[nodiscard]] VoxelAnimationControllerAssetManager& voxel_animation_controller_asset_manager() noexcept;
 
 private:
     ChunkManager _chunkManager;
@@ -91,8 +102,12 @@ private:
     config::JsonFileDocumentStore _voxelDocumentStore{};
     VoxelModelRepository _voxelRepository{ _voxelDocumentStore };
     VoxelAssemblyRepository _voxelAssemblyRepository{ _voxelDocumentStore };
+    VoxelAnimationClipRepository _voxelAnimationClipRepository{ _voxelDocumentStore };
+    VoxelAnimationControllerRepository _voxelAnimationControllerRepository{ _voxelDocumentStore };
     VoxelAssetManager _voxelAssetManager{ _voxelRepository };
     VoxelAssemblyAssetManager _voxelAssemblyAssetManager{ _voxelAssemblyRepository };
+    VoxelAnimationClipAssetManager _voxelAnimationClipAssetManager{ _voxelAnimationClipRepository };
+    VoxelAnimationControllerAssetManager _voxelAnimationControllerAssetManager{ _voxelAnimationControllerRepository };
     std::unique_ptr<PlayerEntity> _player;
     PlayerInputState _playerInput{};
     GameSnapshot _snapshot{};

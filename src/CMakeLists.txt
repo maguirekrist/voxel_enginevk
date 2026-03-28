@@ -82,6 +82,8 @@ add_executable(vulkan_guide
     scenes/scene_services.h
     scenes/game_scene.h
     scenes/game_scene.cpp
+    scenes/animation_editor_scene.h
+    scenes/animation_editor_scene.cpp
     scenes/orbit_orientation_gizmo.h
     scenes/orbit_orientation_gizmo.cpp
     scenes/voxel_assembly_scene.h
@@ -140,12 +142,25 @@ add_executable(vulkan_guide
         components/character_body_component.h
         components/character_motor_component.h
         components/spatial_collider_component.h
+        components/voxel_animation_component.h
         components/voxel_assembly_component.h
         components/voxel_model_component.h
         components/game_object.h
         components/component.h
         voxel/voxel_assembly_asset_manager.h
         voxel/voxel_assembly_asset_manager.cpp
+        voxel/voxel_animation_asset.h
+        voxel/voxel_animation_pose.h
+        voxel/voxel_animation_clip_repository.h
+        voxel/voxel_animation_clip_repository.cpp
+        voxel/voxel_animation_controller_repository.h
+        voxel/voxel_animation_controller_repository.cpp
+        voxel/voxel_animation_clip_asset_manager.h
+        voxel/voxel_animation_clip_asset_manager.cpp
+        voxel/voxel_animation_controller_asset_manager.h
+        voxel/voxel_animation_controller_asset_manager.cpp
+        voxel/voxel_animation_runtime.h
+        voxel/voxel_animation_runtime.cpp
         voxel/voxel_assembly_component_adapter.h
         voxel/voxel_assembly_component_adapter.cpp
         voxel/voxel_component_render_adapter.h

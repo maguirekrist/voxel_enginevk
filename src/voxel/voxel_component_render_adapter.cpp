@@ -1,6 +1,7 @@
 #include "voxel_component_render_adapter.h"
 
 #include "components/voxel_assembly_component.h"
+#include "components/voxel_animation_component.h"
 #include "components/voxel_model_component.h"
 #include "voxel_assembly_component_adapter.h"
 #include "voxel_model_component_adapter.h"
@@ -18,7 +19,11 @@ VoxelComponentRenderBundle build_voxel_component_render_bundle(
         if (!component.assetId.empty())
         {
             const VoxelAssemblyRenderBundle assemblyBundle =
-                build_voxel_assembly_render_bundle(component, assemblyAssetManager, assetManager);
+                build_voxel_assembly_render_bundle(
+                    component,
+                    assemblyAssetManager,
+                    assetManager,
+                    object.Has<VoxelAnimationComponent>() ? &object.Get<VoxelAnimationComponent>().currentPose : nullptr);
             bundle.assetId = assemblyBundle.assemblyAssetId;
             bundle.diagnostic = assemblyBundle.diagnostic;
             bundle.entries.reserve(assemblyBundle.parts.size());

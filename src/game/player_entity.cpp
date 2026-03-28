@@ -1,12 +1,14 @@
 #include "player_entity.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include <glm/ext/quaternion_trigonometric.hpp>
 #include <glm/geometric.hpp>
 #include <glm/trigonometric.hpp>
 
 #include "game/player_input_state.h"
+#include "voxel/voxel_animation_runtime.h"
 
 namespace
 {
@@ -39,6 +41,7 @@ PlayerEntity::PlayerEntity(const glm::vec3& position) :
     assemblyComponent.position = position;
     assemblyComponent.placementPolicy = VoxelPlacementPolicy::BottomCenter;
     assemblyComponent.visible = true;
+    Add<VoxelAnimationComponent>();
     _front = planar_forward_from_yaw(_cameraYawDegrees);
     update_render_component();
 }
@@ -211,9 +214,29 @@ const PlayerPhysicsTuning& PlayerEntity::tuning() const noexcept
     return Get<CharacterMotorComponent>().tuning;
 }
 
+const glm::vec2& PlayerEntity::move_intent() const noexcept
+{
+    return _moveIntent;
+}
+
+float PlayerEntity::vertical_intent() const noexcept
+{
+    return _verticalIntent;
+}
+
 const VoxelAssemblyComponent& PlayerEntity::assembly_render_component() const
 {
     return Get<VoxelAssemblyComponent>();
+}
+
+VoxelAnimationComponent* PlayerEntity::animation_component() noexcept
+{
+    return Has<VoxelAnimationComponent>() ? &Get<VoxelAnimationComponent>() : nullptr;
+}
+
+const VoxelAnimationComponent* PlayerEntity::animation_component() const noexcept
+{
+    return Has<VoxelAnimationComponent>() ? &Get<VoxelAnimationComponent>() : nullptr;
 }
 
 void PlayerEntity::set_render_assembly_asset_id(std::string assetId)
@@ -221,6 +244,21 @@ void PlayerEntity::set_render_assembly_asset_id(std::string assetId)
     auto& assemblyComponent = Get<VoxelAssemblyComponent>();
     assemblyComponent.assetId = std::move(assetId);
     update_render_component();
+}
+
+void PlayerEntity::set_animation_controller_asset_id(std::string assetId)
+{
+    if (!Has<VoxelAnimationComponent>())
+    {
+        return;
+    }
+
+    auto& animation = Get<VoxelAnimationComponent>();
+    animation.controllerAssetId = std::move(assetId);
+    animation.layerStates.clear();
+    animation.currentPose.clear();
+    animation.pendingEvents.clear();
+    animation.rootMotion = {};
 }
 
 void PlayerEntity::set_tuning(const PlayerPhysicsTuning& tuning) noexcept
@@ -307,4 +345,61 @@ void PlayerEntity::resolve_axis(const WorldCollision& collision, const int axis,
     }
 
     *velocityComponent = 0.0f;
+}
+
+void PlayerEntity::resolve_displacement_axis(const WorldCollision& collision, const int axis, const float delta)
+{
+    if (std::abs(delta) <= 0.000001f)
+    {
+        return;
+    }
+
+    glm::vec3 step{};
+    step[axis] = delta;
+    const AABB candidate = world_bounds().moved(step);
+    if (!collision.intersects_solid(candidate))
+    {
+        _position += step;
+        return;
+    }
+
+    const float direction = delta > 0.0f ? 1.0f : -1.0f;
+    const float distance = std::abs(delta);
+    float traveled = 0.0f;
+    const float increment = 0.05f;
+
+    while (traveled + increment < distance)
+    {
+        traveled += increment;
+        glm::vec3 partialStep{};
+        partialStep[axis] = direction * traveled;
+        if (collision.intersects_solid(world_bounds().moved(partialStep)))
+        {
+            traveled -= increment;
+            break;
+        }
+    }
+
+    glm::vec3 resolvedStep{};
+    resolvedStep[axis] = direction * std::max(0.0f, traveled - CollisionStepEpsilon);
+    _position += resolvedStep;
+}
+
+void PlayerEntity::apply_animation_root_motion(const VoxelAnimationRootMotionSample& sample, const WorldCollision& collision)
+{
+    if (!sample.valid)
+    {
+        return;
+    }
+
+    const glm::quat bodyRotation = glm::angleAxis(glm::radians(_bodyYawDegrees), glm::vec3(0.0f, 1.0f, 0.0f));
+    const glm::vec3 worldDelta = bodyRotation * sample.translationDeltaLocal;
+    resolve_displacement_axis(collision, 0, worldDelta.x);
+    resolve_displacement_axis(collision, 2, worldDelta.z);
+    resolve_displacement_axis(collision, 1, worldDelta.y);
+
+    const glm::vec3 rotatedForward = sample.rotationDeltaLocal * glm::vec3(1.0f, 0.0f, 0.0f);
+    _bodyYawDegrees += glm::degrees(std::atan2(rotatedForward.z, rotatedForward.x));
+    consume_voxel_animation_root_motion(Get<VoxelAnimationComponent>());
+    update_render_component();
 }

@@ -4,6 +4,7 @@
 #include <tracy/Tracy.hpp>
 #include <vk_initializers.h>
 #include <scenes/game_scene.h>
+#include <scenes/animation_editor_scene.h>
 #include <scenes/voxel_assembly_scene.h>
 #include <scenes/voxel_editor_scene.h>
 
@@ -13,6 +14,7 @@
 void SceneRenderer::init(const SceneServices& sceneServices)
 {
 	_scenes["game"] = std::make_shared<GameScene>(sceneServices);
+    _scenes["animation_editor"] = std::make_shared<AnimationEditorScene>(sceneServices);
     _scenes["voxel_editor"] = std::make_shared<VoxelEditorScene>(sceneServices);
     _scenes["voxel_assembly"] = std::make_shared<VoxelAssemblyScene>(sceneServices);
     _currentSceneName = "voxel_editor";
