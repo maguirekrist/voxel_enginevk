@@ -1,6 +1,6 @@
 #pragma once
 
-#include "structure.h"
+#include "world/structures/structure.h"
 
 class CloudStructureGenerator final : public IStructureGenerator
 {

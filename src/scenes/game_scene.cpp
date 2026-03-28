@@ -58,7 +58,8 @@ namespace
             lhs.shape.erosionFrequency == rhs.shape.erosionFrequency &&
             lhs.shape.peaksFrequency == rhs.shape.peaksFrequency &&
             lhs.shape.detailFrequency == rhs.shape.detailFrequency &&
-            lhs.shape.climateFrequency == rhs.shape.climateFrequency &&
+            lhs.shape.seaLevel == rhs.shape.seaLevel &&
+            lhs.shape.riversEnabled == rhs.shape.riversEnabled &&
             lhs.shape.riverFrequency == rhs.shape.riverFrequency &&
             lhs.shape.riverThreshold == rhs.shape.riverThreshold &&
             lhs.shape.continentalStrength == rhs.shape.continentalStrength &&
@@ -68,27 +69,6 @@ namespace
             lhs.shape.detailStrength == rhs.shape.detailStrength &&
             lhs.shape.erosionSuppressionLow == rhs.shape.erosionSuppressionLow &&
             lhs.shape.erosionSuppressionHigh == rhs.shape.erosionSuppressionHigh &&
-            lhs.biome.oceanContinentalnessThreshold == rhs.biome.oceanContinentalnessThreshold &&
-            lhs.biome.riverBlendThreshold == rhs.biome.riverBlendThreshold &&
-            lhs.biome.riverMinBankHeightOffset == rhs.biome.riverMinBankHeightOffset &&
-            lhs.biome.beachMinHeightOffset == rhs.biome.beachMinHeightOffset &&
-            lhs.biome.beachMaxHeightOffset == rhs.biome.beachMaxHeightOffset &&
-            lhs.biome.mountainHeightOffset == rhs.biome.mountainHeightOffset &&
-            lhs.biome.mountainPeaksThreshold == rhs.biome.mountainPeaksThreshold &&
-            lhs.biome.forestHumidityThreshold == rhs.biome.forestHumidityThreshold &&
-            lhs.biome.forestTemperatureThreshold == rhs.biome.forestTemperatureThreshold &&
-            lhs.biome.mountainStoneHeightOffset == rhs.biome.mountainStoneHeightOffset &&
-            lhs.surface.riverTargetHeightOffset == rhs.surface.riverTargetHeightOffset &&
-            lhs.surface.riverMinDepth == rhs.surface.riverMinDepth &&
-            lhs.surface.riverMaxDepth == rhs.surface.riverMaxDepth &&
-            lhs.surface.oceanFloorHeightOffset == rhs.surface.oceanFloorHeightOffset &&
-            lhs.surface.shoreMinHeightOffset == rhs.surface.shoreMinHeightOffset &&
-            lhs.surface.shoreMaxHeightOffset == rhs.surface.shoreMaxHeightOffset &&
-            lhs.surface.riverStoneDepth == rhs.surface.riverStoneDepth &&
-            lhs.surface.oceanStoneDepth == rhs.surface.oceanStoneDepth &&
-            lhs.surface.shoreStoneDepth == rhs.surface.shoreStoneDepth &&
-            lhs.surface.plainsStoneDepth == rhs.surface.plainsStoneDepth &&
-            lhs.surface.mountainStoneDepth == rhs.surface.mountainStoneDepth &&
             equal_spline_points(lhs.erosionSplines, rhs.erosionSplines) &&
             equal_spline_points(lhs.peakSplines, rhs.peakSplines) &&
             equal_spline_points(lhs.continentalSplines, rhs.continentalSplines);
@@ -116,21 +96,6 @@ namespace
         return noiseValue < spline.front().noiseValue ? spline.front().heightValue : spline.back().heightValue;
     }
 
-    const char* biome_label(const BiomeType biome)
-    {
-        switch (biome)
-        {
-        case BiomeType::Ocean: return "Ocean";
-        case BiomeType::Shore: return "Shore";
-        case BiomeType::Plains: return "Plains";
-        case BiomeType::Forest: return "Forest";
-        case BiomeType::River: return "River";
-        case BiomeType::Mountains: return "Mountains";
-        }
-
-        return "Unknown";
-    }
-
     ImU32 pack_color(const ImVec4 color)
     {
         return ImGui::ColorConvertFloat4ToU32(color);
@@ -155,37 +120,72 @@ namespace
         return ImVec4(0.58f + (0.34f * localT), 0.84f - (0.12f * localT), 0.38f + (0.16f * localT), 1.0f);
     }
 
+    const char* biome_label(const BiomeType biome)
+    {
+        switch (biome)
+        {
+        case BiomeType::None:
+            return "None";
+        case BiomeType::Ocean:
+            return "Ocean";
+        case BiomeType::Shore:
+            return "Shore";
+        case BiomeType::Plains:
+            return "Plains";
+        case BiomeType::Forest:
+            return "Forest";
+        case BiomeType::River:
+            return "River";
+        case BiomeType::Mountains:
+            return "Mountains";
+        default:
+            return "Unknown";
+        }
+    }
+
     ImU32 noise_preview_color(const TerrainColumnSample& column, const int layer)
     {
+        auto biome_color = [](const BiomeType biome) -> ImU32
+        {
+            switch (biome)
+            {
+            case BiomeType::None:
+                return IM_COL32(96, 96, 96, 255);
+            case BiomeType::Ocean:
+                return IM_COL32(58, 104, 184, 255);
+            case BiomeType::Shore:
+                return IM_COL32(214, 195, 132, 255);
+            case BiomeType::Plains:
+                return IM_COL32(122, 176, 92, 255);
+            case BiomeType::Forest:
+                return IM_COL32(58, 122, 66, 255);
+            case BiomeType::River:
+                return IM_COL32(92, 152, 214, 255);
+            case BiomeType::Mountains:
+                return IM_COL32(150, 150, 162, 255);
+            default:
+                return IM_COL32(255, 255, 255, 255);
+            }
+        };
+
         switch (layer)
         {
         case 0:
             return pack_color(gradient_color(static_cast<float>(column.surfaceHeight) / static_cast<float>(CHUNK_HEIGHT - 1)));
         case 1:
-            return pack_color(gradient_color((column.noise.continentalness + 1.0f) * 0.5f));
+            return pack_color(gradient_color(static_cast<float>(column.baseSurfaceHeight) / static_cast<float>(CHUNK_HEIGHT - 1)));
         case 2:
-            return pack_color(gradient_color((column.noise.erosion + 1.0f) * 0.5f));
+            return pack_color(gradient_color((column.noise.continentalness + 1.0f) * 0.5f));
         case 3:
-            return pack_color(gradient_color((column.noise.peaksValleys + 1.0f) * 0.5f));
+            return pack_color(gradient_color((column.noise.erosion + 1.0f) * 0.5f));
         case 4:
-            return pack_color(gradient_color((column.noise.detail + 1.0f) * 0.5f));
+            return pack_color(gradient_color((column.noise.peaksValleys + 1.0f) * 0.5f));
         case 5:
-            return pack_color(gradient_color((column.noise.temperature + 1.0f) * 0.5f));
+            return pack_color(gradient_color((column.noise.detail + 1.0f) * 0.5f));
         case 6:
-            return pack_color(gradient_color((column.noise.humidity + 1.0f) * 0.5f));
-        case 7:
             return pack_color(gradient_color((column.noise.river + 1.0f) * 0.5f));
-        case 8:
-            switch (column.biome)
-            {
-            case BiomeType::Ocean: return IM_COL32(28, 88, 160, 255);
-            case BiomeType::Shore: return IM_COL32(212, 196, 132, 255);
-            case BiomeType::Plains: return IM_COL32(106, 170, 88, 255);
-            case BiomeType::Forest: return IM_COL32(48, 118, 54, 255);
-            case BiomeType::River: return IM_COL32(70, 142, 204, 255);
-            case BiomeType::Mountains: return IM_COL32(120, 124, 132, 255);
-            }
-            break;
+        case 7:
+            return biome_color(column.biome);
         default:
             break;
         }
@@ -340,14 +340,14 @@ namespace
             ImGui::Text("World: %d, %d", worldX, worldZ);
             ImGui::Text("Local: %d, %d", localX, localZ);
             ImGui::Text("Height: %d", column.surfaceHeight);
-            ImGui::Text("Biome: %s", biome_label(column.biome));
+            ImGui::Text("Base Height: %d", column.baseSurfaceHeight);
             ImGui::Text("Cont: %.2f", column.noise.continentalness);
             ImGui::Text("Erosion: %.2f", column.noise.erosion);
             ImGui::Text("Peaks: %.2f", column.noise.peaksValleys);
             ImGui::Text("Detail: %.2f", column.noise.detail);
-            ImGui::Text("Temp: %.2f", column.noise.temperature);
-            ImGui::Text("Humidity: %.2f", column.noise.humidity);
             ImGui::Text("River: %.2f", column.noise.river);
+            ImGui::Text("Biome: %s", biome_label(column.biome));
+            ImGui::Text("River Column: %s", column.hasRiver ? "Yes" : "No");
             ImGui::EndTooltip();
         }
     }
@@ -1065,7 +1065,7 @@ void GameScene::draw_debug_map()
 
             auto playerSettings = persistence.player;
             bool playerSettingsChanged = false;
-            playerSettingsChanged |= ImGui::SliderFloat("Move Speed", &playerSettings.moveSpeed, 0.0f, 20.0f, "%.2f");
+            playerSettingsChanged |= ImGui::SliderFloat("Move Speed", &playerSettings.moveSpeed, 0.0f, 60.0f, "%.2f");
             playerSettingsChanged |= ImGui::SliderFloat("Air Control", &playerSettings.airControl, 0.0f, 1.0f, "%.2f");
             playerSettingsChanged |= ImGui::SliderFloat("Gravity", &playerSettings.gravity, 0.0f, 60.0f, "%.2f");
             playerSettingsChanged |= ImGui::SliderFloat("Jump Velocity", &playerSettings.jumpVelocity, 0.0f, 20.0f, "%.2f");
@@ -1160,9 +1160,12 @@ void GameScene::draw_debug_map()
             ImGui::SliderFloat("Erosion Frequency", &_worldGenDraft.shape.erosionFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
             ImGui::SliderFloat("Peaks Frequency", &_worldGenDraft.shape.peaksFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
             ImGui::SliderFloat("Detail Frequency", &_worldGenDraft.shape.detailFrequency, 0.00020f, 0.0300f, "%.5f", ImGuiSliderFlags_Logarithmic);
-            ImGui::SliderFloat("Climate Frequency", &_worldGenDraft.shape.climateFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderInt("Sea Level", &_worldGenDraft.shape.seaLevel, 0, static_cast<int>(CHUNK_HEIGHT) - 1);
+            ImGui::Checkbox("Enable Rivers", &_worldGenDraft.shape.riversEnabled);
+            ImGui::BeginDisabled(!_worldGenDraft.shape.riversEnabled);
             ImGui::SliderFloat("River Frequency", &_worldGenDraft.shape.riverFrequency, 0.00005f, 0.0100f, "%.5f", ImGuiSliderFlags_Logarithmic);
             ImGui::SliderFloat("River Width Threshold", &_worldGenDraft.shape.riverThreshold, 0.005f, 0.35f, "%.3f");
+            ImGui::EndDisabled();
             ImGui::SliderFloat("Continental Strength", &_worldGenDraft.shape.continentalStrength, 0.0f, 2.0f, "%.2f");
             ImGui::SliderFloat("Peaks Strength", &_worldGenDraft.shape.peaksStrength, 0.0f, 2.5f, "%.2f");
             ImGui::SliderFloat("Erosion Strength", &_worldGenDraft.shape.erosionStrength, 0.0f, 2.0f, "%.2f");
@@ -1170,31 +1173,7 @@ void GameScene::draw_debug_map()
             ImGui::SliderFloat("Detail Strength", &_worldGenDraft.shape.detailStrength, 0.0f, 16.0f, "%.1f");
             ImGui::SliderFloat("Erosion Suppression Low", &_worldGenDraft.shape.erosionSuppressionLow, 0.1f, 2.5f, "%.2f");
             ImGui::SliderFloat("Erosion Suppression High", &_worldGenDraft.shape.erosionSuppressionHigh, 0.1f, 2.5f, "%.2f");
-
-            ImGui::SeparatorText("Biome Thresholds");
-            ImGui::SliderFloat("Ocean Continentalness", &_worldGenDraft.biome.oceanContinentalnessThreshold, -1.0f, 0.2f, "%.2f");
-            ImGui::SliderFloat("River Biome Threshold", &_worldGenDraft.biome.riverBlendThreshold, 0.05f, 0.95f, "%.2f");
-            ImGui::SliderInt("River Bank Min Offset", &_worldGenDraft.biome.riverMinBankHeightOffset, -16, 16);
-            ImGui::SliderInt("Beach Min Offset", &_worldGenDraft.biome.beachMinHeightOffset, -12, 8);
-            ImGui::SliderInt("Beach Max Offset", &_worldGenDraft.biome.beachMaxHeightOffset, -6, 20);
-            ImGui::SliderInt("Mountain Height Offset", &_worldGenDraft.biome.mountainHeightOffset, 8, 96);
-            ImGui::SliderFloat("Mountain Peaks Threshold", &_worldGenDraft.biome.mountainPeaksThreshold, -0.2f, 1.0f, "%.2f");
-            ImGui::SliderFloat("Forest Humidity Threshold", &_worldGenDraft.biome.forestHumidityThreshold, 0.0f, 1.0f, "%.2f");
-            ImGui::SliderFloat("Forest Temperature Threshold", &_worldGenDraft.biome.forestTemperatureThreshold, 0.0f, 1.0f, "%.2f");
-            ImGui::SliderInt("Mountain Stone Line", &_worldGenDraft.biome.mountainStoneHeightOffset, 20, 120);
-
-            ImGui::SeparatorText("Surface");
-            ImGui::SliderInt("River Target Offset", &_worldGenDraft.surface.riverTargetHeightOffset, -16, 8);
-            ImGui::SliderInt("River Min Depth", &_worldGenDraft.surface.riverMinDepth, 1, 8);
-            ImGui::SliderInt("River Max Depth", &_worldGenDraft.surface.riverMaxDepth, 1, 12);
-            ImGui::SliderInt("Ocean Floor Offset", &_worldGenDraft.surface.oceanFloorHeightOffset, -24, 4);
-            ImGui::SliderInt("Shore Min Offset", &_worldGenDraft.surface.shoreMinHeightOffset, -8, 6);
-            ImGui::SliderInt("Shore Max Offset", &_worldGenDraft.surface.shoreMaxHeightOffset, -2, 10);
-            ImGui::SliderInt("River Stone Depth", &_worldGenDraft.surface.riverStoneDepth, 1, 8);
-            ImGui::SliderInt("Ocean Stone Depth", &_worldGenDraft.surface.oceanStoneDepth, 1, 8);
-            ImGui::SliderInt("Shore Stone Depth", &_worldGenDraft.surface.shoreStoneDepth, 1, 8);
-            ImGui::SliderInt("Plains Stone Depth", &_worldGenDraft.surface.plainsStoneDepth, 1, 12);
-            ImGui::SliderInt("Mountain Stone Depth", &_worldGenDraft.surface.mountainStoneDepth, 1, 8);
+            ImGui::TextUnformatted("Biome-driven terrain materials are disabled for now. Terrain rasterizes as stone while decorations and biome enums stay in place for later work.");
 
             draw_spline_editor("ErosionSplineTable", "Erosion Spline", _worldGenDraft.erosionSplines);
             draw_spline_editor("PeakSplineTable", "Peak Spline", _worldGenDraft.peakSplines);
@@ -1203,14 +1182,13 @@ void GameScene::draw_debug_map()
             ImGui::SeparatorText("Current Area Preview");
             const char* layerLabels[] = {
                 "Final Height",
+                "Base Height",
                 "Continentalness",
                 "Erosion",
                 "Peaks/Valleys",
                 "Detail",
-                "Temperature",
-                "Humidity",
                 "River",
-                "Biome"
+                "Biome",
             };
             ImGui::Combo("Preview Layer", &_worldGenPreviewLayer, layerLabels, IM_ARRAYSIZE(layerLabels));
 

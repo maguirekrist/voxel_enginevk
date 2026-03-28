@@ -4,10 +4,10 @@
 #include <gtest/gtest.h>
 
 #include "test_support.h"
-#include "game/cloud_structure_generator.h"
+#include "world/structures/cloud_structure_generator.h"
 #include "game/decoration.h"
 #include "game/player_entity.h"
-#include "game/tree_structure_generator.h"
+#include "world/structures/tree_structure_generator.h"
 #include "render/chunk_decoration_render_registry.h"
 #include "world/terrain_gen.h"
 

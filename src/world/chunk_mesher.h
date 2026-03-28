@@ -14,6 +14,7 @@ public:
 private:
     ChunkNeighborhood _neighborhood;
     bool _ambientOcclusionEnabled{true};
+    int _seaLevel{0};
 
     std::optional<const Block> get_face_neighbor(int x, int y, int z, FaceDirection face) const;
     bool is_face_visible(int x, int y, int z, FaceDirection face);

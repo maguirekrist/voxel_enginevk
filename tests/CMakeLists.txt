@@ -18,9 +18,9 @@ add_executable(engine_tests
     ../src/game/player_entity.cpp
     ../src/game/world_collision.cpp
     ../src/game/decoration.cpp
-    ../src/game/structure.cpp
-    ../src/game/cloud_structure_generator.cpp
-    ../src/game/tree_structure_generator.cpp
+    ../src/world/structures/structure.cpp
+    ../src/world/structures/cloud_structure_generator.cpp
+    ../src/world/structures/tree_structure_generator.cpp
     ../src/world/dynamic_light_registry.cpp
     ../src/world/world_light_sampler.cpp
     ../src/voxel/voxel_asset_manager.cpp
@@ -39,6 +39,8 @@ add_executable(engine_tests
     ../src/render/mesh_release_queue.cpp
     ../src/world/chunk_neighborhood.cpp
     ../src/world/chunk_lighting.cpp
+    ../src/world/generation/terrain_generation_buffers.cpp
+    ../src/world/generation/terrain_generation_helpers.cpp
     ../src/world/terrain_gen.cpp
 )
 
@@ -58,6 +60,12 @@ target_link_libraries(engine_tests
         FastNoise
         TracyClient
 )
+
+
+if (MSVC)
+    target_compile_options(engine_tests PRIVATE /MP)
+endif()
+
 
 set_target_properties(engine_tests PROPERTIES
     FOLDER "Tests"

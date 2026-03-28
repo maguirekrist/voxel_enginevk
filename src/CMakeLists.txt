@@ -24,8 +24,8 @@ add_executable(vulkan_guide
         game/chunk.cpp
         game/block.h
         game/block.cpp
-        game/structure.h
-        game/structure.cpp
+        world/structures/structure.h
+        world/structures/structure.cpp
         game/entity.h
         game/player_input_state.h
         game/player_entity.h
@@ -34,10 +34,10 @@ add_executable(vulkan_guide
         game/world_collision.cpp
         game/decoration.h
         game/decoration.cpp
-        game/cloud_structure_generator.h
-        game/cloud_structure_generator.cpp
-        game/tree_structure_generator.h
-        game/tree_structure_generator.cpp
+        world/structures/cloud_structure_generator.h
+        world/structures/cloud_structure_generator.cpp
+        world/structures/tree_structure_generator.h
+        world/structures/tree_structure_generator.cpp
         world/chunk_mesher.h
         world/chunk_mesher.cpp
         world/chunk_manager.h
@@ -57,6 +57,9 @@ add_executable(vulkan_guide
         world/chunk_dirty_tracker.cpp
         world/world_edit_queue.h
         world/world_edit_queue.cpp
+        world/generation/terrain_generation_buffers.cpp
+        world/generation/terrain_generation_helpers.h
+        world/generation/terrain_generation_helpers.cpp
         game/cube_engine.h
         game/cube_engine.cpp
         world/terrain_gen.h
@@ -180,8 +183,11 @@ target_link_libraries(vulkan_guide Vulkan::Vulkan sdl2 FastNoise TracyClient)
 target_compile_options(vulkan_guide PRIVATE)
 target_link_options(vulkan_guide PRIVATE)
 
-add_dependencies(vulkan_guide Shaders)
+if (MSVC)
+    target_compile_options(vulkan_guide PRIVATE /MP)
+endif()
 
+add_dependencies(vulkan_guide Shaders)
 
 add_custom_command(TARGET vulkan_guide POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_directory

@@ -1,6 +1,7 @@
 
 #include "chunk_mesher.h"
 #include "../game/block.h"
+#include "terrain_gen.h"
 #include "tracy/Tracy.hpp"
 #include <game/world.h>
 
@@ -15,26 +16,12 @@ namespace
         return static_cast<float>(seed & 1023u) / 1023.0f;
     }
 
-    glm::vec3 tint_cloud_color(const glm::vec3 baseColor, const glm::ivec3 blockPos, const glm::ivec2 chunkOrigin, const FaceDirection face)
+    glm::vec3 tint_cloud_color(const glm::vec3 baseColor, const glm::ivec3 blockPos, const glm::ivec2 chunkOrigin)
     {
         const int worldX = chunkOrigin.x + blockPos.x;
         const int worldZ = chunkOrigin.y + blockPos.z;
         const float noise = cloud_noise_value(worldX, blockPos.y, worldZ);
-        float tint = glm::mix(0.94f, 1.03f, noise);
-
-        if (face == TOP_FACE)
-        {
-            tint *= 1.06f;
-        }
-        else if (face == BOTTOM_FACE)
-        {
-            tint *= 0.82f;
-        }
-        else
-        {
-            tint *= 0.97f;
-        }
-
+        const float tint = glm::mix(0.96f, 1.04f, noise);
         return glm::clamp(baseColor * tint, glm::vec3(0.0f), glm::vec3(1.0f));
     }
 }
@@ -49,6 +36,8 @@ std::shared_ptr<ChunkMeshData> ChunkMesher::generate_mesh()
     {
         return chunkMeshData;
     }
+
+    _seaLevel = TerrainGenerator::sea_level();
 
     for (int x = 0; x < CHUNK_SIZE; ++x) {
         for (int y = 0; y < CHUNK_HEIGHT; ++y) {
@@ -283,15 +272,24 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
     const glm::ivec3 blockPos{x,y,z};
     const Block block = _neighborhood.center->blocks[x][y][z];
     glm::vec3 color = static_cast<glm::vec3>(blockColor[block._type]);
+    if (_neighborhood.center->terrainAppearance != nullptr &&
+        (block._type == BlockType::GROUND || block._type == BlockType::STONE || block._type == BlockType::SAND))
+    {
+        const uint32_t packedColor = _neighborhood.center->terrainAppearance->packed_color(x, y, z);
+        if (packedColor != 0u)
+        {
+            color = unpack_appearance_color(packedColor);
+        }
+    }
 
     if (block._type == BlockType::GROUND || block._type == BlockType::LEAVES)
     {
-        const float heightFactor = std::clamp((static_cast<float>(y) - static_cast<float>(SEA_LEVEL)) / 96.0f, 0.0f, 1.0f);
+        const float heightFactor = std::clamp((static_cast<float>(y) - static_cast<float>(_seaLevel)) / 96.0f, 0.0f, 1.0f);
         color *= glm::mix(0.97f, 1.04f, heightFactor);
     }
     else if (block._type == BlockType::CLOUD)
     {
-        color = tint_cloud_color(color, blockPos, _neighborhood.center->position, face);
+        color = tint_cloud_color(color, blockPos, _neighborhood.center->position);
     }
 
     for (int i = 0; i < 4; ++i) {

@@ -6,7 +6,7 @@ namespace config
 {
     namespace
     {
-        constexpr int WorldGenConfigVersion = 1;
+        constexpr int WorldGenConfigVersion = 7;
 
         nlohmann::json spline_to_json(const std::vector<SplinePoint>& spline)
         {
@@ -59,7 +59,8 @@ namespace config
                     { "erosionFrequency", settings.shape.erosionFrequency },
                     { "peaksFrequency", settings.shape.peaksFrequency },
                     { "detailFrequency", settings.shape.detailFrequency },
-                    { "climateFrequency", settings.shape.climateFrequency },
+                    { "seaLevel", settings.shape.seaLevel },
+                    { "riversEnabled", settings.shape.riversEnabled },
                     { "riverFrequency", settings.shape.riverFrequency },
                     { "riverThreshold", settings.shape.riverThreshold },
                     { "continentalStrength", settings.shape.continentalStrength },
@@ -69,31 +70,6 @@ namespace config
                     { "detailStrength", settings.shape.detailStrength },
                     { "erosionSuppressionLow", settings.shape.erosionSuppressionLow },
                     { "erosionSuppressionHigh", settings.shape.erosionSuppressionHigh }
-                } },
-                { "biome", {
-                    { "oceanContinentalnessThreshold", settings.biome.oceanContinentalnessThreshold },
-                    { "riverBlendThreshold", settings.biome.riverBlendThreshold },
-                    { "riverMinBankHeightOffset", settings.biome.riverMinBankHeightOffset },
-                    { "beachMinHeightOffset", settings.biome.beachMinHeightOffset },
-                    { "beachMaxHeightOffset", settings.biome.beachMaxHeightOffset },
-                    { "mountainHeightOffset", settings.biome.mountainHeightOffset },
-                    { "mountainPeaksThreshold", settings.biome.mountainPeaksThreshold },
-                    { "forestHumidityThreshold", settings.biome.forestHumidityThreshold },
-                    { "forestTemperatureThreshold", settings.biome.forestTemperatureThreshold },
-                    { "mountainStoneHeightOffset", settings.biome.mountainStoneHeightOffset }
-                } },
-                { "surface", {
-                    { "riverTargetHeightOffset", settings.surface.riverTargetHeightOffset },
-                    { "riverMinDepth", settings.surface.riverMinDepth },
-                    { "riverMaxDepth", settings.surface.riverMaxDepth },
-                    { "oceanFloorHeightOffset", settings.surface.oceanFloorHeightOffset },
-                    { "shoreMinHeightOffset", settings.surface.shoreMinHeightOffset },
-                    { "shoreMaxHeightOffset", settings.surface.shoreMaxHeightOffset },
-                    { "riverStoneDepth", settings.surface.riverStoneDepth },
-                    { "oceanStoneDepth", settings.surface.oceanStoneDepth },
-                    { "shoreStoneDepth", settings.surface.shoreStoneDepth },
-                    { "plainsStoneDepth", settings.surface.plainsStoneDepth },
-                    { "mountainStoneDepth", settings.surface.mountainStoneDepth }
                 } },
                 { "splines", {
                     { "erosion", spline_to_json(settings.erosionSplines) },
@@ -115,7 +91,8 @@ namespace config
                 settings.shape.erosionFrequency = shape.value("erosionFrequency", settings.shape.erosionFrequency);
                 settings.shape.peaksFrequency = shape.value("peaksFrequency", settings.shape.peaksFrequency);
                 settings.shape.detailFrequency = shape.value("detailFrequency", settings.shape.detailFrequency);
-                settings.shape.climateFrequency = shape.value("climateFrequency", settings.shape.climateFrequency);
+                settings.shape.seaLevel = shape.value("seaLevel", settings.shape.seaLevel);
+                settings.shape.riversEnabled = shape.value("riversEnabled", settings.shape.riversEnabled);
                 settings.shape.riverFrequency = shape.value("riverFrequency", settings.shape.riverFrequency);
                 settings.shape.riverThreshold = shape.value("riverThreshold", settings.shape.riverThreshold);
                 settings.shape.continentalStrength = shape.value("continentalStrength", settings.shape.continentalStrength);
@@ -125,37 +102,6 @@ namespace config
                 settings.shape.detailStrength = shape.value("detailStrength", settings.shape.detailStrength);
                 settings.shape.erosionSuppressionLow = shape.value("erosionSuppressionLow", settings.shape.erosionSuppressionLow);
                 settings.shape.erosionSuppressionHigh = shape.value("erosionSuppressionHigh", settings.shape.erosionSuppressionHigh);
-            }
-
-            if (document.contains("biome") && document.at("biome").is_object())
-            {
-                const auto& biome = document.at("biome");
-                settings.biome.oceanContinentalnessThreshold = biome.value("oceanContinentalnessThreshold", settings.biome.oceanContinentalnessThreshold);
-                settings.biome.riverBlendThreshold = biome.value("riverBlendThreshold", settings.biome.riverBlendThreshold);
-                settings.biome.riverMinBankHeightOffset = biome.value("riverMinBankHeightOffset", settings.biome.riverMinBankHeightOffset);
-                settings.biome.beachMinHeightOffset = biome.value("beachMinHeightOffset", settings.biome.beachMinHeightOffset);
-                settings.biome.beachMaxHeightOffset = biome.value("beachMaxHeightOffset", settings.biome.beachMaxHeightOffset);
-                settings.biome.mountainHeightOffset = biome.value("mountainHeightOffset", settings.biome.mountainHeightOffset);
-                settings.biome.mountainPeaksThreshold = biome.value("mountainPeaksThreshold", settings.biome.mountainPeaksThreshold);
-                settings.biome.forestHumidityThreshold = biome.value("forestHumidityThreshold", settings.biome.forestHumidityThreshold);
-                settings.biome.forestTemperatureThreshold = biome.value("forestTemperatureThreshold", settings.biome.forestTemperatureThreshold);
-                settings.biome.mountainStoneHeightOffset = biome.value("mountainStoneHeightOffset", settings.biome.mountainStoneHeightOffset);
-            }
-
-            if (document.contains("surface") && document.at("surface").is_object())
-            {
-                const auto& surface = document.at("surface");
-                settings.surface.riverTargetHeightOffset = surface.value("riverTargetHeightOffset", settings.surface.riverTargetHeightOffset);
-                settings.surface.riverMinDepth = surface.value("riverMinDepth", settings.surface.riverMinDepth);
-                settings.surface.riverMaxDepth = surface.value("riverMaxDepth", settings.surface.riverMaxDepth);
-                settings.surface.oceanFloorHeightOffset = surface.value("oceanFloorHeightOffset", settings.surface.oceanFloorHeightOffset);
-                settings.surface.shoreMinHeightOffset = surface.value("shoreMinHeightOffset", settings.surface.shoreMinHeightOffset);
-                settings.surface.shoreMaxHeightOffset = surface.value("shoreMaxHeightOffset", settings.surface.shoreMaxHeightOffset);
-                settings.surface.riverStoneDepth = surface.value("riverStoneDepth", settings.surface.riverStoneDepth);
-                settings.surface.oceanStoneDepth = surface.value("oceanStoneDepth", settings.surface.oceanStoneDepth);
-                settings.surface.shoreStoneDepth = surface.value("shoreStoneDepth", settings.surface.shoreStoneDepth);
-                settings.surface.plainsStoneDepth = surface.value("plainsStoneDepth", settings.surface.plainsStoneDepth);
-                settings.surface.mountainStoneDepth = surface.value("mountainStoneDepth", settings.surface.mountainStoneDepth);
             }
 
             if (document.contains("splines") && document.at("splines").is_object())

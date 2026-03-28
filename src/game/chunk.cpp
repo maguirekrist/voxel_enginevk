@@ -17,53 +17,16 @@ void ChunkData::generate()
 {
     ZoneScopedN("Generate Chunk Data");
     const TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
-    const ChunkTerrainData terrainData = terrainGenerator.GenerateChunkData(position.x, position.y);
-    for(int x = 0; x < CHUNK_SIZE; x++)
-    {
-        for(int z = 0; z < CHUNK_SIZE; z++)
-        {
-            const TerrainColumnSample& column = terrainData.at(x, z);
-            for (int y = 0; y < CHUNK_HEIGHT; y++)
-            {
-                Block& block = blocks[x][y][z];
-                if (y > column.surfaceHeight)
-                {
-                    if(y <= SEA_LEVEL) {
-                        block._solid = false;
-                        block._type = BlockType::WATER;
-                        block._sunlight = 0;
-                    }
-                    else {
-                        block._solid = false;
-                        block._type = BlockType::AIR;
-                        block._sunlight = 0;
-                    }
-                    continue;
-                }
-
-                block._solid = true;
-                block._sunlight = 0;
-
-                if (y == column.surfaceHeight)
-                {
-                    block._type = column.topBlock;
-                }
-                else if (y >= column.stoneHeight)
-                {
-                    block._type = column.fillerBlock;
-                }
-                else
-                {
-                    block._type = BlockType::STONE;
-                }
-            }
-        }
-    }
+    WorldGenerationChunkResult generation = terrainGenerator.GenerateChunkPipeline(position.x, position.y);
+    terrainGenerator.RasterizeChunkTerrain(generation, *this);
 
     StructureGenerationContext structureContext{
         .chunkCoord = {coord.x, coord.z},
         .chunkOrigin = position,
-        .terrainGenerator = &terrainGenerator
+        .terrainGenerator = &terrainGenerator,
+        .terrainScaffold = &generation.columnScaffold,
+        .terrainFeatures = &generation.featureInstances,
+        .terrainAppearance = &generation.appearanceBuffer
     };
     const std::vector<StructureBlockEdit> edits = StructureRegistry::instance().generate_overlapping(structureContext);
     apply_structure_edits(edits);
@@ -71,9 +34,12 @@ void ChunkData::generate()
     const DecorationGenerationContext decorationContext{
         .chunkOrigin = position,
         .terrainGenerator = &terrainGenerator,
+        .terrainScaffold = &generation.columnScaffold,
+        .terrainAppearance = &generation.appearanceBuffer,
         .chunkData = this
     };
     voxelDecorations = DecorationRegistry::instance().generate_for_chunk(decorationContext);
+    terrainAppearance = std::make_shared<AppearanceBuffer>(std::move(generation.appearanceBuffer));
 }
 
 void ChunkData::apply_structure_edits(const std::span<const StructureBlockEdit> edits)

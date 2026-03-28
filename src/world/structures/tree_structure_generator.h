@@ -3,7 +3,7 @@
 #include <memory>
 #include <unordered_map>
 
-#include "structure.h"
+#include "world/structures/structure.h"
 
 class ITreeVariantGenerator
 {

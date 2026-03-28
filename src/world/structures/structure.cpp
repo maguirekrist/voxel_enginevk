@@ -1,7 +1,7 @@
-#include "structure.h"
+#include "world/structures/structure.h"
 
-#include "cloud_structure_generator.h"
-#include "tree_structure_generator.h"
+#include "world/structures/cloud_structure_generator.h"
+#include "world/structures/tree_structure_generator.h"
 
 StructureRegistry& StructureRegistry::instance()
 {

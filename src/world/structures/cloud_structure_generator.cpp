@@ -1,4 +1,4 @@
-#include "cloud_structure_generator.h"
+#include "world/structures/cloud_structure_generator.h"
 
 #include <algorithm>
 #include <cmath>

@@ -4,7 +4,7 @@
 #include <format>
 #include "block.h"
 #include "decoration.h"
-#include "structure.h"
+#include "world/structures/structure.h"
 #include "render/mesh.h"
 
 struct ChunkCoord {
@@ -83,6 +83,7 @@ struct ChunkData
     ChunkCoord coord{0, 0};
     glm::ivec2 position{0, 0};
     ChunkBlocks blocks{};
+    std::shared_ptr<AppearanceBuffer> terrainAppearance{};
     std::vector<VoxelDecorationPlacement> voxelDecorations{};
 
     void generate();

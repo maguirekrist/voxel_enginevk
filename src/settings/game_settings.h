@@ -68,7 +68,7 @@ namespace settings
         float jumpVelocity{8.5f};
         float maxFallSpeed{30.0f};
         glm::vec3 cameraTargetOffset{0.0f, 1.4f, 0.0f};
-        bool flyModeEnabled{false};
+        bool flyModeEnabled{true};
     };
 
     struct GameSettingsPersistence
@@ -101,7 +101,7 @@ namespace settings
         float jumpVelocity{8.5f};
         float maxFallSpeed{30.0f};
         glm::vec3 cameraTargetOffset{0.0f, 1.4f, 0.0f};
-        bool flyModeEnabled{false};
+        bool flyModeEnabled{true};
     };
 
     class SettingsManager

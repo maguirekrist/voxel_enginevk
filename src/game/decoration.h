@@ -29,6 +29,8 @@ struct DecorationGenerationContext
 {
     glm::ivec2 chunkOrigin{};
     const TerrainGenerator* terrainGenerator{nullptr};
+    const ChunkTerrainData* terrainScaffold{nullptr};
+    const AppearanceBuffer* terrainAppearance{nullptr};
     const ChunkData* chunkData{nullptr};
 };
 

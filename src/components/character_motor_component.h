@@ -26,5 +26,5 @@ struct CharacterMotorComponent final : Component
 {
     CharacterMotorState state{};
     CharacterMotorTuning tuning{};
-    bool flyModeEnabled{false};
+    bool flyModeEnabled{true};
 };

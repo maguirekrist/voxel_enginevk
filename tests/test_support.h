@@ -11,7 +11,7 @@
 #include "config/json_document_store.h"
 #include "game/block.h"
 #include "game/chunk.h"
-#include "game/structure.h"
+#include "world/structures/structure.h"
 #include "world/chunk_neighborhood.h"
 
 namespace test_support

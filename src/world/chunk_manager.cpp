@@ -537,6 +537,10 @@ void ChunkManager::mark_chunk_dirty(Chunk* chunk, const bool dataChanged, const 
     {
         record.dataVersion += 1;
         record.dataState = DataState::Dirty;
+        if (record.data != nullptr)
+        {
+            record.data->terrainAppearance.reset();
+        }
     }
     if (lightingInvalidated)
     {

@@ -6,6 +6,8 @@
 #include <queue>
 #include <vector>
 
+#include "terrain_gen.h"
+
 namespace
 {
     constexpr int LightDomainSize = static_cast<int>(CHUNK_SIZE) * 3;
@@ -47,6 +49,8 @@ std::shared_ptr<ChunkData> ChunkLighting::solve_skylight(const ChunkNeighborhood
         return {};
     }
 
+    const int seaLevel = TerrainGenerator::sea_level();
+
     std::vector<LightCell> domain(static_cast<size_t>(LightDomainSize) * static_cast<size_t>(LightDomainSize) * static_cast<size_t>(LightDomainHeight));
 
     for (int x = 0; x < LightDomainSize; ++x)
@@ -85,7 +89,7 @@ std::shared_ptr<ChunkData> ChunkLighting::solve_skylight(const ChunkNeighborhood
 
                 cell.sunlight = sunlight;
                 cell.directSky = sunlight == MAX_LIGHT_LEVEL;
-                if (cell.water && y <= static_cast<int>(SEA_LEVEL) && sunlight > MinimumWaterLight)
+                if (cell.water && y <= seaLevel && sunlight > MinimumWaterLight)
                 {
                     sunlight = static_cast<uint8_t>(std::max<int>(MinimumWaterLight, sunlight - WaterVerticalAbsorption));
                 }
@@ -135,7 +139,7 @@ std::shared_ptr<ChunkData> ChunkLighting::solve_skylight(const ChunkNeighborhood
 
                     const bool downward = offset.y < 0;
                     const uint8_t attenuation =
-                        (nextCell.water && next.y <= static_cast<int>(SEA_LEVEL)) ?
+                        (nextCell.water && next.y <= seaLevel) ?
                         (downward ? WaterVerticalAbsorption : WaterLateralAbsorption) :
                         HorizontalAbsorption;
                     if (cell.sunlight <= attenuation)
@@ -186,7 +190,7 @@ std::shared_ptr<ChunkData> ChunkLighting::solve_skylight(const ChunkNeighborhood
 
             const bool downward = offset.y < 0;
             const uint8_t attenuation =
-                (nextCell.water && next.y <= static_cast<int>(SEA_LEVEL)) ?
+                (nextCell.water && next.y <= seaLevel) ?
                 (downward ? WaterVerticalAbsorption : WaterLateralAbsorption) :
                 HorizontalAbsorption;
             if (currentLight <= attenuation)
@@ -275,7 +279,7 @@ std::shared_ptr<ChunkData> ChunkLighting::solve_skylight(const ChunkNeighborhood
                 continue;
             }
 
-            const uint8_t attenuation = (nextCell.water && next.y <= static_cast<int>(SEA_LEVEL)) ? WaterLateralAbsorption : HorizontalAbsorption;
+            const uint8_t attenuation = (nextCell.water && next.y <= seaLevel) ? WaterLateralAbsorption : HorizontalAbsorption;
             const glm::u8vec3 propagated{
                 static_cast<uint8_t>(currentLight.r > attenuation ? currentLight.r - attenuation : 0),
                 static_cast<uint8_t>(currentLight.g > attenuation ? currentLight.g - attenuation : 0),

@@ -5,9 +5,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "block.h"
-
-class TerrainGenerator;
+#include "game/block.h"
+#include "world/terrain_gen.h"
 
 enum class StructureType {
 	TREE,
@@ -35,6 +34,9 @@ struct StructureGenerationContext {
     glm::ivec2 chunkCoord{};
     glm::ivec2 chunkOrigin{};
     const TerrainGenerator* terrainGenerator{nullptr};
+    const ChunkTerrainData* terrainScaffold{nullptr};
+    const TerrainFeatureInstanceSet* terrainFeatures{nullptr};
+    const AppearanceBuffer* terrainAppearance{nullptr};
 };
 
 class IStructureGenerator

@@ -1,11 +1,15 @@
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <memory>
+#include <vector>
 
 #include <gtest/gtest.h>
 
 #include "test_support.h"
 #include "config/world_gen_config_repository.h"
+#include "game/chunk.h"
 #include "game/world.h"
 #include "game/world_collision.h"
 #include "world/chunk_lighting.h"
@@ -16,6 +20,67 @@
 using test_support::TestJsonDocumentStore;
 using test_support::make_empty_chunk;
 using test_support::make_empty_neighborhood;
+
+namespace
+{
+    int count_solid_spans(const ChunkData& chunkData, const int x, const int z)
+    {
+        bool inSolid = false;
+        int spans = 0;
+        for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
+        {
+            const bool solid = chunkData.blocks[x][y][z]._solid;
+            if (solid && !inSolid)
+            {
+                ++spans;
+            }
+            inSolid = solid;
+        }
+
+        return spans;
+    }
+
+    bool has_solid_volume_cell(const WorldGenerationChunkResult& generation)
+    {
+        for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
+        {
+            for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
+            {
+                for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
+                {
+                    const TerrainVolumeCell& volumeCell = generation.volumeBuffer.at(x, y, z);
+                    if (volumeCell.density <= 0.0f)
+                    {
+                        continue;
+                    }
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool appearance_buffer_is_empty(const AppearanceBuffer& appearanceBuffer)
+    {
+        for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
+        {
+            for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
+            {
+                for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
+                {
+                    if (appearanceBuffer.packed_color(x, y, z) != 0u)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+}
 
 TEST(WorldCoordinatesTest, WrapsPositiveAndNegativeCoordinatesCorrectly)
 {
@@ -210,6 +275,8 @@ TEST(TerrainGeneratorTest, SampleColumnMatchesChunkDataAndIsDeterministic)
     EXPECT_EQ(first.biome, fromChunk.biome);
     EXPECT_GE(first.surfaceHeight, 0);
     EXPECT_LT(first.surfaceHeight, static_cast<int>(CHUNK_HEIGHT));
+    EXPECT_EQ(first.topBlock, BlockType::STONE);
+    EXPECT_EQ(first.fillerBlock, BlockType::STONE);
 }
 
 TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
@@ -225,7 +292,6 @@ TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
     updatedSettings.shape.peaksFrequency *= 1.45f;
     updatedSettings.shape.detailStrength += 3.0f;
     updatedSettings.shape.riverFrequency *= 0.75f;
-    updatedSettings.biome.mountainHeightOffset += 12;
     updatedSettings.continentalSplines.back().heightValue = std::min(updatedSettings.continentalSplines.back().heightValue + 12.0f, static_cast<float>(CHUNK_HEIGHT - 1));
     generator.apply_settings(updatedSettings);
 
@@ -236,13 +302,196 @@ TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
 
     const bool anyChanged =
         baselineA.surfaceHeight != changedA.surfaceHeight ||
-        baselineA.biome != changedA.biome ||
         baselineA.noise.continentalness != changedA.noise.continentalness ||
         baselineB.surfaceHeight != changedB.surfaceHeight ||
-        baselineB.biome != changedB.biome ||
         baselineB.noise.river != changedB.noise.river;
 
     EXPECT_TRUE(anyChanged);
+}
+
+TEST(TerrainGeneratorTest, RiversCanBeDisabled)
+{
+    TerrainGenerator& generator = TerrainGenerator::instance();
+    const TerrainGeneratorSettings originalSettings = generator.settings();
+
+    TerrainGeneratorSettings enabledSettings = originalSettings;
+    enabledSettings.shape.riversEnabled = true;
+
+    TerrainGeneratorSettings disabledSettings = enabledSettings;
+    disabledSettings.shape.riversEnabled = false;
+
+    auto count_river_columns = [&generator](const TerrainGeneratorSettings& settings)
+    {
+        generator.apply_settings(settings);
+
+        int riverColumns = 0;
+        for (int chunkZ = -6; chunkZ <= 6; ++chunkZ)
+        {
+            for (int chunkX = -6; chunkX <= 6; ++chunkX)
+            {
+                const ChunkTerrainData chunkData = generator.GenerateChunkData(
+                    chunkX * static_cast<int>(CHUNK_SIZE),
+                    chunkZ * static_cast<int>(CHUNK_SIZE));
+                for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
+                {
+                    for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
+                    {
+                        if (chunkData.at(x, z).hasRiver)
+                        {
+                            ++riverColumns;
+                        }
+                    }
+                }
+            }
+        }
+
+        return riverColumns;
+    };
+
+    const int enabledRiverColumns = count_river_columns(enabledSettings);
+    const int disabledRiverColumns = count_river_columns(disabledSettings);
+
+    generator.apply_settings(originalSettings);
+
+    EXPECT_GT(enabledRiverColumns, 0);
+    EXPECT_EQ(disabledRiverColumns, 0);
+}
+
+TEST(TerrainGeneratorTest, ChunkPipelineBuildsConsistentHeightfieldProducts)
+{
+    TerrainGenerator& generator = TerrainGenerator::instance();
+    constexpr int chunkOriginX = 128;
+    constexpr int chunkOriginZ = -64;
+
+    const WorldGenerationChunkResult generation = generator.GenerateChunkPipeline(chunkOriginX, chunkOriginZ);
+    const TerrainColumnSample sampled = generator.SampleColumn(chunkOriginX, chunkOriginZ);
+    const TerrainColumnSample pipelineColumn = generation.columnScaffold.at(0, 0);
+
+    EXPECT_EQ(generation.regionScaffold.chunkOrigin.x, chunkOriginX);
+    EXPECT_EQ(generation.regionScaffold.chunkOrigin.y, chunkOriginZ);
+    EXPECT_EQ(generation.columnScaffold.chunkOrigin.x, chunkOriginX);
+    EXPECT_EQ(generation.columnScaffold.chunkOrigin.y, chunkOriginZ);
+    EXPECT_EQ(generation.featureInstances.chunkOrigin.x, chunkOriginX);
+    EXPECT_EQ(generation.featureInstances.chunkOrigin.y, chunkOriginZ);
+    EXPECT_EQ(generation.volumeBuffer.chunkOrigin.x, chunkOriginX);
+    EXPECT_EQ(generation.volumeBuffer.chunkOrigin.y, chunkOriginZ);
+    EXPECT_EQ(generation.surfaceClassification.chunkOrigin.x, chunkOriginX);
+    EXPECT_EQ(generation.surfaceClassification.chunkOrigin.y, chunkOriginZ);
+    EXPECT_EQ(generation.appearanceBuffer.chunkOrigin.x, chunkOriginX);
+    EXPECT_EQ(generation.appearanceBuffer.chunkOrigin.y, chunkOriginZ);
+
+    EXPECT_EQ(
+        generation.regionScaffold.cells.size(),
+        static_cast<size_t>(CHUNK_SIZE * CHUNK_SIZE));
+    EXPECT_EQ(
+        generation.columnScaffold.columns.size(),
+        static_cast<size_t>(CHUNK_SIZE * CHUNK_SIZE));
+    EXPECT_EQ(
+        generation.volumeBuffer.cells.size(),
+        static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE));
+    EXPECT_EQ(
+        generation.surfaceClassification.faces.size(),
+        static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE));
+    EXPECT_EQ(
+        generation.appearanceBuffer.voxels.size(),
+        static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE));
+    EXPECT_TRUE(generation.featureInstances.features.empty());
+
+    EXPECT_EQ(sampled.surfaceHeight, pipelineColumn.surfaceHeight);
+    EXPECT_EQ(sampled.stoneHeight, pipelineColumn.stoneHeight);
+    EXPECT_EQ(sampled.biome, pipelineColumn.biome);
+    EXPECT_EQ(sampled.topBlock, pipelineColumn.topBlock);
+    EXPECT_EQ(sampled.fillerBlock, pipelineColumn.fillerBlock);
+    EXPECT_TRUE(has_solid_volume_cell(generation));
+    EXPECT_TRUE(appearance_buffer_is_empty(generation.appearanceBuffer));
+}
+
+TEST(TerrainGeneratorTest, SeaLevelControlsAirWaterFillHeight)
+{
+    TerrainGenerator& generator = TerrainGenerator::instance();
+    const TerrainGeneratorSettings originalSettings = generator.settings();
+
+    TerrainGeneratorSettings settings = originalSettings;
+    settings.shape.seaLevel = 74;
+    generator.apply_settings(settings);
+
+    ChunkTerrainData terrainData{
+        .chunkOrigin = {0, 0},
+        .columns = std::vector<TerrainColumnSample>(
+            static_cast<size_t>(CHUNK_SIZE * CHUNK_SIZE))
+    };
+    for (TerrainColumnSample& column : terrainData.columns)
+    {
+        column.surfaceHeight = 10;
+        column.topBlock = BlockType::STONE;
+        column.fillerBlock = BlockType::STONE;
+        column.biome = BiomeType::None;
+    }
+
+    ChunkData chunkData{};
+    generator.PopulateBaseTerrainBlocks(terrainData, chunkData);
+    generator.apply_settings(originalSettings);
+
+    EXPECT_EQ(chunkData.blocks[0][74][0]._type, BlockType::WATER);
+    EXPECT_EQ(chunkData.blocks[0][75][0]._type, BlockType::AIR);
+}
+
+TEST(TerrainGeneratorTest, HeightfieldTerrainRasterizesAsStone)
+{
+    TerrainGenerator& generator = TerrainGenerator::instance();
+    const TerrainGeneratorSettings originalSettings = generator.settings();
+
+    TerrainGeneratorSettings settings = originalSettings;
+    generator.apply_settings(settings);
+
+    bool foundStoneColumn = false;
+    for (int chunkZ = -6; chunkZ <= 6 && !foundStoneColumn; ++chunkZ)
+    {
+        for (int chunkX = -6; chunkX <= 6 && !foundStoneColumn; ++chunkX)
+        {
+            ChunkData chunkData{
+                .coord = ChunkCoord{chunkX, chunkZ},
+                .position = glm::ivec2(chunkX * static_cast<int>(CHUNK_SIZE), chunkZ * static_cast<int>(CHUNK_SIZE))
+            };
+            const WorldGenerationChunkResult generation = generator.GenerateChunkPipeline(chunkData.position.x, chunkData.position.y);
+            generator.RasterizeChunkTerrain(generation, chunkData);
+
+            for (int z = 0; z < static_cast<int>(CHUNK_SIZE) && !foundStoneColumn; ++z)
+            {
+                for (int x = 0; x < static_cast<int>(CHUNK_SIZE) && !foundStoneColumn; ++x)
+                {
+                    const TerrainColumnSample& column = generation.columnScaffold.at(x, z);
+                    if (column.surfaceHeight < 1)
+                    {
+                        continue;
+                    }
+
+                    foundStoneColumn = true;
+                    EXPECT_EQ(chunkData.blocks[x][column.surfaceHeight][z]._type, BlockType::STONE);
+                    EXPECT_EQ(chunkData.blocks[x][column.surfaceHeight - 1][z]._type, BlockType::STONE);
+                    EXPECT_EQ(generation.volumeBuffer.at(x, column.surfaceHeight - 1, z).material, MaterialClass::Stone);
+                    EXPECT_TRUE(appearance_buffer_is_empty(generation.appearanceBuffer));
+                }
+            }
+        }
+    }
+
+    generator.apply_settings(originalSettings);
+
+    EXPECT_TRUE(foundStoneColumn);
+}
+
+TEST(TerrainGeneratorTest, ChunkGenerationKeepsDefaultTerrainAppearance)
+{
+    ChunkData chunkData{
+        .coord = ChunkCoord{8, -4},
+        .position = glm::ivec2(128, -64)
+    };
+
+    chunkData.generate();
+
+    ASSERT_NE(chunkData.terrainAppearance, nullptr);
+    EXPECT_TRUE(appearance_buffer_is_empty(*chunkData.terrainAppearance));
 }
 
 TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
@@ -250,9 +499,9 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     TerrainGeneratorSettings settings = TerrainGenerator::default_settings();
     settings.seed = 987654321u;
     settings.shape.continentalFrequency = 0.0022f;
+    settings.shape.seaLevel = 71;
+    settings.shape.riversEnabled = false;
     settings.shape.peaksFrequency = 0.0031f;
-    settings.biome.mountainHeightOffset = 63;
-    settings.surface.riverMaxDepth = 7;
     settings.peakSplines[1].heightValue = 17.0f;
 
     const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_config_repo_test";
@@ -265,9 +514,9 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
 
     EXPECT_EQ(loaded.seed, settings.seed);
     EXPECT_FLOAT_EQ(loaded.shape.continentalFrequency, settings.shape.continentalFrequency);
+    EXPECT_EQ(loaded.shape.seaLevel, settings.shape.seaLevel);
+    EXPECT_EQ(loaded.shape.riversEnabled, settings.shape.riversEnabled);
     EXPECT_FLOAT_EQ(loaded.shape.peaksFrequency, settings.shape.peaksFrequency);
-    EXPECT_EQ(loaded.biome.mountainHeightOffset, settings.biome.mountainHeightOffset);
-    EXPECT_EQ(loaded.surface.riverMaxDepth, settings.surface.riverMaxDepth);
     ASSERT_GT(loaded.peakSplines.size(), 1);
     EXPECT_FLOAT_EQ(loaded.peakSplines[1].heightValue, settings.peakSplines[1].heightValue);
 }
