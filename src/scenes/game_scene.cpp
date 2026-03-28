@@ -495,28 +495,40 @@ GameScene::~GameScene()
 }
 
 void GameScene::update_buffers() {
-	ZoneScopedN("Draw Chunks & Objects");
+	ZoneScopedN("GameScene::UpdateBuffers");
     sync_runtime_lights();
     sync_player_render_instance();
-	_chunkRenderRegistry.sync(
-		_game.chunk_manager(),
-		*_services.meshManager,
-		*_services.materialManager,
-        GameSceneMaterialScope,
-		_renderState);
+	{
+		ZoneScopedN("GameScene::SyncChunkRenderRegistry");
+		_chunkRenderRegistry.sync(
+			_game.chunk_manager(),
+			*_services.meshManager,
+			*_services.materialManager,
+            GameSceneMaterialScope,
+			_renderState);
+	}
     const ChunkCoord centerChunk = _game.snapshot().currentChunk.value_or(World::get_chunk_coordinates(_game.snapshot().player.position));
-    _chunkDecorationRenderRegistry.sync(
-        _game.chunk_manager(),
-        centerChunk,
-        _settings.persistence().world.viewDistance,
-        _game.voxel_asset_manager(),
-        *_services.meshManager,
-        *_services.materialManager,
-        GameSceneMaterialScope,
-        _worldLightSampler.get(),
-        _renderState);
-    _playerVoxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, GameSceneMaterialScope, _renderState, _worldLightSampler.get());
-    _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, GameSceneMaterialScope, _renderState, _worldLightSampler.get());
+    {
+        ZoneScopedN("GameScene::SyncDecorationRegistry");
+        _chunkDecorationRenderRegistry.sync(
+            _game.chunk_manager(),
+            centerChunk,
+            _settings.persistence().world.viewDistance,
+            _game.voxel_asset_manager(),
+            *_services.meshManager,
+            *_services.materialManager,
+            GameSceneMaterialScope,
+            _worldLightSampler.get(),
+            _renderState);
+    }
+    {
+        ZoneScopedN("GameScene::SyncPlayerVoxelRegistry");
+        _playerVoxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, GameSceneMaterialScope, _renderState, _worldLightSampler.get());
+    }
+    {
+        ZoneScopedN("GameScene::SyncVoxelRegistry");
+        _voxelRenderRegistry.sync(*_services.meshManager, *_services.materialManager, GameSceneMaterialScope, _renderState, _worldLightSampler.get());
+    }
     sync_target_block_outline();
     sync_spatial_collider_debug();
     sync_chunk_boundary_debug();
@@ -532,6 +544,7 @@ SceneRenderState& GameScene::get_render_state()
 
 void GameScene::update(const float deltaTime)
 {
+	ZoneScopedN("GameScene::Update");
 	_game.set_player_input(_playerInput);
     _playerInput.jumpPressed = false;
     _playerInput.lookDeltaX = 0.0f;
@@ -556,6 +569,7 @@ void GameScene::update(const float deltaTime)
 
 void GameScene::handle_input(const SDL_Event& event)
 {
+	ZoneScopedN("GameScene::HandleInput");
 	switch(event.type) {
 		case SDL_KEYDOWN:
             if (!event.key.repeat && event.key.keysym.scancode == SDL_SCANCODE_G)
@@ -620,6 +634,7 @@ void GameScene::handle_input(const SDL_Event& event)
 
 void GameScene::handle_keystate(const Uint8* state)
 {
+    ZoneScopedN("GameScene::HandleKeystate");
     _playerInput.moveForward = state[SDL_SCANCODE_W];
     _playerInput.moveBackward = state[SDL_SCANCODE_S];
     _playerInput.moveLeft = state[SDL_SCANCODE_A];
@@ -632,11 +647,13 @@ void GameScene::handle_keystate(const Uint8* state)
 
 void GameScene::clear_input()
 {
+    ZoneScopedN("GameScene::ClearInput");
     _playerInput = PlayerInputState{};
 }
 
 void GameScene::draw_imgui()
 {
+	ZoneScopedN("GameScene::DrawImGui");
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
@@ -1315,6 +1332,7 @@ void GameScene::draw_debug_map()
 
 void GameScene::update_fog_ubo() const
 {
+	ZoneScopedN("GameScene::UpdateFogUBO");
 	FogUBO fogUBO{};
     const settings::GameSettingsPersistence& persistence = _settings.persistence();
     const settings::LightingTuningSettings& tuning = persistence.dayNight.tuning;
@@ -1341,6 +1359,7 @@ void GameScene::update_fog_ubo() const
 
 void GameScene::update_lighting_ubo() const
 {
+    ZoneScopedN("GameScene::UpdateLightingUBO");
     const settings::GameSettingsPersistence& persistence = _settings.persistence();
     const settings::LightingTuningSettings& tuning = persistence.dayNight.tuning;
     const float angle = persistence.dayNight.timeOfDay * glm::two_pi<float>();
@@ -1380,6 +1399,7 @@ void GameScene::update_lighting_ubo() const
 
 void GameScene::update_uniform_buffer() const
 {
+	ZoneScopedN("GameScene::UpdateCameraUBO");
 	CameraUBO cameraUBO{};
 	cameraUBO.projection = _camera->_projection;
 	cameraUBO.view = _camera->_view;
@@ -1397,6 +1417,7 @@ void GameScene::create_camera()
 
 void GameScene::sync_runtime_lights()
 {
+    ZoneScopedN("GameScene::SyncRuntimeLights");
     if (!_playerTorchLightEnabled)
     {
         if (_playerTorchLightId.has_value())
@@ -1428,6 +1449,7 @@ void GameScene::sync_runtime_lights()
 
 void GameScene::sync_camera_to_game(const float deltaTime)
 {
+    ZoneScopedN("GameScene::SyncCamera");
     const PlayerSnapshot& player = _game.snapshot().player;
     constexpr float ThirdPersonDistance = 5.0f;
     const glm::vec3 target = player.cameraTarget;
@@ -1442,6 +1464,7 @@ void GameScene::sync_camera_to_game(const float deltaTime)
 
 void GameScene::sync_player_render_instance()
 {
+    ZoneScopedN("GameScene::SyncPlayerRenderInstance");
     const PlayerEntity* const player = _game.player();
     if (player == nullptr)
     {
@@ -1499,6 +1522,7 @@ void GameScene::sync_player_render_instance()
 
 void GameScene::sync_spatial_collider_debug()
 {
+    ZoneScopedN("GameScene::SyncSpatialColliderDebug");
     clear_spatial_collider_debug();
     if (!_showSpatialColliderBounds)
     {
@@ -1586,11 +1610,13 @@ void GameScene::refresh_player_assembly_assets()
 
 void GameScene::sync_target_block()
 {
+    ZoneScopedN("GameScene::SyncTargetBlock");
     _targetBlock = _game.raycast_target_block(_camera->_position, _camera->_front, GameConfig::BLOCK_INTERACTION_DISTANCE);
 }
 
 void GameScene::sync_target_block_outline()
 {
+    ZoneScopedN("GameScene::SyncTargetBlockOutline");
     if (!_targetBlock.has_value())
     {
         clear_target_block_outline();
@@ -1631,6 +1657,7 @@ void GameScene::sync_target_block_outline()
 
 void GameScene::sync_chunk_boundary_debug()
 {
+    ZoneScopedN("GameScene::SyncChunkBoundaryDebug");
     clear_chunk_boundary_debug();
     if (!_settings.persistence().debug.showChunkBoundaries)
     {
@@ -1676,6 +1703,7 @@ void GameScene::sync_chunk_boundary_debug()
 
 void GameScene::rebuild_runtime_voxel_demo()
 {
+    ZoneScopedN("GameScene::RebuildRuntimeVoxelDemo");
     _runtimeVoxelDemoInitialized = true;
     _runtimeVoxelDemoDirty = false;
     _voxelRenderRegistry.clear(_renderState);
