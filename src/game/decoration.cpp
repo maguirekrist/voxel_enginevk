@@ -181,6 +181,5 @@ bool decoration::can_place_surface_decoration(
 
     return has_vertical_clearance(chunkData, baseWorldPos, clearanceHeight) &&
         column.biome != BiomeType::Ocean &&
-        !column.hasRiver &&
         !column.isBeach;
 }

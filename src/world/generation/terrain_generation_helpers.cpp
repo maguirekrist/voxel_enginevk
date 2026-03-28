@@ -26,24 +26,33 @@ namespace
         return static_cast<size_t>((z * size) + x);
     }
 
-    [[nodiscard]] float compute_base_height(
+    [[nodiscard]] float compute_surface_height(
         const TerrainNoiseSample& noise,
         const TerrainShapeSettings& shapeSettings,
         const std::vector<SplinePoint>& erosionSplines,
         const std::vector<SplinePoint>& peakSplines,
         const std::vector<SplinePoint>& continentalSplines)
     {
-        const float continentalHeight = terrain_generation::sample_spline_height(continentalSplines, noise.continentalness) * shapeSettings.continentalStrength;
-        const float peaksHeight = terrain_generation::sample_spline_height(peakSplines, noise.peaksValleys) * shapeSettings.peaksStrength;
+        const float continentalHeight = terrain_generation::sample_spline_height(continentalSplines, noise.continentalness);
+        const float peaksHeight = terrain_generation::sample_spline_height(peakSplines, noise.peaksValleys);
         const float erosionHeight = terrain_generation::sample_spline_height(erosionSplines, noise.erosion);
-        const float erosionBlend = inverse_lerp(0.0f, static_cast<float>(CHUNK_HEIGHT - 1), erosionHeight);
-        const float peakMask = inverse_lerp(-1.0f, 1.0f, noise.peaksValleys);
-        const float erosionSuppression = lerp(shapeSettings.erosionSuppressionLow, shapeSettings.erosionSuppressionHigh, erosionBlend);
-        const float mountainLift = peaksHeight * lerp(1.0f, erosionSuppression, shapeSettings.erosionStrength);
-        const float valleyCarve = (1.0f - peakMask) * (1.0f - erosionBlend) * shapeSettings.valleyStrength;
-        const float detailLift = noise.detail * shapeSettings.detailStrength;
+        const float totalStrength =
+            shapeSettings.continental.strength +
+            shapeSettings.peaks.strength +
+            shapeSettings.erosion.strength;
+
+        if (totalStrength <= std::numeric_limits<float>::epsilon())
+        {
+            return static_cast<float>(shapeSettings.seaLevel);
+        }
+
+        const float weightedHeight =
+            (continentalHeight * shapeSettings.continental.strength) +
+            (peaksHeight * shapeSettings.peaks.strength) +
+            (erosionHeight * shapeSettings.erosion.strength);
+
         return std::clamp(
-            continentalHeight + mountainLift - valleyCarve + detailLift,
+            weightedHeight / totalStrength,
             1.0f,
             static_cast<float>(CHUNK_HEIGHT - 8));
     }
@@ -54,27 +63,6 @@ namespace
             static_cast<int>(std::round(height)),
             1,
             static_cast<int>(CHUNK_HEIGHT - 8));
-    }
-
-    [[nodiscard]] float compute_river_potential(const TerrainShapeSettings& shapeSettings, const float riverNoiseValue)
-    {
-        if (!shapeSettings.riversEnabled)
-        {
-            return 0.0f;
-        }
-
-        return 1.0f - clamp01(std::abs(riverNoiseValue) / shapeSettings.riverThreshold);
-    }
-
-    [[nodiscard]] int apply_river_carve(const TerrainShapeSettings& shapeSettings, const int baseHeight, const float riverPotential)
-    {
-        if (!shapeSettings.riversEnabled || riverPotential <= 0.0f)
-        {
-            return baseHeight;
-        }
-
-        const float carve = lerp(0.0f, 12.0f, riverPotential * riverPotential);
-        return clamp_surface_height(static_cast<float>(baseHeight) - carve);
     }
 }
 
@@ -118,7 +106,6 @@ float terrain_generation::sample_spline_height(const std::vector<SplinePoint>& s
 
 void terrain_generation::fill_region_scaffold(
     const FastNoise::SmartNode<>& continentalNoise,
-    const FastNoise::SmartNode<>& riverNoise,
     const TerrainGeneratorSettings& settings,
     const glm::ivec2& chunkOrigin,
     WorldRegionScaffold2D& scaffold)
@@ -128,28 +115,14 @@ void terrain_generation::fill_region_scaffold(
     const int originZ = chunkOrigin.y;
 
     std::vector<float> continentalMap(static_cast<size_t>(size * size));
-    std::vector<float> riverMap(static_cast<size_t>(size * size));
-
     continentalNoise->GenUniformGrid2D(
         continentalMap.data(),
         originX,
         originZ,
         size,
         size,
-        settings.shape.continentalFrequency,
+        settings.shape.continental.frequency,
         settings.seed);
-
-    if (settings.shape.riversEnabled)
-    {
-        riverNoise->GenUniformGrid2D(
-            riverMap.data(),
-            originX,
-            originZ,
-            size,
-            size,
-            settings.shape.riverFrequency,
-            settings.seed + 303);
-    }
 
     for (int localZ = 0; localZ < size; ++localZ)
     {
@@ -158,9 +131,6 @@ void terrain_generation::fill_region_scaffold(
             const size_t index = grid2d_index(size, localX, localZ);
             WorldRegionSample& sample = scaffold.at(localX, localZ);
             sample.continentalness = continentalMap[index];
-            sample.riverPotential = settings.shape.riversEnabled
-                ? compute_river_potential(settings.shape, riverMap[index])
-                : 0.0f;
         }
     }
 }
@@ -168,7 +138,7 @@ void terrain_generation::fill_region_scaffold(
 void terrain_generation::fill_column_scaffold(
     const FastNoise::SmartNode<>& erosionNoise,
     const FastNoise::SmartNode<>& peaksNoise,
-    const FastNoise::SmartNode<>& detailNoise,
+    const FastNoise::SmartNode<>& weirdnessNoise,
     const TerrainGeneratorSettings& settings,
     const WorldRegionScaffold2D& regionScaffold,
     const glm::ivec2& chunkOrigin,
@@ -180,15 +150,14 @@ void terrain_generation::fill_column_scaffold(
 
     std::vector<float> erosionMap(static_cast<size_t>(size * size));
     std::vector<float> peaksMap(static_cast<size_t>(size * size));
-    std::vector<float> detailMap(static_cast<size_t>(size * size));
-
+    std::vector<float> weirdnessMap(static_cast<size_t>(size * size));
     erosionNoise->GenUniformGrid2D(
         erosionMap.data(),
         originX,
         originZ,
         size,
         size,
-        settings.shape.erosionFrequency,
+        settings.shape.erosion.frequency,
         settings.seed);
     peaksNoise->GenUniformGrid2D(
         peaksMap.data(),
@@ -196,16 +165,16 @@ void terrain_generation::fill_column_scaffold(
         originZ,
         size,
         size,
-        settings.shape.peaksFrequency,
+        settings.shape.peaks.frequency,
         settings.seed + 101);
-    detailNoise->GenUniformGrid2D(
-        detailMap.data(),
+    weirdnessNoise->GenUniformGrid2D(
+        weirdnessMap.data(),
         originX,
         originZ,
         size,
         size,
-        settings.shape.detailFrequency,
-        settings.seed + 202);
+        settings.shape.weirdness.frequency,
+        settings.seed + 211);
 
     for (int localZ = 0; localZ < size; ++localZ)
     {
@@ -219,57 +188,119 @@ void terrain_generation::fill_column_scaffold(
                 .continentalness = region.continentalness,
                 .erosion = erosionMap[index],
                 .peaksValleys = peaksMap[index],
-                .detail = detailMap[index],
-                .river = settings.shape.riversEnabled ? (1.0f - (region.riverPotential * 2.0f)) : -1.0f
+                .weirdness = weirdnessMap[index]
             };
 
-            const int baseHeight = clamp_surface_height(compute_base_height(
+            const int shapedHeight = clamp_surface_height(compute_surface_height(
                 column.noise,
                 settings.shape,
                 settings.erosionSplines,
                 settings.peakSplines,
                 settings.continentalSplines));
-            const int carvedHeight = apply_river_carve(settings.shape, baseHeight, region.riverPotential);
 
-            column.baseSurfaceHeight = baseHeight;
-            column.surfaceHeight = carvedHeight;
-            column.stoneHeight = carvedHeight;
+            column.surfaceHeight = shapedHeight;
+            column.stoneHeight = shapedHeight;
             column.biome = BiomeType::None; //TODO: I guess this should ust be a place holder until biome classification is implemented?
             column.topBlock = BlockType::STONE;
             column.fillerBlock = BlockType::STONE;
-            column.hasRiver = settings.shape.riversEnabled && region.riverPotential > 0.58f;
             column.isBeach = false;
         }
     }
 }
 
-void terrain_generation::fill_heightfield_volume(
+void terrain_generation::fill_density_volume(
     const TerrainColumnScaffold2D& columnScaffold,
+    const FastNoise::SmartNode<>& densityNoise,
+    const TerrainGeneratorSettings& settings,
     const glm::ivec2& chunkOrigin,
     TerrainVolumeBuffer& volumeBuffer)
 {
     volumeBuffer.chunkOrigin = chunkOrigin;
+    std::vector<float> densitySamples(static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE));
+    densityNoise->GenUniformGrid3D(
+        densitySamples.data(),
+        chunkOrigin.x,
+        0,
+        chunkOrigin.y,
+        static_cast<int>(CHUNK_SIZE),
+        static_cast<int>(CHUNK_HEIGHT),
+        static_cast<int>(CHUNK_SIZE),
+        settings.density.frequency,
+        settings.seed + 907);
+
     for (int localZ = 0; localZ < static_cast<int>(CHUNK_SIZE); ++localZ)
     {
         for (int localX = 0; localX < static_cast<int>(CHUNK_SIZE); ++localX)
         {
             const TerrainColumnSample& column = columnScaffold.at(localX, localZ);
+            const float normalizedWeirdness = clamp01(
+                ((column.noise.weirdness + 1.0f) * 0.5f) * settings.shape.weirdness.strength);
+            const float bandHalfSpan = normalizedWeirdness * static_cast<float>(settings.density.maxBandHalfSpanBlocks);
+            const float surfaceCenter = static_cast<float>(column.surfaceHeight) + 0.5f;
+            const float lowerEdge = surfaceCenter - bandHalfSpan;
+            const float upperEdge = surfaceCenter + bandHalfSpan;
             for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
             {
                 TerrainVolumeCell& cell = volumeBuffer.at(localX, y, localZ);
-                if (y <= column.surfaceHeight)
+                const float sampleCenter = static_cast<float>(y) + 0.5f;
+                const size_t densityIndex = static_cast<size_t>(
+                    ((localZ * static_cast<int>(CHUNK_HEIGHT) + y) * static_cast<int>(CHUNK_SIZE)) + localX);
+
+                if (bandHalfSpan <= std::numeric_limits<float>::epsilon())
                 {
-                    cell.density = static_cast<float>(column.surfaceHeight + 1 - y);
+                    if (y <= column.surfaceHeight)
+                    {
+                        cell.density = static_cast<float>(column.surfaceHeight + 1 - y);
+                        cell.material = MaterialClass::Stone;
+                        cell.featureId = 0u;
+                        cell.surfaceAffinity = y == column.surfaceHeight ? 1.0f : 0.0f;
+                    }
+                    else
+                    {
+                        cell.density = -1.0f;
+                        cell.material = MaterialClass::Air;
+                        cell.featureId = 0u;
+                        cell.surfaceAffinity = 0.0f;
+                    }
+                    continue;
+                }
+
+                if (sampleCenter < lowerEdge)
+                {
+                    cell.density = 1.0f;
                     cell.material = MaterialClass::Stone;
                     cell.featureId = 0u;
-                    cell.surfaceAffinity = y == column.surfaceHeight ? 1.0f : 0.0f;
+                    cell.surfaceAffinity = 0.0f;
+                    continue;
                 }
-                else
+
+                if (sampleCenter > upperEdge)
                 {
                     cell.density = -1.0f;
                     cell.material = MaterialClass::Air;
                     cell.featureId = 0u;
                     cell.surfaceAffinity = 0.0f;
+                    continue;
+                }
+
+                const float verticalDistance = std::abs(sampleCenter - surfaceCenter);
+                const float normalizedDistance = clamp01(verticalDistance / bandHalfSpan);
+                const float noiseWeight = 1.0f - normalizedDistance;
+                const float surfaceAnchor = (surfaceCenter - sampleCenter) / bandHalfSpan;
+                const float densityValue =
+                    surfaceAnchor +
+                    (densitySamples[densityIndex] * settings.density.strength * noiseWeight);
+
+                cell.density = densityValue;
+                cell.featureId = 0u;
+                cell.surfaceAffinity = clamp01(1.0f - std::abs(surfaceCenter - sampleCenter));
+                if (densityValue > 0.0f)
+                {
+                    cell.material = MaterialClass::Stone;
+                }
+                else
+                {
+                    cell.material = MaterialClass::Air;
                 }
             }
         }

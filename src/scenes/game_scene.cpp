@@ -51,27 +51,108 @@ namespace
         return true;
     }
 
+    bool equal_noise_layer_settings(const TerrainNoiseLayerSettings& lhs, const TerrainNoiseLayerSettings& rhs)
+    {
+        return lhs.basis == rhs.basis &&
+            lhs.frequency == rhs.frequency &&
+            lhs.octaves == rhs.octaves &&
+            lhs.lacunarity == rhs.lacunarity &&
+            lhs.gain == rhs.gain &&
+            lhs.weightedStrength == rhs.weightedStrength &&
+            lhs.remapFromMin == rhs.remapFromMin &&
+            lhs.remapFromMax == rhs.remapFromMax &&
+            lhs.remapToMin == rhs.remapToMin &&
+            lhs.remapToMax == rhs.remapToMax &&
+            lhs.terraceStepCount == rhs.terraceStepCount &&
+            lhs.terraceSmoothness == rhs.terraceSmoothness &&
+            lhs.strength == rhs.strength;
+    }
+
+    bool equal_density_settings(const TerrainDensitySettings& lhs, const TerrainDensitySettings& rhs)
+    {
+        return lhs.basis == rhs.basis &&
+            lhs.frequency == rhs.frequency &&
+            lhs.octaves == rhs.octaves &&
+            lhs.lacunarity == rhs.lacunarity &&
+            lhs.gain == rhs.gain &&
+            lhs.weightedStrength == rhs.weightedStrength &&
+            lhs.strength == rhs.strength &&
+            lhs.maxBandHalfSpanBlocks == rhs.maxBandHalfSpanBlocks;
+    }
+
     bool equal_world_gen_settings(const TerrainGeneratorSettings& lhs, const TerrainGeneratorSettings& rhs)
     {
         return lhs.seed == rhs.seed &&
-            lhs.shape.continentalFrequency == rhs.shape.continentalFrequency &&
-            lhs.shape.erosionFrequency == rhs.shape.erosionFrequency &&
-            lhs.shape.peaksFrequency == rhs.shape.peaksFrequency &&
-            lhs.shape.detailFrequency == rhs.shape.detailFrequency &&
             lhs.shape.seaLevel == rhs.shape.seaLevel &&
-            lhs.shape.riversEnabled == rhs.shape.riversEnabled &&
-            lhs.shape.riverFrequency == rhs.shape.riverFrequency &&
-            lhs.shape.riverThreshold == rhs.shape.riverThreshold &&
-            lhs.shape.continentalStrength == rhs.shape.continentalStrength &&
-            lhs.shape.peaksStrength == rhs.shape.peaksStrength &&
-            lhs.shape.erosionStrength == rhs.shape.erosionStrength &&
-            lhs.shape.valleyStrength == rhs.shape.valleyStrength &&
-            lhs.shape.detailStrength == rhs.shape.detailStrength &&
-            lhs.shape.erosionSuppressionLow == rhs.shape.erosionSuppressionLow &&
-            lhs.shape.erosionSuppressionHigh == rhs.shape.erosionSuppressionHigh &&
+            equal_noise_layer_settings(lhs.shape.continental, rhs.shape.continental) &&
+            equal_noise_layer_settings(lhs.shape.erosion, rhs.shape.erosion) &&
+            equal_noise_layer_settings(lhs.shape.peaks, rhs.shape.peaks) &&
+            equal_noise_layer_settings(lhs.shape.weirdness, rhs.shape.weirdness) &&
+            equal_density_settings(lhs.density, rhs.density) &&
             equal_spline_points(lhs.erosionSplines, rhs.erosionSplines) &&
             equal_spline_points(lhs.peakSplines, rhs.peakSplines) &&
             equal_spline_points(lhs.continentalSplines, rhs.continentalSplines);
+    }
+
+    void draw_noise_layer_editor(
+        const char* id,
+        const char* label,
+        TerrainNoiseLayerSettings& settings,
+        const char* strengthLabel = "Height Strength")
+    {
+        static constexpr const char* BasisLabels[] = {
+            "OpenSimplex2",
+            "OpenSimplex2S",
+            "Simplex",
+            "Perlin"
+        };
+
+        ImGui::PushID(id);
+        ImGui::SeparatorText(label);
+        int basis = static_cast<int>(settings.basis);
+        if (ImGui::Combo("Basis", &basis, BasisLabels, IM_ARRAYSIZE(BasisLabels)))
+        {
+            settings.basis = static_cast<TerrainNoiseBasis>(basis);
+        }
+        ImGui::SliderFloat("Frequency", &settings.frequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
+        ImGui::SliderInt("Octaves", &settings.octaves, 1, 16);
+        ImGui::SliderFloat("Lacunarity", &settings.lacunarity, 1.0f, 4.0f, "%.2f");
+        ImGui::SliderFloat("Gain (Persistence)", &settings.gain, 0.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("Weighted Strength", &settings.weightedStrength, 0.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("Remap From Min", &settings.remapFromMin, -1.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("Remap From Max", &settings.remapFromMax, -1.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("Remap To Min", &settings.remapToMin, -1.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("Remap To Max", &settings.remapToMax, -1.0f, 1.0f, "%.2f");
+        ImGui::SliderInt("Terrace Step Count", &settings.terraceStepCount, 1, 32);
+        ImGui::SliderFloat("Terrace Smoothness", &settings.terraceSmoothness, 0.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat(strengthLabel, &settings.strength, 0.0f, 1.0f, "%.2f");
+        ImGui::PopID();
+    }
+
+    void draw_density_editor(const char* id, const char* label, TerrainDensitySettings& settings)
+    {
+        static constexpr const char* BasisLabels[] = {
+            "OpenSimplex2",
+            "OpenSimplex2S",
+            "Simplex",
+            "Perlin"
+        };
+
+        ImGui::PushID(id);
+        ImGui::SeparatorText(label);
+        int basis = static_cast<int>(settings.basis);
+        if (ImGui::Combo("Basis", &basis, BasisLabels, IM_ARRAYSIZE(BasisLabels)))
+        {
+            settings.basis = static_cast<TerrainNoiseBasis>(basis);
+        }
+        ImGui::SliderFloat("Frequency", &settings.frequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
+        ImGui::SliderInt("Octaves", &settings.octaves, 1, 16);
+        ImGui::SliderFloat("Lacunarity", &settings.lacunarity, 1.0f, 4.0f, "%.2f");
+        ImGui::SliderFloat("Gain (Persistence)", &settings.gain, 0.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("Weighted Strength", &settings.weightedStrength, 0.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("Density Strength", &settings.strength, 0.0f, 1.0f, "%.2f");
+        ImGui::SliderInt("Max Band Half Span", &settings.maxBandHalfSpanBlocks, 0, static_cast<int>(CHUNK_HEIGHT), "%d");
+        ImGui::PopID();
     }
 
     float sample_spline_height(const std::vector<SplinePoint>& spline, const float noiseValue)
@@ -134,8 +215,6 @@ namespace
             return "Plains";
         case BiomeType::Forest:
             return "Forest";
-        case BiomeType::River:
-            return "River";
         case BiomeType::Mountains:
             return "Mountains";
         default:
@@ -159,8 +238,6 @@ namespace
                 return IM_COL32(122, 176, 92, 255);
             case BiomeType::Forest:
                 return IM_COL32(58, 122, 66, 255);
-            case BiomeType::River:
-                return IM_COL32(92, 152, 214, 255);
             case BiomeType::Mountains:
                 return IM_COL32(150, 150, 162, 255);
             default:
@@ -173,18 +250,14 @@ namespace
         case 0:
             return pack_color(gradient_color(static_cast<float>(column.surfaceHeight) / static_cast<float>(CHUNK_HEIGHT - 1)));
         case 1:
-            return pack_color(gradient_color(static_cast<float>(column.baseSurfaceHeight) / static_cast<float>(CHUNK_HEIGHT - 1)));
-        case 2:
             return pack_color(gradient_color((column.noise.continentalness + 1.0f) * 0.5f));
-        case 3:
+        case 2:
             return pack_color(gradient_color((column.noise.erosion + 1.0f) * 0.5f));
-        case 4:
+        case 3:
             return pack_color(gradient_color((column.noise.peaksValleys + 1.0f) * 0.5f));
+        case 4:
+            return pack_color(gradient_color((column.noise.weirdness + 1.0f) * 0.5f));
         case 5:
-            return pack_color(gradient_color((column.noise.detail + 1.0f) * 0.5f));
-        case 6:
-            return pack_color(gradient_color((column.noise.river + 1.0f) * 0.5f));
-        case 7:
             return biome_color(column.biome);
         default:
             break;
@@ -340,14 +413,11 @@ namespace
             ImGui::Text("World: %d, %d", worldX, worldZ);
             ImGui::Text("Local: %d, %d", localX, localZ);
             ImGui::Text("Height: %d", column.surfaceHeight);
-            ImGui::Text("Base Height: %d", column.baseSurfaceHeight);
             ImGui::Text("Cont: %.2f", column.noise.continentalness);
             ImGui::Text("Erosion: %.2f", column.noise.erosion);
             ImGui::Text("Peaks: %.2f", column.noise.peaksValleys);
-            ImGui::Text("Detail: %.2f", column.noise.detail);
-            ImGui::Text("River: %.2f", column.noise.river);
+            ImGui::Text("Weirdness: %.2f", column.noise.weirdness);
             ImGui::Text("Biome: %s", biome_label(column.biome));
-            ImGui::Text("River Column: %s", column.hasRiver ? "Yes" : "No");
             ImGui::EndTooltip();
         }
     }
@@ -1173,23 +1243,12 @@ void GameScene::draw_debug_map()
             ImGui::Text("Stage terrain changes here. Nothing regenerates until you press the button.");
             ImGui::InputScalar("Seed", ImGuiDataType_U32, &_worldGenDraft.seed);
             ImGui::SeparatorText("Shape");
-            ImGui::SliderFloat("Continental Frequency", &_worldGenDraft.shape.continentalFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
-            ImGui::SliderFloat("Erosion Frequency", &_worldGenDraft.shape.erosionFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
-            ImGui::SliderFloat("Peaks Frequency", &_worldGenDraft.shape.peaksFrequency, 0.00005f, 0.0050f, "%.5f", ImGuiSliderFlags_Logarithmic);
-            ImGui::SliderFloat("Detail Frequency", &_worldGenDraft.shape.detailFrequency, 0.00020f, 0.0300f, "%.5f", ImGuiSliderFlags_Logarithmic);
             ImGui::SliderInt("Sea Level", &_worldGenDraft.shape.seaLevel, 0, static_cast<int>(CHUNK_HEIGHT) - 1);
-            ImGui::Checkbox("Enable Rivers", &_worldGenDraft.shape.riversEnabled);
-            ImGui::BeginDisabled(!_worldGenDraft.shape.riversEnabled);
-            ImGui::SliderFloat("River Frequency", &_worldGenDraft.shape.riverFrequency, 0.00005f, 0.0100f, "%.5f", ImGuiSliderFlags_Logarithmic);
-            ImGui::SliderFloat("River Width Threshold", &_worldGenDraft.shape.riverThreshold, 0.005f, 0.35f, "%.3f");
-            ImGui::EndDisabled();
-            ImGui::SliderFloat("Continental Strength", &_worldGenDraft.shape.continentalStrength, 0.0f, 2.0f, "%.2f");
-            ImGui::SliderFloat("Peaks Strength", &_worldGenDraft.shape.peaksStrength, 0.0f, 2.5f, "%.2f");
-            ImGui::SliderFloat("Erosion Strength", &_worldGenDraft.shape.erosionStrength, 0.0f, 2.0f, "%.2f");
-            ImGui::SliderFloat("Valley Strength", &_worldGenDraft.shape.valleyStrength, 0.0f, 64.0f, "%.1f");
-            ImGui::SliderFloat("Detail Strength", &_worldGenDraft.shape.detailStrength, 0.0f, 16.0f, "%.1f");
-            ImGui::SliderFloat("Erosion Suppression Low", &_worldGenDraft.shape.erosionSuppressionLow, 0.1f, 2.5f, "%.2f");
-            ImGui::SliderFloat("Erosion Suppression High", &_worldGenDraft.shape.erosionSuppressionHigh, 0.1f, 2.5f, "%.2f");
+            draw_noise_layer_editor("ContinentalNoise", "Continental Noise", _worldGenDraft.shape.continental);
+            draw_noise_layer_editor("ErosionNoise", "Erosion Noise", _worldGenDraft.shape.erosion);
+            draw_noise_layer_editor("PeaksNoise", "Peaks / Valleys Noise", _worldGenDraft.shape.peaks);
+            draw_noise_layer_editor("WeirdnessNoise", "Weirdness Noise", _worldGenDraft.shape.weirdness, "Band Strength");
+            draw_density_editor("DensityNoise", "3D Density", _worldGenDraft.density);
             ImGui::TextUnformatted("Biome-driven terrain materials are disabled for now. Terrain rasterizes as stone while decorations and biome enums stay in place for later work.");
 
             draw_spline_editor("ErosionSplineTable", "Erosion Spline", _worldGenDraft.erosionSplines);
@@ -1198,13 +1257,11 @@ void GameScene::draw_debug_map()
 
             ImGui::SeparatorText("Current Area Preview");
             const char* layerLabels[] = {
-                "Final Height",
-                "Base Height",
+                "Height",
                 "Continentalness",
                 "Erosion",
                 "Peaks/Valleys",
-                "Detail",
-                "River",
+                "Weirdness",
                 "Biome",
             };
             ImGui::Combo("Preview Layer", &_worldGenPreviewLayer, layerLabels, IM_ARRAYSIZE(layerLabels));

@@ -1,21 +1,77 @@
 {
+  "density": {
+    "basis": 1,
+    "frequency": 0.004999999888241291,
+    "gain": 0.5,
+    "lacunarity": 2.0,
+    "maxBandHalfSpanBlocks": 140,
+    "octaves": 4,
+    "strength": 1.0,
+    "weightedStrength": 0.0
+  },
   "seed": 1337,
   "shape": {
-    "continentalFrequency": 0.0005499999970197678,
-    "continentalStrength": 1.0,
-    "detailFrequency": 0.006500000134110451,
-    "detailStrength": 5.0,
-    "erosionFrequency": 0.0011500000255182385,
-    "erosionStrength": 1.0,
-    "erosionSuppressionHigh": 0.550000011920929,
-    "erosionSuppressionLow": 1.25,
-    "peaksFrequency": 0.0018500000005587935,
-    "peaksStrength": 0.8999999761581421,
-    "riverFrequency": 0.0017999999690800905,
-    "riverThreshold": 0.07000000029802322,
-    "riversEnabled": false,
-    "seaLevel": 128,
-    "valleyStrength": 28.0
+    "continental": {
+      "basis": 1,
+      "frequency": 0.0005499999970197678,
+      "gain": 0.5,
+      "lacunarity": 2.0,
+      "octaves": 5,
+      "remapFromMax": 1.0,
+      "remapFromMin": -1.0,
+      "remapToMax": 1.0,
+      "remapToMin": -1.0,
+      "strength": 1.0,
+      "terraceSmoothness": 0.0,
+      "terraceStepCount": 1,
+      "weightedStrength": 0.0
+    },
+    "erosion": {
+      "basis": 0,
+      "frequency": 0.0011500000255182385,
+      "gain": 0.5,
+      "lacunarity": 2.0,
+      "octaves": 4,
+      "remapFromMax": 1.0,
+      "remapFromMin": -1.0,
+      "remapToMax": 1.0,
+      "remapToMin": -1.0,
+      "strength": 1.0,
+      "terraceSmoothness": 0.0,
+      "terraceStepCount": 1,
+      "weightedStrength": 0.0
+    },
+    "peaks": {
+      "basis": 0,
+      "frequency": 0.0018500000005587935,
+      "gain": 0.5,
+      "lacunarity": 2.0,
+      "octaves": 4,
+      "remapFromMax": 0.8700000047683716,
+      "remapFromMin": -1.0,
+      "remapToMax": 1.0,
+      "remapToMin": -1.0,
+      "strength": 1.0,
+      "terraceSmoothness": 0.0,
+      "terraceStepCount": 1,
+      "weightedStrength": 0.0
+    },
+    "seaLevel": 65,
+    "weirdness": {
+      "basis": 1,
+      "frequency": 0.0018899999558925629,
+      "gain": 0.5,
+      "lacunarity": 2.0,
+      "octaves": 5,
+      "remapFromMax": -0.009999999776482582,
+      "remapFromMin": -0.12999999523162842,
+      "remapToMax": 0.4399999976158142,
+      "remapToMin": -0.029999999329447746,
+      "strength": 1.0,
+      "terraceSmoothness": 0.0,
+      "terraceStepCount": 1,
+      "weightedStrength": 0.009999999776482582
+    }
   },
   "splines": {
     "continentalness": [
@@ -24,66 +80,66 @@
         "noise": -1.0
       },
       {
-        "height": 34.0,
-        "noise": -0.44999998807907104
+        "height": 50.900001525878906,
+        "noise": -0.30000001192092896
       },
       {
-        "height": 54.0,
-        "noise": -0.15000000596046448
+        "height": 77.80000305175781,
+        "noise": -0.20999999344348907
       },
       {
-        "height": 72.0,
-        "noise": 0.10000000149011612
+        "height": 104.69999694824219,
+        "noise": 0.07999999821186066
       },
       {
-        "height": 92.0,
-        "noise": 0.44999998807907104
+        "height": 101.9000015258789,
+        "noise": 0.7699999809265137
       },
       {
-        "height": 116.0,
+        "height": 151.8000030517578,
         "noise": 1.0
       }
     ],
     "erosion": [
       {
-        "height": 48.0,
+        "height": 115.0999984741211,
         "noise": -1.0
       },
       {
-        "height": 64.0,
-        "noise": -0.10000000149011612
+        "height": 118.0,
+        "noise": 0.009999999776482582
       },
       {
-        "height": 86.0,
-        "noise": 0.5
+        "height": 11.600000381469727,
+        "noise": 0.12999999523162842
       },
       {
-        "height": 110.0,
+        "height": 14.899999618530273,
         "noise": 1.0
       }
     ],
     "peaks": [
       {
-        "height": 0.0,
+        "height": 31.799999237060547,
         "noise": -1.0
       },
       {
-        "height": 8.0,
-        "noise": -0.5
+        "height": 71.4000015258789,
+        "noise": 0.029999999329447746
       },
       {
-        "height": 24.0,
-        "noise": 0.0
+        "height": 138.89999389648438,
+        "noise": 0.33000001311302185
       },
       {
-        "height": 76.0,
+        "height": 239.6999969482422,
         "noise": 0.44999998807907104
       },
       {
-        "height": 132.0,
+        "height": 225.1999969482422,
         "noise": 1.0
       }
     ]
   },
-  "version": 7
+  "version": 14
 }
