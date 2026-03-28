@@ -433,7 +433,6 @@ void TreePlacementStrategy::collect_anchors(const StructureGenerationContext& co
             const int topPadding = variant == TreeVariant::Giant ? 6 : 2;
             const bool canSpawnTree =
                 column.surfaceHeight > TerrainGenerator::sea_level() &&
-                !column.hasRiver &&
                 !column.isBeach &&
                 column.biome != BiomeType::Ocean &&
                 column.surfaceHeight + maxHeight + topPadding < static_cast<int>(CHUNK_HEIGHT);

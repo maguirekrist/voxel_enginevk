@@ -32,8 +32,15 @@ enum class BiomeType : uint8_t
     Shore = 2,
     Plains = 3,
     Forest = 4,
-    River = 5,
-    Mountains = 6
+    Mountains = 5
+};
+
+enum class TerrainNoiseBasis : uint8_t
+{
+    OpenSimplex2 = 0,
+    OpenSimplex2S = 1,
+    Simplex = 2,
+    Perlin = 3
 };
 
 struct TerrainNoiseSample
@@ -41,46 +48,73 @@ struct TerrainNoiseSample
     float continentalness{};
     float erosion{};
     float peaksValleys{};
-    float detail{};
-    float river{};
 };
 
 struct WorldRegionSample
 {
     float continentalness{};
-    float riverPotential{};
 };
 
 struct TerrainColumnSample
 {
     int surfaceHeight{};
-    int baseSurfaceHeight{};
     int stoneHeight{};
     BiomeType biome{BiomeType::None};
     BlockType topBlock{BlockType::STONE};
     BlockType fillerBlock{BlockType::STONE};
-    bool hasRiver{false};
     bool isBeach{false};
     TerrainNoiseSample noise{};
 };
 
+struct TerrainNoiseLayerSettings
+{
+    TerrainNoiseBasis basis{TerrainNoiseBasis::OpenSimplex2};
+    float frequency{0.0010f};
+    int octaves{4};
+    float lacunarity{2.0f};
+    float gain{0.5f};
+    float weightedStrength{0.0f};
+    int terraceStepCount{1};
+    float terraceSmoothness{0.0f};
+    float strength{1.0f};
+};
+
 struct TerrainShapeSettings
 {
-    float continentalFrequency{0.00055f};
-    float erosionFrequency{0.00115f};
-    float peaksFrequency{0.00185f};
-    float detailFrequency{0.0065f};
     int seaLevel{static_cast<int>(SEA_LEVEL)};
-    bool riversEnabled{true};
-    float riverFrequency{0.0018f};
-    float riverThreshold{0.07f};
-    float continentalStrength{1.0f};
-    float peaksStrength{0.9f};
-    float erosionStrength{1.0f};
-    float valleyStrength{28.0f};
-    float detailStrength{5.0f};
-    float erosionSuppressionLow{1.25f};
-    float erosionSuppressionHigh{0.55f};
+    TerrainNoiseLayerSettings continental{
+        .basis = TerrainNoiseBasis::OpenSimplex2S,
+        .frequency = 0.00055f,
+        .octaves = 5,
+        .lacunarity = 2.0f,
+        .gain = 0.5f,
+        .weightedStrength = 0.0f,
+        .terraceStepCount = 1,
+        .terraceSmoothness = 0.0f,
+        .strength = 1.0f
+    };
+    TerrainNoiseLayerSettings erosion{
+        .basis = TerrainNoiseBasis::OpenSimplex2,
+        .frequency = 0.00115f,
+        .octaves = 4,
+        .lacunarity = 2.0f,
+        .gain = 0.5f,
+        .weightedStrength = 0.0f,
+        .terraceStepCount = 1,
+        .terraceSmoothness = 0.0f,
+        .strength = 1.0f
+    };
+    TerrainNoiseLayerSettings peaks{
+        .basis = TerrainNoiseBasis::OpenSimplex2,
+        .frequency = 0.00185f,
+        .octaves = 4,
+        .lacunarity = 2.0f,
+        .gain = 0.5f,
+        .weightedStrength = 0.0f,
+        .terraceStepCount = 1,
+        .terraceSmoothness = 0.0f,
+        .strength = 1.0f
+    };
 };
 
 struct TerrainGeneratorSettings
@@ -179,13 +213,12 @@ enum class SurfaceClass : uint8_t
     GrassTop = 1,
     ForestFloor = 2,
     BeachTop = 3,
-    WetRiverbank = 4,
-    CliffFace = 5,
-    ScreeSlope = 6,
-    UndersideRock = 7,
-    InteriorStone = 8,
-    SnowyTop = 9,
-    SedimentLayer = 10
+    CliffFace = 4,
+    ScreeSlope = 5,
+    UndersideRock = 6,
+    InteriorStone = 7,
+    SnowyTop = 8,
+    SedimentLayer = 9
 };
 
 struct SurfaceClassificationBuffer
@@ -282,8 +315,6 @@ private:
     FastNoise::SmartNode<> _erosion;
     FastNoise::SmartNode<> _peaks;
     FastNoise::SmartNode<> _continental;
-    FastNoise::SmartNode<> _detail;
-    FastNoise::SmartNode<> _river;
 
     TerrainGeneratorSettings _settings{};
 

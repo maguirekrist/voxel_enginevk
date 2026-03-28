@@ -6,7 +6,41 @@ namespace config
 {
     namespace
     {
-        constexpr int WorldGenConfigVersion = 7;
+        constexpr int WorldGenConfigVersion = 12;
+
+        nlohmann::json serialize_noise_layer(const TerrainNoiseLayerSettings& settings)
+        {
+            return {
+                { "basis", static_cast<uint32_t>(settings.basis) },
+                { "frequency", settings.frequency },
+                { "octaves", settings.octaves },
+                { "lacunarity", settings.lacunarity },
+                { "gain", settings.gain },
+                { "weightedStrength", settings.weightedStrength },
+                { "terraceStepCount", settings.terraceStepCount },
+                { "terraceSmoothness", settings.terraceSmoothness },
+                { "strength", settings.strength }
+            };
+        }
+
+        void read_noise_layer(const nlohmann::json& node, const char* key, TerrainNoiseLayerSettings& settings)
+        {
+            if (!node.contains(key) || !node.at(key).is_object())
+            {
+                return;
+            }
+
+            const auto& layer = node.at(key);
+            settings.basis = static_cast<TerrainNoiseBasis>(layer.value("basis", static_cast<uint32_t>(settings.basis)));
+            settings.frequency = layer.value("frequency", settings.frequency);
+            settings.octaves = layer.value("octaves", settings.octaves);
+            settings.lacunarity = layer.value("lacunarity", settings.lacunarity);
+            settings.gain = layer.value("gain", settings.gain);
+            settings.weightedStrength = layer.value("weightedStrength", settings.weightedStrength);
+            settings.terraceStepCount = layer.value("terraceStepCount", settings.terraceStepCount);
+            settings.terraceSmoothness = layer.value("terraceSmoothness", settings.terraceSmoothness);
+            settings.strength = layer.value("strength", settings.strength);
+        }
 
         nlohmann::json spline_to_json(const std::vector<SplinePoint>& spline)
         {
@@ -55,21 +89,10 @@ namespace config
                 { "version", WorldGenConfigVersion },
                 { "seed", settings.seed },
                 { "shape", {
-                    { "continentalFrequency", settings.shape.continentalFrequency },
-                    { "erosionFrequency", settings.shape.erosionFrequency },
-                    { "peaksFrequency", settings.shape.peaksFrequency },
-                    { "detailFrequency", settings.shape.detailFrequency },
                     { "seaLevel", settings.shape.seaLevel },
-                    { "riversEnabled", settings.shape.riversEnabled },
-                    { "riverFrequency", settings.shape.riverFrequency },
-                    { "riverThreshold", settings.shape.riverThreshold },
-                    { "continentalStrength", settings.shape.continentalStrength },
-                    { "peaksStrength", settings.shape.peaksStrength },
-                    { "erosionStrength", settings.shape.erosionStrength },
-                    { "valleyStrength", settings.shape.valleyStrength },
-                    { "detailStrength", settings.shape.detailStrength },
-                    { "erosionSuppressionLow", settings.shape.erosionSuppressionLow },
-                    { "erosionSuppressionHigh", settings.shape.erosionSuppressionHigh }
+                    { "continental", serialize_noise_layer(settings.shape.continental) },
+                    { "erosion", serialize_noise_layer(settings.shape.erosion) },
+                    { "peaks", serialize_noise_layer(settings.shape.peaks) }
                 } },
                 { "splines", {
                     { "erosion", spline_to_json(settings.erosionSplines) },
@@ -87,21 +110,10 @@ namespace config
             if (document.contains("shape") && document.at("shape").is_object())
             {
                 const auto& shape = document.at("shape");
-                settings.shape.continentalFrequency = shape.value("continentalFrequency", settings.shape.continentalFrequency);
-                settings.shape.erosionFrequency = shape.value("erosionFrequency", settings.shape.erosionFrequency);
-                settings.shape.peaksFrequency = shape.value("peaksFrequency", settings.shape.peaksFrequency);
-                settings.shape.detailFrequency = shape.value("detailFrequency", settings.shape.detailFrequency);
                 settings.shape.seaLevel = shape.value("seaLevel", settings.shape.seaLevel);
-                settings.shape.riversEnabled = shape.value("riversEnabled", settings.shape.riversEnabled);
-                settings.shape.riverFrequency = shape.value("riverFrequency", settings.shape.riverFrequency);
-                settings.shape.riverThreshold = shape.value("riverThreshold", settings.shape.riverThreshold);
-                settings.shape.continentalStrength = shape.value("continentalStrength", settings.shape.continentalStrength);
-                settings.shape.peaksStrength = shape.value("peaksStrength", settings.shape.peaksStrength);
-                settings.shape.erosionStrength = shape.value("erosionStrength", settings.shape.erosionStrength);
-                settings.shape.valleyStrength = shape.value("valleyStrength", settings.shape.valleyStrength);
-                settings.shape.detailStrength = shape.value("detailStrength", settings.shape.detailStrength);
-                settings.shape.erosionSuppressionLow = shape.value("erosionSuppressionLow", settings.shape.erosionSuppressionLow);
-                settings.shape.erosionSuppressionHigh = shape.value("erosionSuppressionHigh", settings.shape.erosionSuppressionHigh);
+                read_noise_layer(shape, "continental", settings.shape.continental);
+                read_noise_layer(shape, "erosion", settings.shape.erosion);
+                read_noise_layer(shape, "peaks", settings.shape.peaks);
             }
 
             if (document.contains("splines") && document.at("splines").is_object())

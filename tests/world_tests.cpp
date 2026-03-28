@@ -288,10 +288,11 @@ TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
 
     TerrainGeneratorSettings updatedSettings = originalSettings;
     updatedSettings.seed += 97;
-    updatedSettings.shape.continentalFrequency *= 1.35f;
-    updatedSettings.shape.peaksFrequency *= 1.45f;
-    updatedSettings.shape.detailStrength += 3.0f;
-    updatedSettings.shape.riverFrequency *= 0.75f;
+    updatedSettings.shape.continental.frequency *= 1.35f;
+    updatedSettings.shape.peaks.frequency *= 1.45f;
+    updatedSettings.shape.erosion.strength *= 0.8f;
+    updatedSettings.shape.peaks.octaves = std::min(updatedSettings.shape.peaks.octaves + 2, 16);
+    updatedSettings.shape.erosion.terraceStepCount = std::min(updatedSettings.shape.erosion.terraceStepCount + 5, 32);
     updatedSettings.continentalSplines.back().heightValue = std::min(updatedSettings.continentalSplines.back().heightValue + 12.0f, static_cast<float>(CHUNK_HEIGHT - 1));
     generator.apply_settings(updatedSettings);
 
@@ -304,57 +305,9 @@ TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
         baselineA.surfaceHeight != changedA.surfaceHeight ||
         baselineA.noise.continentalness != changedA.noise.continentalness ||
         baselineB.surfaceHeight != changedB.surfaceHeight ||
-        baselineB.noise.river != changedB.noise.river;
+        baselineB.noise.peaksValleys != changedB.noise.peaksValleys;
 
     EXPECT_TRUE(anyChanged);
-}
-
-TEST(TerrainGeneratorTest, RiversCanBeDisabled)
-{
-    TerrainGenerator& generator = TerrainGenerator::instance();
-    const TerrainGeneratorSettings originalSettings = generator.settings();
-
-    TerrainGeneratorSettings enabledSettings = originalSettings;
-    enabledSettings.shape.riversEnabled = true;
-
-    TerrainGeneratorSettings disabledSettings = enabledSettings;
-    disabledSettings.shape.riversEnabled = false;
-
-    auto count_river_columns = [&generator](const TerrainGeneratorSettings& settings)
-    {
-        generator.apply_settings(settings);
-
-        int riverColumns = 0;
-        for (int chunkZ = -6; chunkZ <= 6; ++chunkZ)
-        {
-            for (int chunkX = -6; chunkX <= 6; ++chunkX)
-            {
-                const ChunkTerrainData chunkData = generator.GenerateChunkData(
-                    chunkX * static_cast<int>(CHUNK_SIZE),
-                    chunkZ * static_cast<int>(CHUNK_SIZE));
-                for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
-                {
-                    for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
-                    {
-                        if (chunkData.at(x, z).hasRiver)
-                        {
-                            ++riverColumns;
-                        }
-                    }
-                }
-            }
-        }
-
-        return riverColumns;
-    };
-
-    const int enabledRiverColumns = count_river_columns(enabledSettings);
-    const int disabledRiverColumns = count_river_columns(disabledSettings);
-
-    generator.apply_settings(originalSettings);
-
-    EXPECT_GT(enabledRiverColumns, 0);
-    EXPECT_EQ(disabledRiverColumns, 0);
 }
 
 TEST(TerrainGeneratorTest, ChunkPipelineBuildsConsistentHeightfieldProducts)
@@ -498,10 +451,17 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
 {
     TerrainGeneratorSettings settings = TerrainGenerator::default_settings();
     settings.seed = 987654321u;
-    settings.shape.continentalFrequency = 0.0022f;
+    settings.shape.continental.frequency = 0.0022f;
+    settings.shape.continental.octaves = 6;
+    settings.shape.continental.lacunarity = 2.4f;
+    settings.shape.continental.gain = 0.42f;
+    settings.shape.continental.weightedStrength = 0.35f;
+    settings.shape.continental.terraceStepCount = 6;
+    settings.shape.continental.terraceSmoothness = 0.25f;
+    settings.shape.continental.strength = 0.8f;
     settings.shape.seaLevel = 71;
-    settings.shape.riversEnabled = false;
-    settings.shape.peaksFrequency = 0.0031f;
+    settings.shape.peaks.frequency = 0.0031f;
+    settings.shape.peaks.basis = TerrainNoiseBasis::Perlin;
     settings.peakSplines[1].heightValue = 17.0f;
 
     const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_config_repo_test";
@@ -513,10 +473,18 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     std::filesystem::remove_all(tempRoot);
 
     EXPECT_EQ(loaded.seed, settings.seed);
-    EXPECT_FLOAT_EQ(loaded.shape.continentalFrequency, settings.shape.continentalFrequency);
+    EXPECT_EQ(loaded.shape.continental.basis, settings.shape.continental.basis);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.frequency, settings.shape.continental.frequency);
+    EXPECT_EQ(loaded.shape.continental.octaves, settings.shape.continental.octaves);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.lacunarity, settings.shape.continental.lacunarity);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.gain, settings.shape.continental.gain);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.weightedStrength, settings.shape.continental.weightedStrength);
+    EXPECT_EQ(loaded.shape.continental.terraceStepCount, settings.shape.continental.terraceStepCount);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.terraceSmoothness, settings.shape.continental.terraceSmoothness);
+    EXPECT_FLOAT_EQ(loaded.shape.continental.strength, settings.shape.continental.strength);
     EXPECT_EQ(loaded.shape.seaLevel, settings.shape.seaLevel);
-    EXPECT_EQ(loaded.shape.riversEnabled, settings.shape.riversEnabled);
-    EXPECT_FLOAT_EQ(loaded.shape.peaksFrequency, settings.shape.peaksFrequency);
+    EXPECT_EQ(loaded.shape.peaks.basis, settings.shape.peaks.basis);
+    EXPECT_FLOAT_EQ(loaded.shape.peaks.frequency, settings.shape.peaks.frequency);
     ASSERT_GT(loaded.peakSplines.size(), 1);
     EXPECT_FLOAT_EQ(loaded.peakSplines[1].heightValue, settings.peakSplines[1].heightValue);
 }

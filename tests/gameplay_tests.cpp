@@ -41,7 +41,7 @@ TEST(DecorationPlacementTest, ForestFlowersRequireForestBiome)
 {
     EXPECT_TRUE(decoration::is_forest_flower_biome(BiomeType::Forest));
     EXPECT_FALSE(decoration::is_forest_flower_biome(BiomeType::Plains));
-    EXPECT_FALSE(decoration::is_forest_flower_biome(BiomeType::River));
+    EXPECT_FALSE(decoration::is_forest_flower_biome(BiomeType::Ocean));
 }
 
 TEST(DecorationPlacementTest, SurfaceDecorationRequiresGroundAndAirClearance)
