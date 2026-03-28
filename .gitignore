@@ -1,4 +1,8 @@
 /build
+/build_full_vs
+/build_profile_vs
 /bin
 .cache
 .venv
+*.log
+/shaders/*.spv
