@@ -167,13 +167,13 @@ VoxelAssemblyLocalBundle build_voxel_assembly_local_bundle(
             const bool isRoot = part.partId == assembly->rootPartId || assembly->rootPartId.empty();
             const VoxelAssemblyPosePart* const posePart = pose != nullptr ? pose->find_part(part.partId) : nullptr;
             const glm::vec3 localPosition = posePart != nullptr && posePart->localPosition.has_value()
-                ? posePart->localPosition.value()
+                ? (bindingState->localPositionOffset + posePart->localPosition.value())
                 : bindingState->localPositionOffset;
             const glm::quat localRotation = posePart != nullptr && posePart->localRotation.has_value()
-                ? posePart->localRotation.value()
+                ? glm::normalize(bindingState->localRotationOffset * posePart->localRotation.value())
                 : bindingState->localRotationOffset;
             const glm::vec3 localScale = posePart != nullptr && posePart->localScale.has_value()
-                ? posePart->localScale.value()
+                ? (bindingState->localScale * posePart->localScale.value())
                 : bindingState->localScale;
             if (posePart != nullptr && posePart->visible.has_value())
             {

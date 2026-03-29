@@ -1,0 +1,72 @@
+{
+  "assemblyAssetId": "player_1",
+  "assetId": "untitled_clip",
+  "bindingTracks": [
+    {
+      "keys": [
+        {
+          "stateId": "default",
+          "timeSeconds": 0.0
+        },
+        {
+          "stateId": "default",
+          "timeSeconds": 0.4166666567325592
+        }
+      ],
+      "partId": "shoe_1"
+    }
+  ],
+  "displayName": "Untitled Clip",
+  "durationSeconds": 1.0,
+  "eventTracks": [],
+  "frameRateHint": 24.0,
+  "loopMode": "loop",
+  "motionSourcePartId": "",
+  "partTracks": [
+    {
+      "partId": "shoe_1",
+      "transformKeys": [
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": -1.8626409303834635e-09,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.0
+        },
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": -0.0625,
+            "z": -0.2187499701976776
+          },
+          "localRotation": {
+            "w": 0.9470384120941162,
+            "x": 0.3111431300640106,
+            "y": 0.007394818589091301,
+            "z": 0.07907865941524506
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 0.9999999403953552,
+            "z": 0.9999999403953552
+          },
+          "timeSeconds": 0.125
+        }
+      ],
+      "visibilityKeys": []
+    }
+  ],
+  "version": 1
+}

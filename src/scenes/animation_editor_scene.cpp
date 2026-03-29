@@ -57,6 +57,77 @@ namespace
         return glm::quat(glm::radians(rotationDegrees));
     }
 
+    [[nodiscard]] glm::quat normalized_quat(glm::quat value)
+    {
+        if (glm::length(value) <= 0.00001f)
+        {
+            return glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        }
+        return glm::normalize(value);
+    }
+
+    [[nodiscard]] glm::vec3 compose_binding_relative_position(
+        const VoxelAssemblyBindingState* const bindingState,
+        const VoxelAssemblyPosePart* const posePart)
+    {
+        const glm::vec3 base = bindingState != nullptr ? bindingState->localPositionOffset : glm::vec3(0.0f);
+        return posePart != nullptr && posePart->localPosition.has_value()
+            ? (base + posePart->localPosition.value())
+            : base;
+    }
+
+    [[nodiscard]] glm::quat compose_binding_relative_rotation(
+        const VoxelAssemblyBindingState* const bindingState,
+        const VoxelAssemblyPosePart* const posePart)
+    {
+        const glm::quat base = bindingState != nullptr
+            ? bindingState->localRotationOffset
+            : glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        return posePart != nullptr && posePart->localRotation.has_value()
+            ? normalized_quat(base * posePart->localRotation.value())
+            : base;
+    }
+
+    [[nodiscard]] glm::vec3 compose_binding_relative_scale(
+        const VoxelAssemblyBindingState* const bindingState,
+        const VoxelAssemblyPosePart* const posePart)
+    {
+        const glm::vec3 base = bindingState != nullptr ? bindingState->localScale : glm::vec3(1.0f);
+        return posePart != nullptr && posePart->localScale.has_value()
+            ? (base * posePart->localScale.value())
+            : base;
+    }
+
+    [[nodiscard]] glm::vec3 relative_position_from_binding(
+        const VoxelAssemblyBindingState* const bindingState,
+        const glm::vec3& effectivePosition)
+    {
+        const glm::vec3 base = bindingState != nullptr ? bindingState->localPositionOffset : glm::vec3(0.0f);
+        return effectivePosition - base;
+    }
+
+    [[nodiscard]] glm::quat relative_rotation_from_binding(
+        const VoxelAssemblyBindingState* const bindingState,
+        const glm::quat& effectiveRotation)
+    {
+        const glm::quat base = bindingState != nullptr
+            ? bindingState->localRotationOffset
+            : glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        return normalized_quat(glm::inverse(base) * effectiveRotation);
+    }
+
+    [[nodiscard]] glm::vec3 relative_scale_from_binding(
+        const VoxelAssemblyBindingState* const bindingState,
+        const glm::vec3& effectiveScale)
+    {
+        const glm::vec3 base = bindingState != nullptr ? bindingState->localScale : glm::vec3(1.0f);
+        glm::vec3 result(1.0f);
+        result.x = std::abs(base.x) > 0.00001f ? effectiveScale.x / base.x : 1.0f;
+        result.y = std::abs(base.y) > 0.00001f ? effectiveScale.y / base.y : 1.0f;
+        result.z = std::abs(base.z) > 0.00001f ? effectiveScale.z / base.z : 1.0f;
+        return result;
+    }
+
     [[nodiscard]] glm::mat4 pivot_transform_matrix(
         const glm::vec3& position,
         const glm::quat& rotation,
@@ -304,6 +375,7 @@ namespace
         std::string label{};
         std::string partId{};
         std::string trackId{};
+        int sourceIndex{-1};
         std::vector<int> keyFrames{};
         int frameStart{0};
         int frameEnd{1};
@@ -316,10 +388,12 @@ namespace
         ClipSequencerModel(
             std::vector<ClipSequencerEntry> entries,
             const int frameMin,
-            const int frameMax) :
+            const int frameMax,
+            int* selectedEntry) :
             _entries(std::move(entries)),
             _frameMin(frameMin),
-            _frameMax(std::max(frameMax, frameMin + 1))
+            _frameMax(std::max(frameMax, frameMin + 1)),
+            _selectedEntry(selectedEntry)
         {
         }
 
@@ -385,6 +459,13 @@ namespace
         void CustomDrawCompact(const int index, ImDrawList* drawList, const ImRect& rc, const ImRect& clippingRect) override
         {
             const ClipSequencerEntry& entry = _entries[static_cast<size_t>(index)];
+            if (_selectedEntry != nullptr &&
+                ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+                rc.Contains(ImGui::GetIO().MousePos))
+            {
+                *_selectedEntry = index;
+            }
+
             if (entry.keyFrames.empty() || _frameMax <= _frameMin)
             {
                 return;
@@ -416,6 +497,7 @@ namespace
         std::vector<ClipSequencerEntry> _entries{};
         int _frameMin{0};
         int _frameMax{1};
+        int* _selectedEntry{nullptr};
     };
 
     std::vector<ClipSequencerEntry> build_clip_sequencer_entries(const VoxelAnimationClipAsset& clip)
@@ -431,19 +513,21 @@ namespace
             }
 
             const auto [minIt, maxIt] = std::minmax_element(keyFrames.begin(), keyFrames.end());
-            const int start = *minIt;
-            const int end = std::max(*maxIt, start + 1);
-            return { start, end };
+            (void)maxIt;
+            const int anchor = *minIt;
+            return { anchor, anchor };
         };
 
-        for (const VoxelAnimationPartTrack& track : clip.partTracks)
+        for (size_t trackIndex = 0; trackIndex < clip.partTracks.size(); ++trackIndex)
         {
+            const VoxelAnimationPartTrack& track = clip.partTracks[trackIndex];
             if (!track.transformKeys.empty())
             {
                 ClipSequencerEntry entry{};
                 entry.laneType = ClipSequencerLaneType::Transform;
                 entry.label = std::format("{} / Transform", track.partId);
                 entry.partId = track.partId;
+                entry.sourceIndex = static_cast<int>(trackIndex);
                 entry.color = 0xFF7CC8FFu;
                 entry.keyFrames.reserve(track.transformKeys.size());
                 for (const VoxelAnimationTransformKeyframe& key : track.transformKeys)
@@ -462,6 +546,7 @@ namespace
                 entry.laneType = ClipSequencerLaneType::Visibility;
                 entry.label = std::format("{} / Visibility", track.partId);
                 entry.partId = track.partId;
+                entry.sourceIndex = static_cast<int>(trackIndex);
                 entry.color = 0xFF7CFF9Eu;
                 entry.keyFrames.reserve(track.visibilityKeys.size());
                 for (const VoxelAnimationVisibilityKeyframe& key : track.visibilityKeys)
@@ -475,8 +560,9 @@ namespace
             }
         }
 
-        for (const VoxelAnimationBindingTrack& track : clip.bindingTracks)
+        for (size_t trackIndex = 0; trackIndex < clip.bindingTracks.size(); ++trackIndex)
         {
+            const VoxelAnimationBindingTrack& track = clip.bindingTracks[trackIndex];
             if (track.keys.empty())
             {
                 continue;
@@ -486,6 +572,7 @@ namespace
             entry.laneType = ClipSequencerLaneType::Binding;
             entry.label = std::format("{} / Binding", track.partId);
             entry.partId = track.partId;
+            entry.sourceIndex = static_cast<int>(trackIndex);
             entry.color = 0xFFFFBE72u;
             entry.keyFrames.reserve(track.keys.size());
             for (const VoxelAnimationBindingStateKeyframe& key : track.keys)
@@ -498,8 +585,9 @@ namespace
             entries.push_back(std::move(entry));
         }
 
-        for (const VoxelAnimationEventTrack& track : clip.eventTracks)
+        for (size_t trackIndex = 0; trackIndex < clip.eventTracks.size(); ++trackIndex)
         {
+            const VoxelAnimationEventTrack& track = clip.eventTracks[trackIndex];
             if (track.events.empty())
             {
                 continue;
@@ -509,6 +597,7 @@ namespace
             entry.laneType = ClipSequencerLaneType::Event;
             entry.label = std::format("{} / Events", track.trackId.empty() ? "event_track" : track.trackId);
             entry.trackId = track.trackId;
+            entry.sourceIndex = static_cast<int>(trackIndex);
             entry.color = 0xFFE08BFFu;
             entry.keyFrames.reserve(track.events.size());
             for (const VoxelAnimationEventKeyframe& key : track.events)
@@ -540,6 +629,255 @@ namespace
         });
 
         return entries;
+    }
+
+    [[nodiscard]] int lane_key_count(const VoxelAnimationClipAsset& clip, const ClipSequencerEntry& entry)
+    {
+        switch (entry.laneType)
+        {
+        case ClipSequencerLaneType::Transform:
+            return entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size())
+                ? static_cast<int>(clip.partTracks[static_cast<size_t>(entry.sourceIndex)].transformKeys.size())
+                : 0;
+        case ClipSequencerLaneType::Visibility:
+            return entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size())
+                ? static_cast<int>(clip.partTracks[static_cast<size_t>(entry.sourceIndex)].visibilityKeys.size())
+                : 0;
+        case ClipSequencerLaneType::Binding:
+            return entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.bindingTracks.size())
+                ? static_cast<int>(clip.bindingTracks[static_cast<size_t>(entry.sourceIndex)].keys.size())
+                : 0;
+        case ClipSequencerLaneType::Event:
+            return entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.eventTracks.size())
+                ? static_cast<int>(clip.eventTracks[static_cast<size_t>(entry.sourceIndex)].events.size())
+                : 0;
+        }
+
+        return 0;
+    }
+
+    [[nodiscard]] int lane_key_frame(
+        const VoxelAnimationClipAsset& clip,
+        const ClipSequencerEntry& entry,
+        const int keyIndex)
+    {
+        if (keyIndex < 0)
+        {
+            return 0;
+        }
+
+        const float frameRate = std::max(clip.frameRateHint, 1.0f);
+        switch (entry.laneType)
+        {
+        case ClipSequencerLaneType::Transform:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size()))
+            {
+                const auto& keys = clip.partTracks[static_cast<size_t>(entry.sourceIndex)].transformKeys;
+                if (keyIndex < static_cast<int>(keys.size()))
+                {
+                    return frame_from_time(keys[static_cast<size_t>(keyIndex)].timeSeconds, frameRate);
+                }
+            }
+            break;
+        case ClipSequencerLaneType::Visibility:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size()))
+            {
+                const auto& keys = clip.partTracks[static_cast<size_t>(entry.sourceIndex)].visibilityKeys;
+                if (keyIndex < static_cast<int>(keys.size()))
+                {
+                    return frame_from_time(keys[static_cast<size_t>(keyIndex)].timeSeconds, frameRate);
+                }
+            }
+            break;
+        case ClipSequencerLaneType::Binding:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.bindingTracks.size()))
+            {
+                const auto& keys = clip.bindingTracks[static_cast<size_t>(entry.sourceIndex)].keys;
+                if (keyIndex < static_cast<int>(keys.size()))
+                {
+                    return frame_from_time(keys[static_cast<size_t>(keyIndex)].timeSeconds, frameRate);
+                }
+            }
+            break;
+        case ClipSequencerLaneType::Event:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.eventTracks.size()))
+            {
+                const auto& keys = clip.eventTracks[static_cast<size_t>(entry.sourceIndex)].events;
+                if (keyIndex < static_cast<int>(keys.size()))
+                {
+                    return frame_from_time(keys[static_cast<size_t>(keyIndex)].timeSeconds, frameRate);
+                }
+            }
+            break;
+        }
+
+        return 0;
+    }
+
+    bool move_lane_key(
+        VoxelAnimationClipAsset& clip,
+        const ClipSequencerEntry& entry,
+        const int keyIndex,
+        const float nextTimeSeconds)
+    {
+        const float clampedTime = std::clamp(nextTimeSeconds, 0.0f, clip.durationSeconds);
+        switch (entry.laneType)
+        {
+        case ClipSequencerLaneType::Transform:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size()))
+            {
+                auto& keys = clip.partTracks[static_cast<size_t>(entry.sourceIndex)].transformKeys;
+                if (keyIndex >= 0 && keyIndex < static_cast<int>(keys.size()))
+                {
+                    keys[static_cast<size_t>(keyIndex)].timeSeconds = clampedTime;
+                    sort_keyframes(keys);
+                    return true;
+                }
+            }
+            break;
+        case ClipSequencerLaneType::Visibility:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size()))
+            {
+                auto& keys = clip.partTracks[static_cast<size_t>(entry.sourceIndex)].visibilityKeys;
+                if (keyIndex >= 0 && keyIndex < static_cast<int>(keys.size()))
+                {
+                    keys[static_cast<size_t>(keyIndex)].timeSeconds = clampedTime;
+                    sort_keyframes(keys);
+                    return true;
+                }
+            }
+            break;
+        case ClipSequencerLaneType::Binding:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.bindingTracks.size()))
+            {
+                auto& keys = clip.bindingTracks[static_cast<size_t>(entry.sourceIndex)].keys;
+                if (keyIndex >= 0 && keyIndex < static_cast<int>(keys.size()))
+                {
+                    keys[static_cast<size_t>(keyIndex)].timeSeconds = clampedTime;
+                    sort_keyframes(keys);
+                    return true;
+                }
+            }
+            break;
+        case ClipSequencerLaneType::Event:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.eventTracks.size()))
+            {
+                auto& keys = clip.eventTracks[static_cast<size_t>(entry.sourceIndex)].events;
+                if (keyIndex >= 0 && keyIndex < static_cast<int>(keys.size()))
+                {
+                    keys[static_cast<size_t>(keyIndex)].timeSeconds = clampedTime;
+                    sort_keyframes(keys);
+                    return true;
+                }
+            }
+            break;
+        }
+
+        return false;
+    }
+
+    bool delete_lane_key(
+        VoxelAnimationClipAsset& clip,
+        const ClipSequencerEntry& entry,
+        const int keyIndex)
+    {
+        switch (entry.laneType)
+        {
+        case ClipSequencerLaneType::Transform:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size()))
+            {
+                auto& keys = clip.partTracks[static_cast<size_t>(entry.sourceIndex)].transformKeys;
+                if (keyIndex >= 0 && keyIndex < static_cast<int>(keys.size()))
+                {
+                    keys.erase(keys.begin() + keyIndex);
+                    prune_empty_tracks(clip);
+                    return true;
+                }
+            }
+            break;
+        case ClipSequencerLaneType::Visibility:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size()))
+            {
+                auto& keys = clip.partTracks[static_cast<size_t>(entry.sourceIndex)].visibilityKeys;
+                if (keyIndex >= 0 && keyIndex < static_cast<int>(keys.size()))
+                {
+                    keys.erase(keys.begin() + keyIndex);
+                    prune_empty_tracks(clip);
+                    return true;
+                }
+            }
+            break;
+        case ClipSequencerLaneType::Binding:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.bindingTracks.size()))
+            {
+                auto& keys = clip.bindingTracks[static_cast<size_t>(entry.sourceIndex)].keys;
+                if (keyIndex >= 0 && keyIndex < static_cast<int>(keys.size()))
+                {
+                    keys.erase(keys.begin() + keyIndex);
+                    prune_empty_tracks(clip);
+                    return true;
+                }
+            }
+            break;
+        case ClipSequencerLaneType::Event:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.eventTracks.size()))
+            {
+                auto& keys = clip.eventTracks[static_cast<size_t>(entry.sourceIndex)].events;
+                if (keyIndex >= 0 && keyIndex < static_cast<int>(keys.size()))
+                {
+                    keys.erase(keys.begin() + keyIndex);
+                    std::erase_if(clip.eventTracks, [](const VoxelAnimationEventTrack& track)
+                    {
+                        return track.events.empty();
+                    });
+                    return true;
+                }
+            }
+            break;
+        }
+
+        return false;
+    }
+
+    bool delete_lane(
+        VoxelAnimationClipAsset& clip,
+        const ClipSequencerEntry& entry)
+    {
+        switch (entry.laneType)
+        {
+        case ClipSequencerLaneType::Transform:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size()))
+            {
+                clip.partTracks[static_cast<size_t>(entry.sourceIndex)].transformKeys.clear();
+                prune_empty_tracks(clip);
+                return true;
+            }
+            break;
+        case ClipSequencerLaneType::Visibility:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.partTracks.size()))
+            {
+                clip.partTracks[static_cast<size_t>(entry.sourceIndex)].visibilityKeys.clear();
+                prune_empty_tracks(clip);
+                return true;
+            }
+            break;
+        case ClipSequencerLaneType::Binding:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.bindingTracks.size()))
+            {
+                clip.bindingTracks.erase(clip.bindingTracks.begin() + entry.sourceIndex);
+                return true;
+            }
+            break;
+        case ClipSequencerLaneType::Event:
+            if (entry.sourceIndex >= 0 && entry.sourceIndex < static_cast<int>(clip.eventTracks.size()))
+            {
+                clip.eventTracks.erase(clip.eventTracks.begin() + entry.sourceIndex);
+                return true;
+            }
+            break;
+        }
+
+        return false;
     }
 }
 
@@ -607,6 +945,12 @@ void AnimationEditorScene::update_buffers()
 {
     sync_preview();
     _previewRegistry.sync(*_services.meshManager, *_services.materialManager, AnimationEditorMaterialScope, _renderState);
+    if (_showSelectedPartBounds &&
+        !_selectedPartId.empty() &&
+        (!_selectedPartBoundsHandle.has_value() || !_renderState.transparentObjects.live(_selectedPartBoundsHandle.value())))
+    {
+        _selectionOverlayDirty = true;
+    }
     sync_selection_overlay();
     update_uniform_buffers();
 }
@@ -867,6 +1211,8 @@ void AnimationEditorScene::pick_part(const int mouseX, const int mouseY)
     if (!bestPartId.empty())
     {
         _selectedPartId = bestPartId;
+        _sequencerSelectedEntry = -1;
+        _sequencerSelectedKeyIndex = -1;
         _selectionOverlayDirty = true;
     }
 }
@@ -1082,7 +1428,30 @@ void AnimationEditorScene::sync_preview()
         }
     }
 
-    if (centerCount > 0)
+    if (!_autoCenterPreview)
+    {
+        const VoxelRenderInstance* rootInstance = nullptr;
+        if (!assembly->rootPartId.empty())
+        {
+            const auto rootIt = _previewParts.find(assembly->rootPartId);
+            if (rootIt != _previewParts.end())
+            {
+                rootInstance = &rootIt->second;
+            }
+        }
+
+        if (rootInstance != nullptr)
+        {
+            _previewOrbitTarget = rootInstance->asset != nullptr
+                ? rootInstance->world_point_from_asset_local(rootInstance->asset->model.pivot)
+                : rootInstance->position;
+        }
+        else if (centerCount > 0)
+        {
+            _previewOrbitTarget = centerAccumulator / static_cast<float>(centerCount);
+        }
+    }
+    else if (centerCount > 0)
     {
         _previewOrbitTarget = centerAccumulator / static_cast<float>(centerCount);
     }
@@ -1245,27 +1614,311 @@ void AnimationEditorScene::draw_transform_gizmo()
         const glm::vec3 nextPosition = glm::vec3(translation[0], translation[1], translation[2]);
         const glm::quat nextRotation = quat_from_euler_degrees(glm::vec3(rotation[0], rotation[1], rotation[2]));
         const glm::vec3 nextScale = glm::max(glm::vec3(scale[0], scale[1], scale[2]), glm::vec3(0.001f));
+        const glm::vec3 nextPositionOffset = relative_position_from_binding(bindingState, nextPosition);
+        const glm::quat nextRotationOffset = relative_rotation_from_binding(bindingState, nextRotation);
+        const glm::vec3 nextScaleOffset = relative_scale_from_binding(bindingState, nextScale);
         const std::string partId = selectedPart->partId;
         const float time = _previewTimeSeconds;
 
-        apply_clip_edit("Manipulate transform gizmo", [partId, time, nextPosition, nextRotation, nextScale](VoxelAnimationClipAsset& clip)
+        apply_clip_edit("Manipulate transform gizmo", [partId, time, nextPositionOffset, nextRotationOffset, nextScaleOffset](VoxelAnimationClipAsset& clip)
         {
             VoxelAnimationPartTrack& track = ensure_part_track(clip, partId);
             VoxelAnimationTransformKeyframe& key = ensure_transform_key(track, time, VoxelAnimationTransformKeyframe{
                 .timeSeconds = time,
-                .localPosition = nextPosition,
-                .localRotation = nextRotation,
-                .localScale = nextScale
+                .localPosition = nextPositionOffset,
+                .localRotation = nextRotationOffset,
+                .localScale = nextScaleOffset
             });
-            key.localPosition = nextPosition;
-            key.localRotation = nextRotation;
-            key.localScale = nextScale;
+            key.localPosition = nextPositionOffset;
+            key.localRotation = nextRotationOffset;
+            key.localScale = nextScaleOffset;
         });
     }
 }
 
+void AnimationEditorScene::draw_clip_timeline_window(const std::shared_ptr<const VoxelAssemblyAsset>& selectedAssembly)
+{
+    if (_mode != EditorMode::Clip)
+    {
+        return;
+    }
+
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    if (viewport != nullptr)
+    {
+        ImGui::SetNextWindowPos(
+            ImVec2(viewport->WorkPos.x + 460.0f, viewport->WorkPos.y + viewport->WorkSize.y - 264.0f),
+            ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(
+            ImVec2(std::max(420.0f, viewport->WorkSize.x - 476.0f), 248.0f),
+            ImGuiCond_FirstUseEver);
+    }
+
+    if (!ImGui::Begin("Animation Timeline"))
+    {
+        ImGui::End();
+        return;
+    }
+
+    if (selectedAssembly == nullptr)
+    {
+        ImGui::TextWrapped("Select an assembly to begin clip authoring.");
+        ImGui::End();
+        return;
+    }
+
+    const float frameRate = std::max(_clip.frameRateHint, 1.0f);
+    const int maxFrame = std::max(frame_from_time(_clip.durationSeconds, frameRate), 1);
+    std::vector<ClipSequencerEntry> sequencerEntries = build_clip_sequencer_entries(_clip);
+
+    ImGui::Text("Clip: %s", _clip.assetId.empty() ? "<unsaved>" : _clip.assetId.c_str());
+    ImGui::SameLine();
+    ImGui::TextDisabled("|");
+    ImGui::SameLine();
+    ImGui::Text("Frame %d / %d", frame_from_time(_previewTimeSeconds, frameRate), maxFrame);
+    ImGui::SameLine();
+    if (ImGui::Button(_playing ? "Pause" : "Play"))
+    {
+        _playing = !_playing;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Jump To Start"))
+    {
+        _playing = false;
+        _previewTimeSeconds = 0.0f;
+        _previewDirty = true;
+    }
+
+    if (sequencerEntries.empty())
+    {
+        _sequencerSelectedEntry = -1;
+        _sequencerSelectedKeyIndex = -1;
+        ImGui::Separator();
+        ImGui::TextWrapped("No lanes yet. Key a transform, visibility, or binding state from the inspector and it will appear here.");
+        ImGui::End();
+        return;
+    }
+
+    const int previousSelectedEntry = _sequencerSelectedEntry;
+    int selectedEntry = std::clamp(_sequencerSelectedEntry, -1, static_cast<int>(sequencerEntries.size()) - 1);
+    if (!_selectedPartId.empty())
+    {
+        const bool currentSelectionMatchesPart =
+            selectedEntry >= 0 &&
+            selectedEntry < static_cast<int>(sequencerEntries.size()) &&
+            sequencerEntries[static_cast<size_t>(selectedEntry)].partId == _selectedPartId;
+        const auto matchingEntry = std::ranges::find_if(sequencerEntries, [&](const ClipSequencerEntry& entry)
+        {
+            return entry.partId == _selectedPartId;
+        });
+        if (!currentSelectionMatchesPart && matchingEntry != sequencerEntries.end())
+        {
+            selectedEntry = static_cast<int>(std::distance(sequencerEntries.begin(), matchingEntry));
+            _sequencerSelectedKeyIndex = -1;
+        }
+    }
+
+    ClipSequencerModel sequencer(std::move(sequencerEntries), 0, maxFrame, &selectedEntry);
+    int currentFrame = std::clamp(frame_from_time(_previewTimeSeconds, frameRate), 0, maxFrame);
+    const int initialFrame = currentFrame;
+    selectedEntry = std::clamp(selectedEntry, -1, sequencer.GetItemCount() - 1);
+    bool expanded = _sequencerExpanded;
+    int firstFrame = std::clamp(_sequencerFirstFrame, 0, maxFrame);
+
+    ImSequencer::Sequencer(
+        &sequencer,
+        &currentFrame,
+        &expanded,
+        &selectedEntry,
+        &firstFrame,
+        ImSequencer::SEQUENCER_CHANGE_FRAME);
+
+    _sequencerExpanded = expanded;
+    _sequencerSelectedEntry = selectedEntry;
+    _sequencerFirstFrame = firstFrame;
+
+    if (currentFrame != initialFrame)
+    {
+        _playing = false;
+        const float nextPreviewTime = std::clamp(time_from_frame(currentFrame, frameRate), 0.0f, _clip.durationSeconds);
+        if (!keyframe_time_matches(_previewTimeSeconds, nextPreviewTime))
+        {
+            _previewTimeSeconds = nextPreviewTime;
+            _previewDirty = true;
+        }
+    }
+
+    if (selectedEntry < 0 || selectedEntry >= sequencer.GetItemCount())
+    {
+        _sequencerSelectedKeyIndex = -1;
+        ImGui::End();
+        return;
+    }
+
+    const ClipSequencerEntry& entry = sequencer.entries()[static_cast<size_t>(selectedEntry)];
+    if (selectedEntry != previousSelectedEntry && !entry.partId.empty() && _selectedPartId != entry.partId)
+    {
+        _selectedPartId = entry.partId;
+        _selectionOverlayDirty = true;
+    }
+
+    const int keyCount = lane_key_count(_clip, entry);
+    if (selectedEntry != previousSelectedEntry)
+    {
+        _sequencerSelectedKeyIndex = keyCount > 0 ? 0 : -1;
+    }
+    _sequencerSelectedKeyIndex = std::clamp(_sequencerSelectedKeyIndex, keyCount > 0 ? 0 : -1, keyCount - 1);
+    if (_sequencerSelectedKeyIndex >= 0)
+    {
+        _sequencerSelectedKeyFrame = lane_key_frame(_clip, entry, _sequencerSelectedKeyIndex);
+    }
+
+    ImGui::SeparatorText("Lane");
+    ImGui::TextWrapped("%s", entry.label.c_str());
+    if (!entry.partId.empty())
+    {
+        ImGui::Text("Part: %s", entry.partId.c_str());
+    }
+    if (ImGui::Button("Delete Lane"))
+    {
+        const ClipSequencerEntry laneEntry = entry;
+        apply_clip_edit("Delete timeline lane", [laneEntry](VoxelAnimationClipAsset& clip)
+        {
+            delete_lane(clip, laneEntry);
+        });
+        _sequencerSelectedEntry = -1;
+        _sequencerSelectedKeyIndex = -1;
+        ImGui::End();
+        return;
+    }
+
+    if (keyCount <= 0)
+    {
+        ImGui::TextWrapped("This lane currently has no keys to edit.");
+        ImGui::End();
+        return;
+    }
+
+    ImGui::SeparatorText("Keys");
+    for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+    {
+        ImGui::PushID(keyIndex);
+        const int keyFrame = lane_key_frame(_clip, entry, keyIndex);
+        const std::string buttonLabel = std::format("{}f", keyFrame);
+        if (ImGui::Selectable(buttonLabel.c_str(), _sequencerSelectedKeyIndex == keyIndex, 0, ImVec2(56.0f, 0.0f)))
+        {
+            _sequencerSelectedKeyIndex = keyIndex;
+            _sequencerSelectedKeyFrame = keyFrame;
+            _previewTimeSeconds = std::clamp(time_from_frame(keyFrame, frameRate), 0.0f, _clip.durationSeconds);
+            _previewDirty = true;
+        }
+        if (((keyIndex + 1) % 10) != 0 && keyIndex + 1 < keyCount)
+        {
+            ImGui::SameLine();
+        }
+        ImGui::PopID();
+    }
+
+    if (_sequencerSelectedKeyIndex >= 0)
+    {
+        int selectedKeyFrame = _sequencerSelectedKeyFrame;
+        if (ImGui::SliderInt("Selected Key Frame", &selectedKeyFrame, 0, maxFrame))
+        {
+            _sequencerSelectedKeyFrame = selectedKeyFrame;
+        }
+        if (ImGui::IsItemActivated())
+        {
+            _playing = false;
+        }
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            const int keyIndex = _sequencerSelectedKeyIndex;
+            const int targetFrame = _sequencerSelectedKeyFrame;
+            const ClipSequencerEntry laneEntry = entry;
+            apply_clip_edit("Move timeline key", [laneEntry, keyIndex, frameRate, targetFrame](VoxelAnimationClipAsset& clip)
+            {
+                move_lane_key(clip, laneEntry, keyIndex, time_from_frame(targetFrame, frameRate));
+            });
+            _previewTimeSeconds = std::clamp(time_from_frame(targetFrame, frameRate), 0.0f, _clip.durationSeconds);
+            _previewDirty = true;
+        }
+
+        if (ImGui::Button("Jump To Key"))
+        {
+            _playing = false;
+            _previewTimeSeconds = std::clamp(time_from_frame(_sequencerSelectedKeyFrame, frameRate), 0.0f, _clip.durationSeconds);
+            _previewDirty = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Use Playhead Time"))
+        {
+            const int keyIndex = _sequencerSelectedKeyIndex;
+            const int targetFrame = std::clamp(frame_from_time(_previewTimeSeconds, frameRate), 0, maxFrame);
+            const ClipSequencerEntry laneEntry = entry;
+            apply_clip_edit("Move key to playhead", [laneEntry, keyIndex, frameRate, targetFrame](VoxelAnimationClipAsset& clip)
+            {
+                move_lane_key(clip, laneEntry, keyIndex, time_from_frame(targetFrame, frameRate));
+            });
+            _sequencerSelectedKeyFrame = targetFrame;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("-1f"))
+        {
+            const int keyIndex = _sequencerSelectedKeyIndex;
+            const int targetFrame = std::max(_sequencerSelectedKeyFrame - 1, 0);
+            const ClipSequencerEntry laneEntry = entry;
+            apply_clip_edit("Nudge key earlier", [laneEntry, keyIndex, frameRate, targetFrame](VoxelAnimationClipAsset& clip)
+            {
+                move_lane_key(clip, laneEntry, keyIndex, time_from_frame(targetFrame, frameRate));
+            });
+            _sequencerSelectedKeyFrame = targetFrame;
+            _previewTimeSeconds = std::clamp(time_from_frame(targetFrame, frameRate), 0.0f, _clip.durationSeconds);
+            _previewDirty = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+1f"))
+        {
+            const int keyIndex = _sequencerSelectedKeyIndex;
+            const int targetFrame = std::min(_sequencerSelectedKeyFrame + 1, maxFrame);
+            const ClipSequencerEntry laneEntry = entry;
+            apply_clip_edit("Nudge key later", [laneEntry, keyIndex, frameRate, targetFrame](VoxelAnimationClipAsset& clip)
+            {
+                move_lane_key(clip, laneEntry, keyIndex, time_from_frame(targetFrame, frameRate));
+            });
+            _sequencerSelectedKeyFrame = targetFrame;
+            _previewTimeSeconds = std::clamp(time_from_frame(targetFrame, frameRate), 0.0f, _clip.durationSeconds);
+            _previewDirty = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Delete Key"))
+        {
+            const int keyIndex = _sequencerSelectedKeyIndex;
+            const ClipSequencerEntry laneEntry = entry;
+            apply_clip_edit("Delete timeline key", [laneEntry, keyIndex](VoxelAnimationClipAsset& clip)
+            {
+                delete_lane_key(clip, laneEntry, keyIndex);
+            });
+            _sequencerSelectedKeyIndex = -1;
+        }
+    }
+
+    ImGui::End();
+}
+
 void AnimationEditorScene::draw_editor_window()
 {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    if (viewport != nullptr)
+    {
+        const float timelineHeight = _mode == EditorMode::Clip ? 280.0f : 0.0f;
+        ImGui::SetNextWindowPos(
+            ImVec2(viewport->WorkPos.x + 16.0f, viewport->WorkPos.y + 16.0f),
+            ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(
+            ImVec2(430.0f, std::max(420.0f, viewport->WorkSize.y - timelineHeight - 32.0f)),
+            ImGuiCond_FirstUseEver);
+    }
+
     ImGui::Begin("Animation Editor");
 
     const std::shared_ptr<const VoxelAssemblyAsset> selectedAssembly =
@@ -1314,6 +1967,10 @@ void AnimationEditorScene::draw_editor_window()
         _previewDirty = true;
     }
     ImGui::Text("Selected Part: %s", _selectedPartId.empty() ? "<none>" : _selectedPartId.c_str());
+    if (ImGui::Checkbox("Auto Center Preview", &_autoCenterPreview))
+    {
+        _previewDirty = true;
+    }
     if (ImGui::Checkbox("Show Transform Gizmo", &_showTransformGizmo))
     {
         _previewDirty = true;
@@ -1491,73 +2148,8 @@ void AnimationEditorScene::draw_editor_window()
         }
         else
         {
-            ImGui::SeparatorText("Sequencer");
-            const float frameRate = std::max(_clip.frameRateHint, 1.0f);
-            const int maxFrame = std::max(frame_from_time(_clip.durationSeconds, frameRate), 1);
-            std::vector<ClipSequencerEntry> sequencerEntries = build_clip_sequencer_entries(_clip);
-            if (sequencerEntries.empty())
-            {
-                ImGui::TextWrapped("No track lanes yet. Key transforms, visibility, binding states, or events and they will appear here.");
-            }
-            else
-            {
-                if (!_selectedPartId.empty())
-                {
-                    const bool currentSelectionMatchesPart =
-                        _sequencerSelectedEntry >= 0 &&
-                        _sequencerSelectedEntry < static_cast<int>(sequencerEntries.size()) &&
-                        sequencerEntries[static_cast<size_t>(_sequencerSelectedEntry)].partId == _selectedPartId;
-                    const auto matchingEntry = std::ranges::find_if(sequencerEntries, [&](const ClipSequencerEntry& entry)
-                    {
-                        return entry.partId == _selectedPartId;
-                    });
-                    if (!currentSelectionMatchesPart && matchingEntry != sequencerEntries.end())
-                    {
-                        _sequencerSelectedEntry = static_cast<int>(std::distance(sequencerEntries.begin(), matchingEntry));
-                    }
-                }
-
-                ClipSequencerModel sequencer(std::move(sequencerEntries), 0, maxFrame);
-                int currentFrame = std::clamp(frame_from_time(_previewTimeSeconds, frameRate), 0, maxFrame);
-                const int initialFrame = currentFrame;
-                int selectedEntry = std::clamp(_sequencerSelectedEntry, -1, sequencer.GetItemCount() - 1);
-                bool expanded = _sequencerExpanded;
-                int firstFrame = std::clamp(_sequencerFirstFrame, 0, maxFrame);
-
-                ImSequencer::Sequencer(
-                    &sequencer,
-                    &currentFrame,
-                    &expanded,
-                    &selectedEntry,
-                    &firstFrame,
-                    ImSequencer::SEQUENCER_CHANGE_FRAME);
-
-                _sequencerExpanded = expanded;
-                _sequencerSelectedEntry = selectedEntry;
-                _sequencerFirstFrame = firstFrame;
-
-                if (currentFrame != initialFrame)
-                {
-                    const float nextPreviewTime = std::clamp(time_from_frame(currentFrame, frameRate), 0.0f, _clip.durationSeconds);
-                    if (!keyframe_time_matches(_previewTimeSeconds, nextPreviewTime))
-                    {
-                        _previewTimeSeconds = nextPreviewTime;
-                        _previewDirty = true;
-                    }
-                }
-
-                if (selectedEntry >= 0 && selectedEntry < sequencer.GetItemCount())
-                {
-                    const ClipSequencerEntry& entry = sequencer.entries()[static_cast<size_t>(selectedEntry)];
-                    if (!entry.partId.empty() && _selectedPartId != entry.partId)
-                    {
-                        _selectedPartId = entry.partId;
-                        _selectionOverlayDirty = true;
-                    }
-
-                    ImGui::TextWrapped("Selected Lane: %s", entry.label.c_str());
-                }
-            }
+            ImGui::SeparatorText("Timeline");
+            ImGui::TextWrapped("Clip timing now lives in the separate Animation Timeline window below so the inspector can stay focused on part edits.");
 
             ImGui::SeparatorText("Assembly Parts");
             if (ImGui::BeginChild("ClipPartList", ImVec2(0.0f, 140.0f), true))
@@ -1568,6 +2160,8 @@ void AnimationEditorScene::draw_editor_window()
                     if (ImGui::Selectable(assemblyPart.partId.c_str(), selected))
                     {
                         _selectedPartId = assemblyPart.partId;
+                        _sequencerSelectedEntry = -1;
+                        _sequencerSelectedKeyIndex = -1;
                         _selectionOverlayDirty = true;
                     }
                 }
@@ -1592,17 +2186,11 @@ void AnimationEditorScene::draw_editor_window()
                     !effectiveBindingStateId.empty() ? selectedAssembly->find_binding_state(selectedPart->partId, effectiveBindingStateId) : nullptr;
 
                 const glm::vec3 effectivePosition =
-                    sampledPart != nullptr && sampledPart->localPosition.has_value()
-                    ? sampledPart->localPosition.value()
-                    : (effectiveBindingState != nullptr ? effectiveBindingState->localPositionOffset : glm::vec3(0.0f));
+                    compose_binding_relative_position(effectiveBindingState, sampledPart);
                 const glm::quat effectiveRotation =
-                    sampledPart != nullptr && sampledPart->localRotation.has_value()
-                    ? sampledPart->localRotation.value()
-                    : (effectiveBindingState != nullptr ? effectiveBindingState->localRotationOffset : glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
+                    compose_binding_relative_rotation(effectiveBindingState, sampledPart);
                 const glm::vec3 effectiveScale =
-                    sampledPart != nullptr && sampledPart->localScale.has_value()
-                    ? sampledPart->localScale.value()
-                    : (effectiveBindingState != nullptr ? effectiveBindingState->localScale : glm::vec3(1.0f));
+                    compose_binding_relative_scale(effectiveBindingState, sampledPart);
                 const bool effectiveVisible =
                     sampledPart != nullptr && sampledPart->visible.has_value()
                     ? sampledPart->visible.value()
@@ -1624,9 +2212,9 @@ void AnimationEditorScene::draw_editor_window()
                 {
                     const std::string partId = selectedPart->partId;
                     const float time = _previewTimeSeconds;
-                    const glm::vec3 nextPosition = effectivePosition;
-                    const glm::quat nextRotation = effectiveRotation;
-                    const glm::vec3 nextScale = effectiveScale;
+                    const glm::vec3 nextPosition = relative_position_from_binding(effectiveBindingState, effectivePosition);
+                    const glm::quat nextRotation = relative_rotation_from_binding(effectiveBindingState, effectiveRotation);
+                    const glm::vec3 nextScale = relative_scale_from_binding(effectiveBindingState, effectiveScale);
                     apply_clip_edit("Key transform", [partId, time, nextPosition, nextRotation, nextScale](VoxelAnimationClipAsset& clip)
                     {
                         VoxelAnimationPartTrack& track = ensure_part_track(clip, partId);
@@ -1674,9 +2262,9 @@ void AnimationEditorScene::draw_editor_window()
                 {
                     const std::string partId = selectedPart->partId;
                     const float time = _previewTimeSeconds;
-                    const glm::vec3 nextPosition = localPosition;
-                    const glm::quat nextRotation = effectiveRotation;
-                    const glm::vec3 nextScale = effectiveScale;
+                    const glm::vec3 nextPosition = relative_position_from_binding(effectiveBindingState, localPosition);
+                    const glm::quat nextRotation = relative_rotation_from_binding(effectiveBindingState, effectiveRotation);
+                    const glm::vec3 nextScale = relative_scale_from_binding(effectiveBindingState, effectiveScale);
                     apply_clip_edit("Key local position", [partId, time, nextPosition, nextRotation, nextScale](VoxelAnimationClipAsset& clip)
                     {
                         VoxelAnimationPartTrack& track = ensure_part_track(clip, partId);
@@ -1696,18 +2284,19 @@ void AnimationEditorScene::draw_editor_window()
                     const std::string partId = selectedPart->partId;
                     const float time = _previewTimeSeconds;
                     const glm::vec3 nextDegrees = localRotationDegrees;
-                    const glm::vec3 nextPosition = effectivePosition;
-                    const glm::vec3 nextScale = effectiveScale;
-                    apply_clip_edit("Key local rotation", [partId, time, nextDegrees, nextPosition, nextScale](VoxelAnimationClipAsset& clip)
+                    const glm::vec3 nextPosition = relative_position_from_binding(effectiveBindingState, effectivePosition);
+                    const glm::vec3 nextScale = relative_scale_from_binding(effectiveBindingState, effectiveScale);
+                    const glm::quat nextRotation = relative_rotation_from_binding(effectiveBindingState, glm::quat(glm::radians(nextDegrees)));
+                    apply_clip_edit("Key local rotation", [partId, time, nextRotation, nextPosition, nextScale](VoxelAnimationClipAsset& clip)
                     {
                         VoxelAnimationPartTrack& track = ensure_part_track(clip, partId);
                         VoxelAnimationTransformKeyframe& key = ensure_transform_key(track, time, VoxelAnimationTransformKeyframe{
                             .timeSeconds = time,
                             .localPosition = nextPosition,
-                            .localRotation = glm::quat(glm::radians(nextDegrees)),
+                            .localRotation = nextRotation,
                             .localScale = nextScale
                         });
-                        key.localRotation = glm::quat(glm::radians(nextDegrees));
+                        key.localRotation = nextRotation;
                     });
                 }
 
@@ -1716,9 +2305,9 @@ void AnimationEditorScene::draw_editor_window()
                 {
                     const std::string partId = selectedPart->partId;
                     const float time = _previewTimeSeconds;
-                    const glm::vec3 nextScale = glm::max(localScale, glm::vec3(0.001f));
-                    const glm::vec3 nextPosition = effectivePosition;
-                    const glm::quat nextRotation = effectiveRotation;
+                    const glm::vec3 nextScale = relative_scale_from_binding(effectiveBindingState, glm::max(localScale, glm::vec3(0.001f)));
+                    const glm::vec3 nextPosition = relative_position_from_binding(effectiveBindingState, effectivePosition);
+                    const glm::quat nextRotation = relative_rotation_from_binding(effectiveBindingState, effectiveRotation);
                     apply_clip_edit("Key local scale", [partId, time, nextScale, nextPosition, nextRotation](VoxelAnimationClipAsset& clip)
                     {
                         VoxelAnimationPartTrack& track = ensure_part_track(clip, partId);
@@ -1756,6 +2345,16 @@ void AnimationEditorScene::draw_editor_window()
                         const float time = _previewTimeSeconds;
                         apply_clip_edit("Clear binding state key", [partId, time](VoxelAnimationClipAsset& clip)
                         {
+                            VoxelAnimationPartTrack& track = ensure_part_track(clip, partId);
+                            VoxelAnimationTransformKeyframe& poseKey = ensure_transform_key(track, time, VoxelAnimationTransformKeyframe{
+                                .timeSeconds = time,
+                                .localPosition = glm::vec3(0.0f),
+                                .localRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+                                .localScale = glm::vec3(1.0f)
+                            });
+                            poseKey.localPosition = glm::vec3(0.0f);
+                            poseKey.localRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                            poseKey.localScale = glm::vec3(1.0f);
                             if (VoxelAnimationBindingTrack* track = clip.find_binding_track(partId); track != nullptr)
                             {
                                 std::erase_if(track->keys, [time](const VoxelAnimationBindingStateKeyframe& key)
@@ -1777,6 +2376,16 @@ void AnimationEditorScene::draw_editor_window()
                             const float time = _previewTimeSeconds;
                             apply_clip_edit("Key binding state", [partId, nextStateId, time](VoxelAnimationClipAsset& clip)
                             {
+                                VoxelAnimationPartTrack& partTrack = ensure_part_track(clip, partId);
+                                VoxelAnimationTransformKeyframe& poseKey = ensure_transform_key(partTrack, time, VoxelAnimationTransformKeyframe{
+                                    .timeSeconds = time,
+                                    .localPosition = glm::vec3(0.0f),
+                                    .localRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+                                    .localScale = glm::vec3(1.0f)
+                                });
+                                poseKey.localPosition = glm::vec3(0.0f);
+                                poseKey.localRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                                poseKey.localScale = glm::vec3(1.0f);
                                 VoxelAnimationBindingTrack& track = ensure_binding_track(clip, partId);
                                 VoxelAnimationBindingStateKeyframe& key = ensure_binding_key(track, time, nextStateId);
                                 key.stateId = nextStateId;
@@ -1928,4 +2537,6 @@ void AnimationEditorScene::draw_editor_window()
     ImGui::Separator();
     ImGui::TextWrapped("%s", _statusMessage.c_str());
     ImGui::End();
+
+    draw_clip_timeline_window(selectedAssembly);
 }

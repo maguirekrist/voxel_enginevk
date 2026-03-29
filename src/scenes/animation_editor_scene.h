@@ -113,6 +113,7 @@ private:
     void apply_clip_edit(std::string_view description, const std::function<void(VoxelAnimationClipAsset&)>& edit);
     void apply_controller_edit(std::string_view description, const std::function<void(VoxelAnimationControllerAsset&)>& edit);
     void draw_editor_window();
+    void draw_clip_timeline_window(const std::shared_ptr<const VoxelAssemblyAsset>& selectedAssembly);
     [[nodiscard]] glm::vec3 orbit_target() const;
 
     SceneServices _services;
@@ -155,10 +156,13 @@ private:
     bool _controllerPreviewDirty{true};
     bool _showSelectedPartBounds{true};
     bool _showTransformGizmo{true};
+    bool _autoCenterPreview{false};
     int _gizmoOperation{1};
     int _gizmoMode{0};
     bool _sequencerExpanded{true};
     int _sequencerSelectedEntry{-1};
+    int _sequencerSelectedKeyIndex{-1};
+    int _sequencerSelectedKeyFrame{0};
     int _sequencerFirstFrame{0};
     float _orbitYawDegrees{40.0f};
     float _orbitPitchDegrees{24.0f};

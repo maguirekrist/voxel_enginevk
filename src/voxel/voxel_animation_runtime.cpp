@@ -102,7 +102,20 @@ namespace
         }
 
         const float localTime = sample_time(clip, timeSeconds);
-        if (track.transformKeys.size() == 1 || localTime <= track.transformKeys.front().timeSeconds)
+        if (localTime < track.transformKeys.front().timeSeconds)
+        {
+            return result;
+        }
+
+        if (track.transformKeys.size() == 1)
+        {
+            const auto& key = track.transformKeys.front();
+            result.valid = true;
+            result.position = key.localPosition;
+            result.rotation = normalized_quat(key.localRotation);
+            result.scale = key.localScale;
+        }
+        else if (localTime <= track.transformKeys.front().timeSeconds)
         {
             const auto& key = track.transformKeys.front();
             result.valid = true;
@@ -169,7 +182,13 @@ namespace
         const VoxelAnimationClipAsset& clip,
         const float timeSeconds)
     {
-        const auto* key = previous_key(track.visibilityKeys, sample_time(clip, timeSeconds));
+        const float localTime = sample_time(clip, timeSeconds);
+        if (track.visibilityKeys.empty() || localTime < track.visibilityKeys.front().timeSeconds)
+        {
+            return std::nullopt;
+        }
+
+        const auto* key = previous_key(track.visibilityKeys, localTime);
         return key != nullptr ? std::optional<bool>{key->visible} : std::nullopt;
     }
 
@@ -178,7 +197,13 @@ namespace
         const VoxelAnimationClipAsset& clip,
         const float timeSeconds)
     {
-        const auto* key = previous_key(track.keys, sample_time(clip, timeSeconds));
+        const float localTime = sample_time(clip, timeSeconds);
+        if (track.keys.empty() || localTime < track.keys.front().timeSeconds)
+        {
+            return std::nullopt;
+        }
+
+        const auto* key = previous_key(track.keys, localTime);
         if (key == nullptr || key->stateId.empty())
         {
             return std::nullopt;
