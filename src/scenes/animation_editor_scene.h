@@ -3,6 +3,7 @@
 #include <array>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,6 +13,7 @@
 #include "components/voxel_assembly_component.h"
 #include "config/json_document_store.h"
 #include "editing/document_command_history.h"
+#include "render/mesh.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
 #include "scene.h"
@@ -95,7 +97,10 @@ private:
     void update_uniform_buffers() const;
     void update_camera();
     void draw_orientation_gizmo();
+    void draw_transform_gizmo();
     void sync_preview();
+    void sync_selection_overlay();
+    void release_selection_meshes();
     void refresh_asset_lists();
     void pick_part(int mouseX, int mouseY);
     void new_clip();
@@ -115,6 +120,8 @@ private:
     std::shared_ptr<Resource> _cameraUboResource;
     std::shared_ptr<Resource> _lightingResource;
     std::shared_ptr<Resource> _fogResource;
+    std::shared_ptr<Mesh> _selectedPartBoundsMesh;
+    std::optional<dev_collections::sparse_set<RenderObject>::Handle> _selectedPartBoundsHandle;
     config::JsonFileDocumentStore _documentStore{};
     VoxelModelRepository _modelRepository;
     VoxelAssemblyRepository _assemblyRepository;
@@ -141,10 +148,18 @@ private:
     std::string _statusMessage{"Ready"};
     EditorMode _mode{EditorMode::Clip};
     float _previewTimeSeconds{0.0f};
-    bool _playing{true};
+    bool _playing{false};
     bool _orbitDragging{false};
     bool _previewDirty{true};
+    bool _selectionOverlayDirty{true};
     bool _controllerPreviewDirty{true};
+    bool _showSelectedPartBounds{true};
+    bool _showTransformGizmo{true};
+    int _gizmoOperation{1};
+    int _gizmoMode{0};
+    bool _sequencerExpanded{true};
+    int _sequencerSelectedEntry{-1};
+    int _sequencerFirstFrame{0};
     float _orbitYawDegrees{40.0f};
     float _orbitPitchDegrees{24.0f};
     float _orbitDistance{5.5f};

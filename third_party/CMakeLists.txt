@@ -4,6 +4,7 @@ add_library(vkbootstrap STATIC)
 add_library(glm INTERFACE)
 add_library(vma INTERFACE)
 add_library(libcuckoo INTERFACE)
+add_library(imguizmo STATIC)
 
 add_library(stb_image INTERFACE)
 
@@ -81,6 +82,15 @@ target_sources(imgui PRIVATE
 
 target_link_libraries(imgui PUBLIC Vulkan::Vulkan sdl2)
 target_include_directories(stb_image INTERFACE stb_image)
+
+target_include_directories(imguizmo PUBLIC ImGuizmo imgui)
+target_sources(imguizmo PRIVATE
+    ImGuizmo/ImGuizmo.h
+    ImGuizmo/ImGuizmo.cpp
+    ImGuizmo/ImSequencer.h
+    ImGuizmo/ImSequencer.cpp
+)
+target_link_libraries(imguizmo PUBLIC imgui)
 
 add_library(spirv_reflect STATIC)
 target_include_directories(spirv_reflect PUBLIC SPIRV-Reflect)
