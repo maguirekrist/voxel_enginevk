@@ -80,8 +80,14 @@ void VulkanEngine::init()
 		.allocator = _allocator,
 		.device = _device,
 		.windowExtent = &_windowExtent,
+		.presentRenderPass = &_renderPass,
 		.meshManager = &_meshManager,
 		.materialManager = &_materialManager,
+        .descriptorAllocator = &_descriptorAllocator,
+        .descriptorLayoutCache = &_descriptorLayoutCache,
+        // Runtime UI atlases are sampled on the graphics queue, so upload them there
+        // to avoid cross-queue ownership transfers for this first implementation.
+        .uploadQueue = { ._queue = _graphicsQueue, ._queueFamily = _graphicsQueueFamily },
         .configService = &_configService
 	});
 

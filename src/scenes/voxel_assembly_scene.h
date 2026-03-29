@@ -16,6 +16,7 @@
 #include "render/scene_render_state.h"
 #include "scene.h"
 #include "scene_services.h"
+#include "ui/ui_runtime.h"
 #include "voxel/voxel_assembly_asset.h"
 #include "voxel/voxel_assembly_repository.h"
 #include "voxel/voxel_asset_manager.h"
@@ -34,6 +35,10 @@ public:
     void handle_keystate(const Uint8* state) override;
     void clear_input() override;
     void draw_imgui() override;
+    void build_runtime_ui(ui::FrameBuilder& builder) override;
+    void submit_ui_signal(const ui::Signal& signal) override;
+    void collect_world_labels(ui::WorldLabelCollector& collector) override;
+    [[nodiscard]] ui::Runtime& runtime_ui() override;
     void build_pipelines() override;
     void rebuild_pipelines() override;
     SceneRenderState& get_render_state() override;
@@ -167,4 +172,5 @@ private:
     float _orbitDistance{5.5f};
     glm::vec3 _previewOrbitTarget{0.0f};
     std::string _statusMessage{"Ready"};
+    ui::Runtime _runtimeUi{};
 };

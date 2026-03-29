@@ -18,6 +18,7 @@
 #include "string_utils.h"
 #include "voxel/voxel_component_render_adapter.h"
 #include "voxel/voxel_model_component_adapter.h"
+#include "ui/ui_debug_font_presets.h"
 
 namespace
 {
@@ -654,18 +655,176 @@ void GameScene::clear_input()
 void GameScene::draw_imgui()
 {
 	ZoneScopedN("GameScene::DrawImGui");
-	ImGui_ImplVulkan_NewFrame();
-	ImGui_ImplSDL2_NewFrame();
-	ImGui::NewFrame();
-	//ImGui::ShowDemoWindow();
-
 	{
 		draw_debug_map();
 	}
 
     draw_camera_orientation_gizmo();
+}
 
-	ImGui::Render();
+void GameScene::build_runtime_ui(ui::FrameBuilder& builder)
+{
+    const ui::ScreenId hudScreen = ui::make_screen_id("game.hud");
+    const ui::LayerId hudLayer = ui::make_layer_id("game.hud.text");
+    const ui::FontFamilyId activeFamily = runtime_ui_font_family();
+    const VkExtent2D viewport = _services.current_window_extent();
+    const GameSnapshot& snapshot = _game.snapshot();
+
+    builder.declare_screen(hudScreen, "Game HUD");
+    builder.declare_layer(hudLayer, "Game HUD Text", ui::LayerInputPolicy::Passthrough, 100);
+
+    builder.submit_draw_command(ui::DrawCommand{
+        .payload = ui::TextCommand{
+            .rect = ui::Rect{
+                .min = glm::vec2(24.0f, 20.0f),
+                .max = glm::vec2(420.0f, 48.0f)
+            },
+            .text = ui::TextRun{
+                .text = "Runtime UI Overlay Active",
+                .familyId = activeFamily,
+                .pixelHeight = 28.0f
+            },
+            .color = glm::vec4(0.93f, 0.96f, 0.72f, 1.0f),
+            .layerId = hudLayer
+        }
+    });
+
+    builder.submit_draw_command(ui::DrawCommand{
+        .payload = ui::TextCommand{
+            .rect = ui::Rect{
+                .min = glm::vec2(24.0f, 48.0f),
+                .max = glm::vec2(static_cast<float>(viewport.width) - 24.0f, 80.0f)
+            },
+            .text = ui::TextRun{
+                .text = _runtimeUiSampleText.data(),
+                .familyId = activeFamily,
+                .pixelHeight = _runtimeUiSamplePixelHeight
+            },
+            .color = glm::vec4(0.98f, 0.90f, 0.78f, 1.0f),
+            .layerId = hudLayer
+        }
+    });
+
+    const ChunkCoord playerChunk = snapshot.currentChunk.value_or(World::get_chunk_coordinates(snapshot.player.position));
+    builder.submit_draw_command(ui::DrawCommand{
+        .payload = ui::TextCommand{
+            .rect = ui::Rect{
+                .min = glm::vec2(24.0f, 86.0f),
+                .max = glm::vec2(540.0f, 110.0f)
+            },
+            .text = ui::TextRun{
+                .text = std::format("Chunk: {}, {}", playerChunk.x, playerChunk.z),
+                .familyId = activeFamily,
+                .pixelHeight = 18.0f
+            },
+            .color = glm::vec4(0.84f, 0.90f, 0.98f, 1.0f),
+            .layerId = hudLayer
+        }
+    });
+
+    builder.submit_draw_command(ui::DrawCommand{
+        .payload = ui::TextCommand{
+            .rect = ui::Rect{
+                .min = glm::vec2(24.0f, 108.0f),
+                .max = glm::vec2(760.0f, 132.0f)
+            },
+            .text = ui::TextRun{
+                .text = std::format(
+                    "Player: {:.1f}, {:.1f}, {:.1f}",
+                    snapshot.player.position.x,
+                    snapshot.player.position.y,
+                    snapshot.player.position.z),
+                .familyId = activeFamily,
+                .pixelHeight = 18.0f
+            },
+            .color = glm::vec4(0.78f, 0.84f, 0.92f, 1.0f),
+            .layerId = hudLayer
+        }
+    });
+
+    const std::string targetLabel = _targetBlock.has_value()
+        ? std::format(
+            "Target Block: {}, {}, {}",
+            _targetBlock->_worldPos.x,
+            _targetBlock->_worldPos.y,
+            _targetBlock->_worldPos.z)
+        : "Target Block: none";
+    builder.submit_draw_command(ui::DrawCommand{
+        .payload = ui::TextCommand{
+            .rect = ui::Rect{
+                .min = glm::vec2(0.0f, 138.0f),
+                .max = glm::vec2(static_cast<float>(viewport.width), 164.0f)
+            },
+            .text = ui::TextRun{
+                .text = targetLabel,
+                .familyId = activeFamily,
+                .pixelHeight = 18.0f
+            },
+            .color = _targetBlock.has_value()
+                ? glm::vec4(1.0f, 0.86f, 0.62f, 1.0f)
+                : glm::vec4(0.74f, 0.78f, 0.82f, 1.0f),
+            .layerId = hudLayer,
+            .alignment = ui::TextAlignment::Center
+        }
+    });
+
+    builder.submit_draw_command(ui::DrawCommand{
+        .payload = ui::TextCommand{
+            .rect = ui::Rect{
+                .min = glm::vec2(
+                    (static_cast<float>(viewport.width) * 0.5f) - 32.0f,
+                    (static_cast<float>(viewport.height) * 0.5f) - 32.0f),
+                .max = glm::vec2(
+                    (static_cast<float>(viewport.width) * 0.5f) + 32.0f,
+                    (static_cast<float>(viewport.height) * 0.5f) + 32.0f)
+            },
+            .text = ui::TextRun{
+                .text = "+",
+                .familyId = activeFamily,
+                .pixelHeight = 26.0f
+            },
+            .color = glm::vec4(1.0f, 1.0f, 1.0f, 0.96f),
+            .layerId = hudLayer,
+            .alignment = ui::TextAlignment::Center
+        }
+    });
+
+    builder.submit_draw_command(ui::DrawCommand{
+        .payload = ui::TextCommand{
+            .rect = ui::Rect{
+                .min = glm::vec2(24.0f, static_cast<float>(viewport.height) - 52.0f),
+                .max = glm::vec2(static_cast<float>(viewport.width) - 24.0f, static_cast<float>(viewport.height) - 24.0f)
+            },
+            .text = ui::TextRun{
+                .text = "Runtime text is now flowing through the new UI pipeline in GameScene.",
+                .familyId = activeFamily,
+                .pixelHeight = 16.0f
+            },
+            .color = glm::vec4(0.88f, 0.93f, 0.98f, 1.0f),
+            .layerId = hudLayer
+        }
+    });
+}
+
+void GameScene::submit_ui_signal(const ui::Signal& signal)
+{
+    _runtimeUi.submit_signal(signal);
+}
+
+void GameScene::collect_world_labels(ui::WorldLabelCollector& collector)
+{
+    (void)collector;
+}
+
+ui::Runtime& GameScene::runtime_ui()
+{
+    return _runtimeUi;
+}
+
+ui::FontFamilyId GameScene::runtime_ui_font_family() const
+{
+    const int clampedIndex = std::clamp(_runtimeUiFontPresetIndex, 0, static_cast<int>(ui::runtime_debug_font_presets.size()) - 1);
+    return ui::make_font_family_id(ui::runtime_debug_font_presets[static_cast<size_t>(clampedIndex)].familyKey);
 }
 
 void GameScene::draw_camera_orientation_gizmo() const
@@ -1230,6 +1389,29 @@ void GameScene::draw_debug_map()
                 }
             }
 
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("Runtime UI"))
+        {
+            static const char* FontLabels[] = {
+                "Droid Sans",
+                "Roboto Medium",
+                "Cousine Regular",
+                "Karla Regular",
+                "Proggy Clean",
+                "Proggy Tiny"
+            };
+
+            ImGui::TextUnformatted("Hot-swap the runtime HUD font here and tune the sample text directly in GameScene.");
+            ImGui::Combo("Runtime Font", &_runtimeUiFontPresetIndex, FontLabels, IM_ARRAYSIZE(FontLabels));
+            ImGui::SliderFloat("Sample Pixel Height", &_runtimeUiSamplePixelHeight, 12.0f, 48.0f, "%.1f");
+            ImGui::InputText("Sample Text", _runtimeUiSampleText.data(), _runtimeUiSampleText.size());
+            ImGui::Text("Active Family Id: %llu", static_cast<unsigned long long>(runtime_ui_font_family().value));
+            ImGui::Text("Selected Font File: %.*s",
+                static_cast<int>(ui::runtime_debug_font_presets[static_cast<size_t>(std::clamp(_runtimeUiFontPresetIndex, 0, static_cast<int>(ui::runtime_debug_font_presets.size()) - 1))].fileName.size()),
+                ui::runtime_debug_font_presets[static_cast<size_t>(std::clamp(_runtimeUiFontPresetIndex, 0, static_cast<int>(ui::runtime_debug_font_presets.size()) - 1))].fileName.data());
+            ImGui::BulletText("The sample line at the top of GameScene is intended to stress capitals, ascenders, descenders, and numerals.");
             ImGui::EndTabItem();
         }
 

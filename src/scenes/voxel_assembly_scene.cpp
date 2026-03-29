@@ -230,12 +230,28 @@ void VoxelAssemblyScene::clear_input()
 
 void VoxelAssemblyScene::draw_imgui()
 {
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
     draw_editor_window();
     draw_orientation_gizmo();
-    ImGui::Render();
+}
+
+void VoxelAssemblyScene::build_runtime_ui(ui::FrameBuilder& builder)
+{
+    (void)builder;
+}
+
+void VoxelAssemblyScene::submit_ui_signal(const ui::Signal& signal)
+{
+    _runtimeUi.submit_signal(signal);
+}
+
+void VoxelAssemblyScene::collect_world_labels(ui::WorldLabelCollector& collector)
+{
+    (void)collector;
+}
+
+ui::Runtime& VoxelAssemblyScene::runtime_ui()
+{
+    return _runtimeUi;
 }
 
 void VoxelAssemblyScene::build_pipelines()

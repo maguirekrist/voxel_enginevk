@@ -7,6 +7,7 @@ add_executable(engine_tests
     settings_tests.cpp
     voxel_asset_tests.cpp
     voxel_geometry_tests.cpp
+    ui_runtime_tests.cpp
     ../src/settings/game_settings.cpp
     ../src/config/config_paths.cpp
     ../src/config/json_document_store.cpp
@@ -37,6 +38,12 @@ add_executable(engine_tests
     ../src/voxel/voxel_picking.cpp
     ../src/voxel/voxel_model_repository.cpp
     ../src/render/mesh_release_queue.cpp
+    ../src/ui/ui_text.cpp
+    ../src/ui/ui_text_system.cpp
+    ../src/ui/ui_font_backend_freetype.cpp
+    ../src/ui/ui_font_backend_msdf.cpp
+    ../src/ui/ui_world.cpp
+    ../src/ui/ui_runtime.cpp
     ../src/world/chunk_neighborhood.cpp
     ../src/world/chunk_lighting.cpp
     ../src/world/generation/terrain_generation_buffers.cpp
@@ -59,6 +66,9 @@ target_link_libraries(engine_tests
         glm
         FastNoise
         TracyClient
+        freetype
+        ${VOXEL_ENGINE_HARFBUZZ_TARGET}
+        msdf-atlas-gen::msdf-atlas-gen
 )
 
 

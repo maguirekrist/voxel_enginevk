@@ -6,21 +6,82 @@
 #include <scenes/game_scene.h>
 #include <scenes/voxel_assembly_scene.h>
 #include <scenes/voxel_editor_scene.h>
+#include <ui/ui_debug_font_presets.h>
+#include <ui/ui_font_backend_msdf.h>
+#include <ui/ui_runtime.h>
 
 #include "imgui.h"
+#include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
+
+namespace
+{
+    void configure_runtime_text(ui::Runtime& runtime)
+    {
+        const std::filesystem::path repoRoot = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+
+        auto backend = std::make_shared<ui::MsdfAtlasFontBackend>();
+        runtime.text_system().register_backend(backend);
+        for (const ui::DebugFontPreset& preset : ui::runtime_debug_font_presets)
+        {
+            const std::filesystem::path fontPath = repoRoot / "third_party" / "imgui" / "misc" / "fonts" / preset.fileName;
+            const ui::FontFaceId faceId = ui::make_font_face_id(preset.faceKey);
+            const ui::FontFamilyId familyId = ui::make_font_family_id(preset.familyKey);
+
+            runtime.text_system().register_face(ui::FontFaceDescriptor{
+                .id = faceId,
+                .debugName = std::string(preset.label),
+                .rasterizationMode = ui::FontRasterizationMode::Vector,
+                .nominalPixelHeight = preset.nominalPixelHeight,
+                .sources = {
+                    ui::FontAssetSource{
+                        .debugName = std::string(preset.fileName),
+                        .path = fontPath,
+                        .format = ui::FontSourceFormat::TrueType
+                    }
+                }
+            });
+            runtime.text_system().register_family(ui::FontFamily{
+                .id = familyId,
+                .debugName = std::string(preset.label),
+                .preferredFaces = { faceId }
+            });
+        }
+
+        runtime.text_system().register_family(ui::FontFamily{
+            .id = ui::make_font_family_id("runtime.default"),
+            .debugName = "Runtime Default",
+            .preferredFaces = { ui::make_font_face_id(ui::runtime_debug_font_presets.front().faceKey) }
+        });
+    }
+}
 
 void SceneRenderer::init(const SceneServices& sceneServices)
 {
 	_scenes["game"] = std::make_shared<GameScene>(sceneServices);
     _scenes["voxel_editor"] = std::make_shared<VoxelEditorScene>(sceneServices);
     _scenes["voxel_assembly"] = std::make_shared<VoxelAssemblyScene>(sceneServices);
+    for (const auto& [_, scene] : _scenes)
+    {
+        configure_runtime_text(scene->runtime_ui());
+    }
+
+    _uiRenderer.init(UiRenderer::Context{
+        .device = sceneServices.device,
+        .allocator = sceneServices.allocator,
+        .renderPass = sceneServices.presentRenderPass,
+        .windowExtent = sceneServices.windowExtent,
+        .descriptorAllocator = sceneServices.descriptorAllocator,
+        .descriptorLayoutCache = sceneServices.descriptorLayoutCache,
+        .uploadQueue = sceneServices.uploadQueue
+    });
     _currentSceneName = "voxel_editor";
 	_currentScene = _scenes["voxel_editor"];
 }
 
 void SceneRenderer::cleanup()
 {
+    _uiRenderer.cleanup();
 	_scenes.clear();
 	_currentScene = nullptr;
 }
@@ -44,10 +105,27 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, const FrameRenderContext& 
 	ZoneScopedN("Render Scene");
     _currentScene->update_buffers();
     SceneRenderState& renderState = _currentScene->get_render_state();
+    ui::Runtime& runtimeUi = _currentScene->runtime_ui();
+    runtimeUi.begin_frame(ui::FrameDescriptor{
+        .viewport = ui::Extent2D{
+            .width = frameContext.windowExtent.width,
+            .height = frameContext.windowExtent.height
+        }
+    });
+
+    ui::FrameBuilder frameBuilder = runtimeUi.frame_builder();
+    _currentScene->build_runtime_ui(frameBuilder);
+    ui::WorldLabelCollector worldLabelCollector = runtimeUi.world_label_collector();
+    _currentScene->collect_world_labels(worldLabelCollector);
+    runtimeUi.finalize_frame();
 
 	if (USE_IMGUI)
 	{
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
 		_currentScene->draw_imgui();
+        ImGui::Render();
 	}
 
     VkRenderPassBeginInfo rpOffscreenInfo = vkinit::render_pass_begin_info(
@@ -77,6 +155,7 @@ void SceneRenderer::render_scene(VkCommandBuffer cmd, const FrameRenderContext& 
 
     //Draw transparent
     draw_objects(cmd, renderState.transparentObjects.data());
+    _uiRenderer.draw_runtime_ui(cmd, runtimeUi);
 
 	if (USE_IMGUI)
 	{

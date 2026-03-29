@@ -329,12 +329,28 @@ void VoxelEditorScene::clear_input()
 
 void VoxelEditorScene::draw_imgui()
 {
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
     draw_editor_window();
     draw_orientation_gizmo();
-    ImGui::Render();
+}
+
+void VoxelEditorScene::build_runtime_ui(ui::FrameBuilder& builder)
+{
+    (void)builder;
+}
+
+void VoxelEditorScene::submit_ui_signal(const ui::Signal& signal)
+{
+    _runtimeUi.submit_signal(signal);
+}
+
+void VoxelEditorScene::collect_world_labels(ui::WorldLabelCollector& collector)
+{
+    (void)collector;
+}
+
+ui::Runtime& VoxelEditorScene::runtime_ui()
+{
+    return _runtimeUi;
 }
 
 void VoxelEditorScene::build_pipelines()
