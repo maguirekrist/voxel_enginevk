@@ -3,6 +3,7 @@
 #include <scenes/scene.h>
 #include <scenes/scene_services.h>
 #include <render/scene_render_state.h>
+#include <render/ui_renderer.h>
 #include <vk_types.h>
 #include <render/render_primitives.h>
 
@@ -22,10 +23,11 @@ private:
 
     void draw_objects(VkCommandBuffer cmd, const std::vector<RenderObject>& chunks);
     void draw_object(VkCommandBuffer cmd, const RenderObject& object);
-    
-	std::unordered_map<std::string, std::shared_ptr<Scene>> _scenes;
+
+    std::unordered_map<std::string, std::shared_ptr<Scene>> _scenes;
     std::shared_ptr<Scene> _currentScene = nullptr;
     std::string _currentSceneName{};
+    UiRenderer _uiRenderer{};
 
     std::string m_lastMaterialKey;
 };

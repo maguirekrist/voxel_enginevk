@@ -51,6 +51,57 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(sdl2)
 
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    freetype
+    GIT_REPOSITORY https://github.com/freetype/freetype.git
+    GIT_TAG        VER-2-13-3
+)
+FetchContent_MakeAvailable(freetype)
+
+if (TARGET freetype AND NOT TARGET Freetype::Freetype)
+    add_library(Freetype::Freetype ALIAS freetype)
+endif()
+
+set(HB_BUILD_SUBSET OFF CACHE BOOL "" FORCE)
+set(HB_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(HB_BUILD_UTILS OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_FREETYPE ON CACHE BOOL "" FORCE)
+set(HB_HAVE_GLIB OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_ICU OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    harfbuzz
+    GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
+    GIT_TAG        10.2.0
+)
+FetchContent_MakeAvailable(harfbuzz)
+
+if (TARGET harfbuzz::harfbuzz)
+    set(VOXEL_ENGINE_HARFBUZZ_TARGET harfbuzz::harfbuzz CACHE INTERNAL "")
+elseif(TARGET harfbuzz)
+    set(VOXEL_ENGINE_HARFBUZZ_TARGET harfbuzz CACHE INTERNAL "")
+else()
+    message(FATAL_ERROR "Unable to find a HarfBuzz CMake target after FetchContent_MakeAvailable(harfbuzz).")
+endif()
+
+set(MSDF_ATLAS_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
+set(MSDF_ATLAS_USE_VCPKG OFF CACHE BOOL "" FORCE)
+set(MSDF_ATLAS_USE_SKIA OFF CACHE BOOL "" FORCE)
+set(MSDF_ATLAS_NO_ARTERY_FONT ON CACHE BOOL "" FORCE)
+set(MSDFGEN_DISABLE_PNG ON CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    msdf_atlas_gen
+    GIT_REPOSITORY https://github.com/Chlumsky/msdf-atlas-gen.git
+    GIT_TAG        v1.4
+    GIT_SHALLOW    TRUE
+    GIT_SUBMODULES "msdfgen"
+)
+FetchContent_MakeAvailable(msdf_atlas_gen)
+
 add_library(sdl2 INTERFACE)
 target_link_libraries(sdl2 INTERFACE SDL2::SDL2)
 if (WIN32 AND TARGET SDL2::SDL2main)

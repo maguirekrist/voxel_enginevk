@@ -18,6 +18,7 @@
 #include "world/terrain_gen.h"
 #include "world/dynamic_light_registry.h"
 #include "world/world_light_sampler.h"
+#include "ui/ui_runtime.h"
 #include "voxel/voxel_component_render_adapter.h"
 #include "voxel/voxel_render_registry.h"
 
@@ -33,6 +34,10 @@ public:
     void handle_keystate(const Uint8* state) override;
     void clear_input() override;
     void draw_imgui() override;
+    void build_runtime_ui(ui::FrameBuilder& builder) override;
+    void submit_ui_signal(const ui::Signal& signal) override;
+    void collect_world_labels(ui::WorldLabelCollector& collector) override;
+    [[nodiscard]] ui::Runtime& runtime_ui() override;
     void rebuild_pipelines() override;
     void build_pipelines() override;
     SceneRenderState& get_render_state() override;
@@ -132,8 +137,14 @@ private:
     float _playerTorchRadius{7.5f};
     float _playerTorchIntensity{1.0f};
     glm::vec3 _playerTorchColor{1.0f, 0.82f, 0.52f};
+    int _runtimeUiFontPresetIndex{0};
+    float _runtimeUiSamplePixelHeight{26.0f};
+    std::array<char, 160> _runtimeUiSampleText{
+        "Baseline sample: H A k g y i l O Q p q j 0123456789"
+    };
     std::optional<world_lighting::DynamicLightRegistry::LightId> _playerTorchLightId{};
     std::unique_ptr<world_lighting::WorldLightSampler> _worldLightSampler;
+    ui::Runtime _runtimeUi{};
     std::unordered_map<std::string, VoxelRenderRegistry::InstanceId> _playerAssemblyInstanceIds{};
     std::vector<std::string> _savedPlayerAssemblyIds{};
     int _selectedPlayerAssemblyIndex{-1};
@@ -158,6 +169,7 @@ private:
     void apply_ambient_occlusion_settings(const settings::AmbientOcclusionRuntimeSettings& settings);
     void apply_player_settings(const settings::PlayerRuntimeSettings& settings);
     void sync_world_gen_draft();
+    [[nodiscard]] ui::FontFamilyId runtime_ui_font_family() const;
     void clear_target_block_outline();
     void clear_spatial_collider_debug();
     void release_spatial_collider_debug_meshes();

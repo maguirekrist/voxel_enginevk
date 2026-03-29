@@ -76,6 +76,8 @@ add_executable(vulkan_guide
     render/mesh_manager.cpp
     render/material_manager.h
     render/material_manager.cpp
+    render/ui_renderer.h
+    render/ui_renderer.cpp
     render/shader_program.h
     render/shader_program.cpp
     scenes/scene.h
@@ -169,8 +171,24 @@ add_executable(vulkan_guide
         render/chunk_decoration_render_registry.cpp
         render/chunk_decoration_render_registry.h
         render/scene_render_state.h
-        render/mesh_release_queue.cpp
-        render/mesh_release_queue.h
+    render/mesh_release_queue.cpp
+    render/mesh_release_queue.h
+    ui/ui_types.h
+    ui/ui_signal.h
+    ui/ui_text.h
+    ui/ui_text.cpp
+    ui/ui_text_system.h
+    ui/ui_text_system.cpp
+    ui/ui_font_backend_freetype.h
+    ui/ui_font_backend_freetype.cpp
+    ui/ui_font_backend_msdf.h
+    ui/ui_font_backend_msdf.cpp
+    ui/ui_draw_commands.h
+    ui/ui_world.h
+    ui/ui_world.cpp
+    ui/ui_frame_builder.h
+    ui/ui_runtime.h
+    ui/ui_runtime.cpp
 )
 
 
@@ -178,7 +196,7 @@ set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGE
 
 target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}")
 target_link_libraries(vulkan_guide vkbootstrap libcuckoo vma glm tinyobjloader imgui spirv_reflect stb_image)
-target_link_libraries(vulkan_guide Vulkan::Vulkan sdl2 FastNoise TracyClient)
+target_link_libraries(vulkan_guide Vulkan::Vulkan sdl2 FastNoise TracyClient freetype ${VOXEL_ENGINE_HARFBUZZ_TARGET} msdf-atlas-gen::msdf-atlas-gen)
 
 target_compile_options(vulkan_guide PRIVATE)
 target_link_options(vulkan_guide PRIVATE)
