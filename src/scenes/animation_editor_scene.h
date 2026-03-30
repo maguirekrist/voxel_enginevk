@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "camera.h"
@@ -28,6 +29,8 @@
 #include "voxel/voxel_asset_manager.h"
 #include "voxel/voxel_model_repository.h"
 #include "voxel/voxel_render_registry.h"
+
+struct ImNodesEditorContext;
 
 class AnimationEditorScene final : public Scene
 {
@@ -114,6 +117,9 @@ private:
     void apply_controller_edit(std::string_view description, const std::function<void(VoxelAnimationControllerAsset&)>& edit);
     void draw_editor_window();
     void draw_clip_timeline_window(const std::shared_ptr<const VoxelAssemblyAsset>& selectedAssembly);
+    void draw_controller_graph_window();
+    void reset_controller_preview_state(bool preserveParameters);
+    void sync_controller_preview_parameters();
     [[nodiscard]] glm::vec3 orbit_target() const;
 
     SceneServices _services;
@@ -164,14 +170,14 @@ private:
     int _sequencerSelectedKeyIndex{-1};
     int _sequencerSelectedKeyFrame{0};
     int _sequencerFirstFrame{0};
+    ImNodesEditorContext* _controllerNodeEditor{nullptr};
+    std::string _selectedControllerLayerId{};
+    std::string _selectedControllerStateId{};
+    std::string _selectedControllerTransitionKey{};
+    std::unordered_set<int> _initializedControllerNodeIds{};
     float _orbitYawDegrees{40.0f};
     float _orbitPitchDegrees{24.0f};
     float _orbitDistance{5.5f};
     glm::vec3 _previewOrbitTarget{0.0f};
-    float _previewMoveX{0.0f};
-    float _previewMoveY{1.0f};
-    float _previewSpeed{1.0f};
-    bool _previewGrounded{true};
-    float _previewVerticalSpeed{0.0f};
-    bool _previewFlyMode{false};
+    float _controllerPreviewPendingDeltaSeconds{0.0f};
 };

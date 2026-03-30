@@ -5,6 +5,7 @@ add_library(glm INTERFACE)
 add_library(vma INTERFACE)
 add_library(libcuckoo INTERFACE)
 add_library(imguizmo STATIC)
+add_library(imnodes STATIC)
 
 add_library(stb_image INTERFACE)
 
@@ -91,6 +92,14 @@ target_sources(imguizmo PRIVATE
     ImGuizmo/ImSequencer.cpp
 )
 target_link_libraries(imguizmo PUBLIC imgui)
+
+target_include_directories(imnodes PUBLIC imnodes imgui)
+target_sources(imnodes PRIVATE
+    imnodes/imnodes.h
+    imnodes/imnodes_internal.h
+    imnodes/imnodes.cpp
+)
+target_link_libraries(imnodes PUBLIC imgui)
 
 add_library(spirv_reflect STATIC)
 target_include_directories(spirv_reflect PUBLIC SPIRV-Reflect)
