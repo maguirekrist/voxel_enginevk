@@ -1,6 +1,6 @@
 {
   "assemblyAssetId": "player_1",
-  "assetId": "tes",
+  "assetId": "testtttttt",
   "blendSpaces": [],
   "displayName": "Untitled Controller",
   "layers": [
@@ -32,13 +32,6 @@
       "defaultFloatValue": 0.0,
       "displayName": "float_param",
       "parameterId": "float_param",
-      "type": "float"
-    },
-    {
-      "defaultBoolValue": false,
-      "defaultFloatValue": 0.0,
-      "displayName": "float_param_1",
-      "parameterId": "float_param_1",
       "type": "float"
     }
   ],

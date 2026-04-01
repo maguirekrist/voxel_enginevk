@@ -10,6 +10,8 @@
 #include "camera.h"
 #include "config/json_document_store.h"
 #include "editing/document_command_history.h"
+#include "editing/document_editor_session.h"
+#include "editor_orbit_camera.h"
 #include "render/mesh.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
@@ -111,7 +113,6 @@ private:
     [[nodiscard]] std::string make_unique_attachment_name(std::string_view baseName) const;
     void update_camera();
     void draw_orientation_gizmo();
-    void sync_orbit_from_view_matrix(const glm::mat4& viewMatrix);
     void clamp_slice_index();
     [[nodiscard]] PlaneSpec plane_spec() const;
     void draw_editor_window();
@@ -156,6 +157,7 @@ private:
     VoxelModelRepository _repository;
     VoxelModel _model;
     editing::DocumentCommandHistory<VoxelModel> _history{50};
+    editing::DocumentEditorSession<VoxelModel> _editorSession{_history, _model, "model"};
     glm::ivec3 _gridDimensions{16, 16, 16};
     EditAxis _editAxis{EditAxis::Z};
     int _sliceIndex{0};
@@ -170,9 +172,7 @@ private:
     bool _showPivotVoxel{true};
     bool _showAttachmentMarkers{true};
     bool _showSelectedAttachmentVoxel{true};
-    float _orbitYawDegrees{40.0f};
-    float _orbitPitchDegrees{24.0f};
-    float _orbitDistance{3.5f};
+    editor::OrbitCameraState _orbitCamera{.yawDegrees = 40.0f, .pitchDegrees = 24.0f, .distance = 3.5f, .minDistance = 0.5f, .maxDistance = 64.0f};
     std::vector<std::string> _savedAssetIds{};
     int _selectedSavedAssetIndex{-1};
     int _selectedAttachmentIndex{-1};

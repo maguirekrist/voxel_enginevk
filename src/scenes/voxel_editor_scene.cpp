@@ -69,16 +69,6 @@ namespace
         }
     }
 
-    glm::vec3 orbit_front(const float yawDegrees, const float pitchDegrees)
-    {
-        const float yaw = glm::radians(yawDegrees);
-        const float pitch = glm::radians(pitchDegrees);
-        return glm::normalize(glm::vec3(
-            std::cos(pitch) * std::cos(yaw),
-            std::sin(pitch),
-            std::cos(pitch) * std::sin(yaw)));
-    }
-
     glm::vec3 voxel_center_position(const VoxelCoord& voxel, const float voxelSize)
     {
         return (glm::vec3(
@@ -236,15 +226,18 @@ void VoxelEditorScene::handle_input(const SDL_Event& event)
     {
         if (_orbitDragging)
         {
-            _orbitYawDegrees += static_cast<float>(event.motion.xrel) * 0.18f;
-            _orbitPitchDegrees -= static_cast<float>(event.motion.yrel) * 0.18f;
+            _orbitCamera.yawDegrees += static_cast<float>(event.motion.xrel) * 0.18f;
+            _orbitCamera.pitchDegrees -= static_cast<float>(event.motion.yrel) * 0.18f;
         }
         return;
     }
 
     if (event.type == SDL_MOUSEWHEEL)
     {
-        _orbitDistance = std::clamp(_orbitDistance - (static_cast<float>(event.wheel.y) * 0.2f), 0.5f, 64.0f);
+        _orbitCamera.distance = std::clamp(
+            _orbitCamera.distance - (static_cast<float>(event.wheel.y) * 0.2f),
+            _orbitCamera.minDistance,
+            _orbitCamera.maxDistance);
         return;
     }
 
@@ -265,7 +258,7 @@ void VoxelEditorScene::handle_input(const SDL_Event& event)
 
             if (_eraseMode)
             {
-                if (_hoveredTarget.has_value() && _model.remove_voxel(_hoveredTarget->voxel))
+                if (_hoveredTarget.has_value() && _model.contains(_hoveredTarget->voxel))
                 {
                     const VoxelCoord removedCoord = _hoveredTarget->voxel;
                     apply_model_edit(
@@ -299,7 +292,7 @@ void VoxelEditorScene::handle_input(const SDL_Event& event)
         }
         else if (event.button.button == SDL_BUTTON_RIGHT)
         {
-            if (_hoveredTarget.has_value() && _model.remove_voxel(_hoveredTarget->voxel))
+            if (_hoveredTarget.has_value() && _model.contains(_hoveredTarget->voxel))
             {
                 const VoxelCoord removedCoord = _hoveredTarget->voxel;
                 apply_model_edit(
@@ -591,6 +584,11 @@ void VoxelEditorScene::sync_marker_overlays()
         _renderState.transparentObjects.remove(_selectedAttachmentVoxelHandle.value());
         _selectedAttachmentVoxelHandle.reset();
     }
+    if (_modelBoundsHandle.has_value())
+    {
+        _renderState.transparentObjects.remove(_modelBoundsHandle.value());
+        _modelBoundsHandle.reset();
+    }
 
     for (const auto handle : _attachmentMarkerHandles)
     {
@@ -618,7 +616,7 @@ void VoxelEditorScene::sync_marker_overlays()
         const VoxelSpatialBounds modelBounds = evaluate_voxel_model_local_bounds(_model);
         if (modelBounds.valid)
         {
-            _modelBoundsMesh = Mesh::create_box_outline_mesh(modelBounds.min, modelBounds.max, glm::vec3(1.0f, 0.40f, 0.18f));
+            _modelBoundsMesh = Mesh::create_box_outline_mesh(modelBounds.min, modelBounds.max, glm::vec3(0.30f, 0.88f, 1.0f));
             _services.meshManager->UploadQueue.enqueue(_modelBoundsMesh);
             _modelBoundsHandle = _renderState.transparentObjects.insert(RenderObject{
                 .mesh = _modelBoundsMesh,
@@ -824,45 +822,12 @@ std::string VoxelEditorScene::make_unique_attachment_name(const std::string_view
 
 void VoxelEditorScene::update_camera()
 {
-    _orbitPitchDegrees = std::clamp(_orbitPitchDegrees, -85.0f, 85.0f);
-    _orbitDistance = std::clamp(_orbitDistance, 0.5f, 64.0f);
-
-    const glm::vec3 front = orbit_front(_orbitYawDegrees, _orbitPitchDegrees);
-    const glm::vec3 target = orbit_target();
-    _camera->_front = front;
-    _camera->_up = glm::vec3(0.0f, 1.0f, 0.0f);
-    _camera->_position = target - (front * _orbitDistance);
-    _camera->update(0.0f);
+    editor::update_orbit_camera(*_camera, orbit_target(), _orbitCamera);
 }
 
 void VoxelEditorScene::draw_orientation_gizmo()
 {
-    glm::mat4 gizmoView = _camera->_view;
-    if (draw_orbit_orientation_gizmo(gizmoView, _orbitDistance))
-    {
-        sync_orbit_from_view_matrix(gizmoView);
-    }
-}
-
-void VoxelEditorScene::sync_orbit_from_view_matrix(const glm::mat4& viewMatrix)
-{
-    const glm::mat4 inverseView = glm::inverse(viewMatrix);
-    const glm::vec3 target = orbit_target();
-    const glm::vec3 position = glm::vec3(inverseView[3]);
-    glm::vec3 front = glm::normalize(target - position);
-
-    if (!std::isfinite(front.x) || !std::isfinite(front.y) || !std::isfinite(front.z) || glm::length(front) <= 0.0001f)
-    {
-        return;
-    }
-
-    _orbitDistance = glm::distance(position, target);
-    _orbitYawDegrees = glm::degrees(std::atan2(front.z, front.x));
-    _orbitPitchDegrees = glm::degrees(std::asin(std::clamp(front.y, -1.0f, 1.0f)));
-    _camera->_position = position;
-    _camera->_front = front;
-    _camera->_up = glm::vec3(0.0f, 1.0f, 0.0f);
-    _camera->_view = viewMatrix;
+    (void)editor::draw_orbit_orientation_gizmo(*_camera, orbit_target(), _orbitCamera);
 }
 
 void VoxelEditorScene::clamp_slice_index()
@@ -1699,9 +1664,9 @@ void VoxelEditorScene::draw_editor_window()
     ImGui::SeparatorText("Preview Camera");
     ImGui::Text("Editor Controls: MMB drag orbit, wheel zoom, LMB place, RMB remove, Shift+LMB pick color.");
     ImGui::Text("Placement/removal uses the actual mouse cursor over the 3D view.");
-    ImGui::SliderFloat("Yaw", &_orbitYawDegrees, -180.0f, 180.0f, "%.1f deg");
-    ImGui::SliderFloat("Pitch", &_orbitPitchDegrees, -80.0f, 80.0f, "%.1f deg");
-    ImGui::SliderFloat("Distance", &_orbitDistance, 0.5f, 48.0f, "%.2f");
+    ImGui::SliderFloat("Yaw", &_orbitCamera.yawDegrees, -180.0f, 180.0f, "%.1f deg");
+    ImGui::SliderFloat("Pitch", &_orbitCamera.pitchDegrees, -80.0f, 80.0f, "%.1f deg");
+    ImGui::SliderFloat("Distance", &_orbitCamera.distance, _orbitCamera.minDistance, 48.0f, "%.2f");
 
     const VoxelBounds bounds = _model.bounds();
     const glm::ivec3 dimensions = bounds.dimensions();
@@ -1739,11 +1704,11 @@ void VoxelEditorScene::draw_editor_window()
             const ImVec2 cellMax(cellMin.x + cellSize, cellMin.y + cellSize);
 
             VoxelCoord voxelCoord{};
-            switch (_editAxis)
-            {
-            case EditAxis::X:
-                voxelCoord = VoxelCoord{ _sliceIndex, logicalY, logicalX };
-                break;
+                switch (_editAxis)
+                {
+                case EditAxis::X:
+                    voxelCoord = VoxelCoord{ _sliceIndex, logicalY, logicalX };
+                    break;
             case EditAxis::Y:
                 voxelCoord = VoxelCoord{ logicalX, _sliceIndex, logicalY };
                 break;
@@ -1790,14 +1755,14 @@ void VoxelEditorScene::draw_editor_window()
 
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
-            if (_eraseMode)
-            {
-                if (_model.remove_voxel(voxelCoord))
+                if (_eraseMode)
                 {
-                    apply_model_edit(
-                        std::format("Remove voxel {}, {}, {}", voxelCoord.x, voxelCoord.y, voxelCoord.z),
-                        [voxelCoord](VoxelModel& model)
-                        {
+                    if (_model.contains(voxelCoord))
+                    {
+                        apply_model_edit(
+                            std::format("Remove voxel {}, {}, {}", voxelCoord.x, voxelCoord.y, voxelCoord.z),
+                            [voxelCoord](VoxelModel& model)
+                            {
                             model.remove_voxel(voxelCoord);
                         });
                 }
@@ -1813,14 +1778,14 @@ void VoxelEditorScene::draw_editor_window()
                     });
             }
         }
-        else if (ImGui::IsMouseDown(ImGuiMouseButton_Right))
-        {
-            if (_model.remove_voxel(voxelCoord))
-            {
-                apply_model_edit(
-                    std::format("Remove voxel {}, {}, {}", voxelCoord.x, voxelCoord.y, voxelCoord.z),
-                    [voxelCoord](VoxelModel& model)
+                else if (ImGui::IsMouseDown(ImGuiMouseButton_Right))
+                {
+                    if (_model.contains(voxelCoord))
                     {
+                        apply_model_edit(
+                            std::format("Remove voxel {}, {}, {}", voxelCoord.x, voxelCoord.y, voxelCoord.z),
+                            [voxelCoord](VoxelModel& model)
+                            {
                         model.remove_voxel(voxelCoord);
                     });
             }
@@ -1853,48 +1818,32 @@ void VoxelEditorScene::mark_model_dirty()
 
 void VoxelEditorScene::apply_model_edit(const std::string_view description, const std::function<void(VoxelModel&)>& edit)
 {
-    if (edit == nullptr)
+    (void)_editorSession.apply(description, edit, [this]()
     {
-        return;
-    }
-
-    if (!editing::apply_snapshot_edit(_history, _model, std::string(description), edit))
-    {
-        return;
-    }
-
-    mark_model_dirty();
-    sync_hover_target();
-    ensure_attachment_selection();
-    _statusMessage = std::format("Edited model: {}", description);
+        mark_model_dirty();
+        sync_hover_target();
+        ensure_attachment_selection();
+    }, &_statusMessage);
 }
 
 void VoxelEditorScene::undo_model_edit()
 {
-    if (!_history.undo(_model))
+    (void)_editorSession.undo([this]()
     {
-        _statusMessage = "Nothing to undo";
-        return;
-    }
-
-    mark_model_dirty();
-    sync_hover_target();
-    ensure_attachment_selection();
-    _statusMessage = std::format("Undo: {}", _history.redo_description());
+        mark_model_dirty();
+        sync_hover_target();
+        ensure_attachment_selection();
+    }, &_statusMessage);
 }
 
 void VoxelEditorScene::redo_model_edit()
 {
-    if (!_history.redo(_model))
+    (void)_editorSession.redo([this]()
     {
-        _statusMessage = "Nothing to redo";
-        return;
-    }
-
-    mark_model_dirty();
-    sync_hover_target();
-    ensure_attachment_selection();
-    _statusMessage = std::format("Redo: {}", _history.undo_description());
+        mark_model_dirty();
+        sync_hover_target();
+        ensure_attachment_selection();
+    }, &_statusMessage);
 }
 
 void VoxelEditorScene::reset_model()

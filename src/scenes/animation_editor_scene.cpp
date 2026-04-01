@@ -22,6 +22,7 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "orbit_orientation_gizmo.h"
+#include "editor_preview_primitives.h"
 #include "render/material_manager.h"
 #include "render/mesh_manager.h"
 #include "render/mesh_release_queue.h"
@@ -42,16 +43,6 @@ namespace
     constexpr const char* ControllerNodeTypeLabels = "Clip Player\0Blend Space 2D\0";
     constexpr const char* ControllerBlendModeLabels = "Override\0Additive\0";
     constexpr const char* ControllerRootMotionLabels = "Ignore\0Extract Planar\0Extract Full\0";
-
-    glm::vec3 orbit_front(const float yawDegrees, const float pitchDegrees)
-    {
-        const float yaw = glm::radians(yawDegrees);
-        const float pitch = glm::radians(pitchDegrees);
-        return glm::normalize(glm::vec3(
-            std::cos(pitch) * std::cos(yaw),
-            std::sin(pitch),
-            std::cos(pitch) * std::sin(yaw)));
-    }
 
     glm::vec3 euler_degrees_from_quat(const glm::quat& rotation)
     {
@@ -132,54 +123,6 @@ namespace
         result.y = std::abs(base.y) > 0.00001f ? effectiveScale.y / base.y : 1.0f;
         result.z = std::abs(base.z) > 0.00001f ? effectiveScale.z / base.z : 1.0f;
         return result;
-    }
-
-    [[nodiscard]] glm::mat4 pivot_transform_matrix(
-        const glm::vec3& position,
-        const glm::quat& rotation,
-        const float scale)
-    {
-        glm::mat4 result = glm::translate(glm::mat4(1.0f), position);
-        result *= glm::mat4_cast(rotation);
-        result = glm::scale(result, glm::vec3(scale));
-        return result;
-    }
-
-    [[nodiscard]] glm::mat4 pivot_transform_matrix(const VoxelRenderInstance& instance)
-    {
-        const glm::vec3 pivotWorldPosition = (instance.asset != nullptr)
-            ? instance.world_point_from_asset_local(instance.asset->model.pivot)
-            : instance.position;
-        return pivot_transform_matrix(pivotWorldPosition, instance.rotation, instance.scale);
-    }
-
-    [[nodiscard]] glm::mat4 parent_basis_matrix(
-        const std::unordered_map<std::string, VoxelRenderInstance>& previewParts,
-        const VoxelAssemblyBindingState& bindingState)
-    {
-        if (bindingState.parentPartId.empty())
-        {
-            return glm::mat4(1.0f);
-        }
-
-        const auto parentIt = previewParts.find(bindingState.parentPartId);
-        if (parentIt == previewParts.end())
-        {
-            return glm::mat4(1.0f);
-        }
-
-        const VoxelRenderInstance& parentInstance = parentIt->second;
-        if (!bindingState.parentAttachmentName.empty())
-        {
-            if (const std::optional<glm::mat4> attachmentTransform =
-                parentInstance.attachment_world_transform(bindingState.parentAttachmentName);
-                attachmentTransform.has_value())
-            {
-                return attachmentTransform.value();
-            }
-        }
-
-        return pivot_transform_matrix(parentInstance);
     }
 
     [[nodiscard]] bool keyframe_time_matches(const float lhs, const float rhs)
@@ -635,6 +578,18 @@ namespace
         });
 
         return entries;
+    }
+
+    [[nodiscard]] std::optional<ClipSequencerEntry> selected_clip_sequencer_entry(
+        const VoxelAnimationClipAsset& clip,
+        const int selectedEntry)
+    {
+        const std::vector<ClipSequencerEntry> entries = build_clip_sequencer_entries(clip);
+        if (selectedEntry < 0 || selectedEntry >= static_cast<int>(entries.size()))
+        {
+            return std::nullopt;
+        }
+        return entries[static_cast<size_t>(selectedEntry)];
     }
 
     [[nodiscard]] int lane_key_count(const VoxelAnimationClipAsset& clip, const ClipSequencerEntry& entry)
@@ -1104,11 +1059,6 @@ AnimationEditorScene::~AnimationEditorScene()
     }
 
     _previewRegistry.clear(_renderState);
-    if (_selectedPartBoundsHandle.has_value())
-    {
-        _renderState.transparentObjects.remove(_selectedPartBoundsHandle.value());
-        _selectedPartBoundsHandle.reset();
-    }
     release_selection_meshes();
 }
 
@@ -1152,6 +1102,23 @@ void AnimationEditorScene::update(const float deltaTime)
 
 void AnimationEditorScene::handle_input(const SDL_Event& event)
 {
+    if (event.type == SDL_KEYDOWN &&
+        event.key.repeat == 0 &&
+        (event.key.keysym.sym == SDLK_DELETE || event.key.keysym.sym == SDLK_BACKSPACE))
+    {
+        const bool wantsTextInput =
+            USE_IMGUI &&
+            ImGui::GetCurrentContext() != nullptr &&
+            ImGui::GetIO().WantTextInput;
+        if (!wantsTextInput && !ImGuizmo::IsUsing())
+        {
+            if (try_delete_current_selection())
+            {
+                return;
+            }
+        }
+    }
+
     if (USE_IMGUI && ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse)
     {
         return;
@@ -1165,14 +1132,17 @@ void AnimationEditorScene::handle_input(const SDL_Event& event)
 
     if (event.type == SDL_MOUSEMOTION && _orbitDragging)
     {
-        _orbitYawDegrees += static_cast<float>(event.motion.xrel) * 0.18f;
-        _orbitPitchDegrees -= static_cast<float>(event.motion.yrel) * 0.18f;
+        _orbitCamera.yawDegrees += static_cast<float>(event.motion.xrel) * 0.18f;
+        _orbitCamera.pitchDegrees -= static_cast<float>(event.motion.yrel) * 0.18f;
         return;
     }
 
     if (event.type == SDL_MOUSEWHEEL)
     {
-        _orbitDistance = std::clamp(_orbitDistance - (static_cast<float>(event.wheel.y) * 0.25f), 0.75f, 64.0f);
+        _orbitCamera.distance = std::clamp(
+            _orbitCamera.distance - (static_cast<float>(event.wheel.y) * 0.25f),
+            _orbitCamera.minDistance,
+            _orbitCamera.maxDistance);
         return;
     }
 
@@ -1318,29 +1288,12 @@ void AnimationEditorScene::update_uniform_buffers() const
 
 void AnimationEditorScene::update_camera()
 {
-    _orbitPitchDegrees = std::clamp(_orbitPitchDegrees, -85.0f, 85.0f);
-    _orbitDistance = std::clamp(_orbitDistance, 0.75f, 64.0f);
-
-    const glm::vec3 front = orbit_front(_orbitYawDegrees, _orbitPitchDegrees);
-    _camera->_front = front;
-    _camera->_up = glm::vec3(0.0f, 1.0f, 0.0f);
-    _camera->_position = orbit_target() - (front * _orbitDistance);
-    _camera->update(0.0f);
+    editor::update_orbit_camera(*_camera, orbit_target(), _orbitCamera);
 }
 
 void AnimationEditorScene::draw_orientation_gizmo()
 {
-    glm::mat4 gizmoView = _camera->_view;
-    if (draw_orbit_orientation_gizmo(gizmoView, _orbitDistance))
-    {
-        const glm::mat4 inverseView = glm::inverse(gizmoView);
-        const glm::vec3 target = orbit_target();
-        const glm::vec3 position = glm::vec3(inverseView[3]);
-        const glm::vec3 front = glm::normalize(target - position);
-        _orbitDistance = glm::distance(position, target);
-        _orbitYawDegrees = glm::degrees(std::atan2(front.z, front.x));
-        _orbitPitchDegrees = glm::degrees(std::asin(std::clamp(front.y, -1.0f, 1.0f)));
-    }
+    (void)editor::draw_orbit_orientation_gizmo(*_camera, orbit_target(), _orbitCamera);
 }
 
 glm::vec3 AnimationEditorScene::orbit_target() const
@@ -1459,7 +1412,6 @@ void AnimationEditorScene::new_controller()
     _selectedControllerTransitionKey.clear();
     _initializedControllerNodeIds.clear();
     reset_controller_preview_state(false);
-    _controllerPreviewDirty = true;
 }
 
 void AnimationEditorScene::save_controller()
@@ -1473,7 +1425,6 @@ void AnimationEditorScene::save_controller()
     {
         _controllerRepository.save(_controller);
         _controllerAssetManager.clear();
-        _controllerPreviewDirty = false;
         refresh_asset_lists();
         _statusMessage = std::format("Saved controller '{}'.", _controller.assetId);
     }
@@ -1495,26 +1446,7 @@ void AnimationEditorScene::load_controller(const std::string& assetId)
         _selectedControllerTransitionKey.clear();
         _initializedControllerNodeIds.clear();
         reset_controller_preview_state(false);
-        _controllerPreviewDirty = true;
         _statusMessage = std::format("Loaded controller '{}'.", _controller.assetId);
-    }
-}
-
-void AnimationEditorScene::save_controller_preview_if_dirty()
-{
-    if (_mode != EditorMode::Controller || !_controllerPreviewDirty || _controller.assetId.empty() || _controller.assemblyAssetId.empty())
-    {
-        return;
-    }
-
-    try
-    {
-        _controllerRepository.save(_controller);
-        _controllerAssetManager.clear();
-        _controllerPreviewDirty = false;
-    }
-    catch (const std::exception&)
-    {
     }
 }
 
@@ -1598,21 +1530,224 @@ void AnimationEditorScene::sync_controller_preview_parameters()
     });
 }
 
+AnimationEditorScene::DeleteSelection AnimationEditorScene::current_delete_selection() const
+{
+    if (_mode == EditorMode::Clip)
+    {
+        if (_sequencerSelectedEntry >= 0)
+        {
+            return DeleteSelection{
+                .kind = _sequencerSelectedKeyIndex >= 0
+                    ? DeleteSelectionKind::ClipTimelineKey
+                    : DeleteSelectionKind::ClipTimelineLane
+            };
+        }
+        return {};
+    }
+
+    if (!_selectedControllerTransitionKey.empty())
+    {
+        return DeleteSelection{ .kind = DeleteSelectionKind::ControllerTransition };
+    }
+    if (!_selectedControllerStateId.empty())
+    {
+        return DeleteSelection{ .kind = DeleteSelectionKind::ControllerState };
+    }
+    if (!_selectedControllerLayerId.empty())
+    {
+        return DeleteSelection{ .kind = DeleteSelectionKind::ControllerLayer };
+    }
+    return {};
+}
+
+bool AnimationEditorScene::try_delete_selection(const DeleteSelection selection)
+{
+    switch (selection.kind)
+    {
+    case DeleteSelectionKind::ClipTimelineKey:
+    {
+        const std::optional<ClipSequencerEntry> selectedEntry = selected_clip_sequencer_entry(_clip, _sequencerSelectedEntry);
+        if (!selectedEntry.has_value() || _sequencerSelectedKeyIndex < 0)
+        {
+            return false;
+        }
+
+        const int keyIndex = _sequencerSelectedKeyIndex;
+        const ClipSequencerEntry laneEntry = selectedEntry.value();
+        apply_clip_edit("Delete timeline key", [laneEntry, keyIndex](VoxelAnimationClipAsset& clip)
+        {
+            delete_lane_key(clip, laneEntry, keyIndex);
+        });
+        _sequencerSelectedKeyIndex = -1;
+        return true;
+    }
+    case DeleteSelectionKind::ClipTimelineLane:
+    {
+        const std::optional<ClipSequencerEntry> selectedEntry = selected_clip_sequencer_entry(_clip, _sequencerSelectedEntry);
+        if (!selectedEntry.has_value())
+        {
+            return false;
+        }
+
+        const ClipSequencerEntry laneEntry = selectedEntry.value();
+        apply_clip_edit("Delete timeline lane", [laneEntry](VoxelAnimationClipAsset& clip)
+        {
+            delete_lane(clip, laneEntry);
+        });
+        _sequencerSelectedEntry = -1;
+        _sequencerSelectedKeyIndex = -1;
+        return true;
+    }
+    case DeleteSelectionKind::ControllerState:
+    {
+        if (_selectedControllerLayerId.empty() || _selectedControllerStateId.empty())
+        {
+            return false;
+        }
+
+        const std::string selectedLayerId = _selectedControllerLayerId;
+        const std::string stateId = _selectedControllerStateId;
+        apply_controller_edit("Delete controller state", [selectedLayerId, stateId](VoxelAnimationControllerAsset& controller)
+        {
+            VoxelAnimationLayerDefinition* const layer = controller.find_layer(selectedLayerId);
+            if (layer == nullptr)
+            {
+                return;
+            }
+
+            std::erase_if(layer->states, [&](const VoxelAnimationStateDefinition& state)
+            {
+                return state.stateId == stateId;
+            });
+            std::erase_if(layer->transitions, [&](const VoxelAnimationTransitionDefinition& transition)
+            {
+                return transition.sourceStateId == stateId || transition.targetStateId == stateId;
+            });
+            if (layer->entryStateId == stateId)
+            {
+                layer->entryStateId = !layer->states.empty() ? layer->states.front().stateId : std::string{};
+            }
+        });
+        _selectedControllerStateId.clear();
+        _selectedControllerTransitionKey.clear();
+        ImNodes::ClearNodeSelection();
+        ImNodes::ClearLinkSelection();
+        return true;
+    }
+    case DeleteSelectionKind::ControllerTransition:
+    {
+        if (_selectedControllerLayerId.empty() || _selectedControllerTransitionKey.empty())
+        {
+            return false;
+        }
+
+        const std::string selectedLayerId = _selectedControllerLayerId;
+        const auto [sourceStateId, targetStateId] = transition_endpoints_from_key(_selectedControllerTransitionKey);
+        apply_controller_edit("Delete controller transition", [selectedLayerId, sourceStateId, targetStateId](VoxelAnimationControllerAsset& controller)
+        {
+            VoxelAnimationLayerDefinition* const layer = controller.find_layer(selectedLayerId);
+            if (layer == nullptr)
+            {
+                return;
+            }
+
+            std::erase_if(layer->transitions, [&](const VoxelAnimationTransitionDefinition& transition)
+            {
+                return transition.sourceStateId == sourceStateId && transition.targetStateId == targetStateId;
+            });
+        });
+        _selectedControllerTransitionKey.clear();
+        ImNodes::ClearLinkSelection();
+        return true;
+    }
+    case DeleteSelectionKind::ControllerLayer:
+    {
+        if (_selectedControllerLayerId.empty())
+        {
+            return false;
+        }
+
+        const std::string layerId = _selectedControllerLayerId;
+        apply_controller_edit("Delete controller layer", [layerId](VoxelAnimationControllerAsset& controller)
+        {
+            std::erase_if(controller.layers, [&](const VoxelAnimationLayerDefinition& layer)
+            {
+                return layer.layerId == layerId;
+            });
+        });
+        _selectedControllerLayerId = !_controller.layers.empty() ? _controller.layers.front().layerId : std::string{};
+        _selectedControllerStateId.clear();
+        _selectedControllerTransitionKey.clear();
+        ImNodes::ClearNodeSelection();
+        ImNodes::ClearLinkSelection();
+        return true;
+    }
+    case DeleteSelectionKind::None:
+    default:
+        return false;
+    }
+}
+
+bool AnimationEditorScene::try_delete_current_selection()
+{
+    return try_delete_selection(current_delete_selection());
+}
+
+bool AnimationEditorScene::delete_selected_clip_asset()
+{
+    if (_clip.assetId.empty())
+    {
+        return false;
+    }
+
+    if (_clipRepository.remove(_clip.assetId))
+    {
+        _clipAssetManager.clear();
+        refresh_asset_lists();
+        new_clip();
+        _statusMessage = "Deleted clip.";
+        return true;
+    }
+
+    _statusMessage = "Clip delete skipped or file was missing.";
+    return false;
+}
+
+bool AnimationEditorScene::delete_selected_controller_asset()
+{
+    if (_controller.assetId.empty())
+    {
+        return false;
+    }
+
+    if (_controllerRepository.remove(_controller.assetId))
+    {
+        _controllerAssetManager.clear();
+        refresh_asset_lists();
+        new_controller();
+        _statusMessage = "Deleted controller.";
+        return true;
+    }
+
+    _statusMessage = "Controller delete skipped or file was missing.";
+    return false;
+}
+
 void AnimationEditorScene::apply_clip_edit(
     const std::string_view description,
     const std::function<void(VoxelAnimationClipAsset&)>& edit)
 {
-    if (editing::apply_snapshot_edit(_clipHistory, _clip, std::string(description), edit))
+    (void)_clipSession.apply(description, edit, [this]()
     {
         _previewDirty = true;
-    }
+    });
 }
 
 void AnimationEditorScene::apply_controller_edit(
     const std::string_view description,
     const std::function<void(VoxelAnimationControllerAsset&)>& edit)
 {
-    if (editing::apply_snapshot_edit(_controllerHistory, _controller, std::string(description), edit))
+    (void)_controllerSession.apply(description, edit, [this]()
     {
         if (_selectedControllerLayerId.empty() && !_controller.layers.empty())
         {
@@ -1633,9 +1768,8 @@ void AnimationEditorScene::apply_controller_edit(
             }
         }
         reset_controller_preview_state(true);
-        _controllerPreviewDirty = true;
         _previewDirty = true;
-    }
+    });
 }
 
 void AnimationEditorScene::sync_preview()
@@ -1650,7 +1784,6 @@ void AnimationEditorScene::sync_preview()
     _previewParts.clear();
     _previewOrbitTarget = glm::vec3(0.0f);
     _selectionOverlayDirty = true;
-    save_controller_preview_if_dirty();
 
     if (_selectedAssemblyId.empty())
     {
@@ -1679,7 +1812,7 @@ void AnimationEditorScene::sync_preview()
             _previewAnimation,
             _previewAssembly,
             *assembly,
-            _controllerAssetManager,
+            _controller,
             _clipAssetManager,
             _controllerPreviewPendingDeltaSeconds);
         _controllerPreviewPendingDeltaSeconds = 0.0f;
@@ -1752,53 +1885,33 @@ void AnimationEditorScene::sync_selection_overlay()
 
     _selectionOverlayDirty = false;
 
-    if (_selectedPartBoundsHandle.has_value())
-    {
-        _renderState.transparentObjects.remove(_selectedPartBoundsHandle.value());
-        _selectedPartBoundsHandle.reset();
-    }
-    release_selection_meshes();
-
     if (!_showSelectedPartBounds || _selectedPartId.empty())
     {
+        release_selection_meshes();
         return;
     }
 
     const auto previewIt = _previewParts.find(_selectedPartId);
     if (previewIt == _previewParts.end())
     {
+        release_selection_meshes();
         return;
     }
 
-    const VoxelRenderInstance& instance = previewIt->second;
-    if (!instance.is_renderable() || instance.asset == nullptr)
-    {
-        return;
-    }
-
-    const VoxelSpatialBounds localBounds = evaluate_voxel_model_local_bounds(instance.asset->model);
-    if (!localBounds.valid)
-    {
-        return;
-    }
-
-    _selectedPartBoundsMesh = Mesh::create_box_outline_mesh(localBounds.min, localBounds.max, glm::vec3(0.28f, 0.92f, 1.0f));
-    _services.meshManager->UploadQueue.enqueue(_selectedPartBoundsMesh);
-    _selectedPartBoundsHandle = _renderState.transparentObjects.insert(RenderObject{
-        .mesh = _selectedPartBoundsMesh,
-        .material = _services.materialManager->get_material(AnimationEditorMaterialScope, "chunkboundary"),
-        .transform = instance.model_matrix(),
-        .layer = RenderLayer::Transparent,
-        .lightingMode = LightingMode::Unlit
-    });
+    (void)editor::sync_bounds_overlay_for_instance(
+        _selectedPartBoundsMesh,
+        _selectedPartBoundsHandle,
+        _renderState,
+        _services,
+        AnimationEditorMaterialScope,
+        &previewIt->second,
+        true,
+        glm::vec3(0.28f, 0.92f, 1.0f));
 }
 
 void AnimationEditorScene::release_selection_meshes()
 {
-    if (_selectedPartBoundsMesh != nullptr)
-    {
-        render::enqueue_mesh_release(std::move(_selectedPartBoundsMesh));
-    }
+    editor::clear_bounds_overlay(_selectedPartBoundsMesh, _selectedPartBoundsHandle, _renderState);
 }
 
 void AnimationEditorScene::draw_transform_gizmo()
@@ -1845,20 +1958,14 @@ void AnimationEditorScene::draw_transform_gizmo()
         return;
     }
 
-    ImGuiViewport* const viewport = ImGui::GetMainViewport();
-    if (viewport == nullptr)
+    if (editor::begin_main_viewport_gizmo() == nullptr)
     {
         return;
     }
 
     const VoxelRenderInstance& instance = previewIt->second;
-    glm::mat4 worldMatrix = pivot_transform_matrix(instance);
-    const glm::mat4 parentBasis = parent_basis_matrix(_previewParts, *bindingState);
-
-    ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList());
-    ImGuizmo::SetRect(viewport->WorkPos.x, viewport->WorkPos.y, viewport->WorkSize.x, viewport->WorkSize.y);
-    ImGuizmo::SetOrthographic(false);
-    ImGuizmo::Enable(true);
+    glm::mat4 worldMatrix = editor::pivot_transform_matrix(instance);
+    const glm::mat4 parentBasis = editor::parent_basis_matrix(_previewParts, *bindingState);
 
     float snap[3]{};
     float* snapPtr = nullptr;
@@ -2058,13 +2165,7 @@ void AnimationEditorScene::draw_clip_timeline_window(const std::shared_ptr<const
     }
     if (ImGui::Button("Delete Lane"))
     {
-        const ClipSequencerEntry laneEntry = entry;
-        apply_clip_edit("Delete timeline lane", [laneEntry](VoxelAnimationClipAsset& clip)
-        {
-            delete_lane(clip, laneEntry);
-        });
-        _sequencerSelectedEntry = -1;
-        _sequencerSelectedKeyIndex = -1;
+        try_delete_selection(DeleteSelection{ .kind = DeleteSelectionKind::ClipTimelineLane });
         ImGui::End();
         return;
     }
@@ -2169,13 +2270,7 @@ void AnimationEditorScene::draw_clip_timeline_window(const std::shared_ptr<const
         ImGui::SameLine();
         if (ImGui::Button("Delete Key"))
         {
-            const int keyIndex = _sequencerSelectedKeyIndex;
-            const ClipSequencerEntry laneEntry = entry;
-            apply_clip_edit("Delete timeline key", [laneEntry, keyIndex](VoxelAnimationClipAsset& clip)
-            {
-                delete_lane_key(clip, laneEntry, keyIndex);
-            });
-            _sequencerSelectedKeyIndex = -1;
+            try_delete_selection(DeleteSelection{ .kind = DeleteSelectionKind::ClipTimelineKey });
         }
     }
 
@@ -2274,32 +2369,7 @@ void AnimationEditorScene::draw_controller_graph_window()
         ImGui::SameLine();
         if (ImGui::Button("Delete State"))
         {
-            const std::string stateId = _selectedControllerStateId;
-            apply_controller_edit("Delete controller state", [selectedLayerId, stateId](VoxelAnimationControllerAsset& controller)
-            {
-                VoxelAnimationLayerDefinition* const layer = controller.find_layer(selectedLayerId);
-                if (layer == nullptr)
-                {
-                    return;
-                }
-
-                std::erase_if(layer->states, [&](const VoxelAnimationStateDefinition& state)
-                {
-                    return state.stateId == stateId;
-                });
-                std::erase_if(layer->transitions, [&](const VoxelAnimationTransitionDefinition& transition)
-                {
-                    return transition.sourceStateId == stateId || transition.targetStateId == stateId;
-                });
-                if (layer->entryStateId == stateId)
-                {
-                    layer->entryStateId = !layer->states.empty() ? layer->states.front().stateId : std::string{};
-                }
-            });
-            _selectedControllerStateId.clear();
-            _selectedControllerTransitionKey.clear();
-            ImNodes::ClearNodeSelection();
-            ImNodes::ClearLinkSelection();
+            try_delete_selection(DeleteSelection{ .kind = DeleteSelectionKind::ControllerState });
         }
     }
 
@@ -2308,22 +2378,7 @@ void AnimationEditorScene::draw_controller_graph_window()
         ImGui::SameLine();
         if (ImGui::Button("Delete Transition"))
         {
-            const auto [sourceStateId, targetStateId] = transition_endpoints_from_key(_selectedControllerTransitionKey);
-            apply_controller_edit("Delete controller transition", [selectedLayerId, sourceStateId, targetStateId](VoxelAnimationControllerAsset& controller)
-            {
-                VoxelAnimationLayerDefinition* const layer = controller.find_layer(selectedLayerId);
-                if (layer == nullptr)
-                {
-                    return;
-                }
-
-                std::erase_if(layer->transitions, [&](const VoxelAnimationTransitionDefinition& transition)
-                {
-                    return transition.sourceStateId == sourceStateId && transition.targetStateId == targetStateId;
-                });
-            });
-            _selectedControllerTransitionKey.clear();
-            ImNodes::ClearLinkSelection();
+            try_delete_selection(DeleteSelection{ .kind = DeleteSelectionKind::ControllerTransition });
         }
     }
 
@@ -2452,24 +2507,9 @@ void AnimationEditorScene::draw_controller_graph_window()
     {
         if (const auto it = linkToSelectionKey.find(destroyedLinkId); it != linkToSelectionKey.end())
         {
-            const auto [sourceStateId, targetStateId] = transition_endpoints_from_key(it->second);
-            apply_controller_edit("Delete controller transition", [selectedLayerId, sourceStateId, targetStateId](VoxelAnimationControllerAsset& controller)
-            {
-                VoxelAnimationLayerDefinition* const layer = controller.find_layer(selectedLayerId);
-                if (layer == nullptr)
-                {
-                    return;
-                }
-
-                std::erase_if(layer->transitions, [&](const VoxelAnimationTransitionDefinition& transition)
-                {
-                    return transition.sourceStateId == sourceStateId && transition.targetStateId == targetStateId;
-                });
-            });
-            if (_selectedControllerTransitionKey == it->second)
-            {
-                _selectedControllerTransitionKey.clear();
-            }
+            _selectedControllerTransitionKey = it->second;
+            _selectedControllerStateId.clear();
+            try_delete_selection(DeleteSelection{ .kind = DeleteSelectionKind::ControllerTransition });
         }
     }
 
@@ -2627,9 +2667,26 @@ void AnimationEditorScene::draw_editor_window()
         ImGui::SameLine();
         if (ImGui::Button("Save Clip")) save_clip();
         ImGui::SameLine();
-        if (ImGui::Button("Undo Clip") && _clipHistory.undo(_clip)) _previewDirty = true;
+        if (ImGui::Button("Delete Clip"))
+        {
+            delete_selected_clip_asset();
+        }
         ImGui::SameLine();
-        if (ImGui::Button("Redo Clip") && _clipHistory.redo(_clip)) _previewDirty = true;
+        if (ImGui::Button("Undo Clip"))
+        {
+            (void)_clipSession.undo([this]()
+            {
+                _previewDirty = true;
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Redo Clip"))
+        {
+            (void)_clipSession.redo([this]()
+            {
+                _previewDirty = true;
+            });
+        }
     }
     else
     {
@@ -2648,9 +2705,28 @@ void AnimationEditorScene::draw_editor_window()
         ImGui::SameLine();
         if (ImGui::Button("Save Controller")) save_controller();
         ImGui::SameLine();
-        if (ImGui::Button("Undo Controller") && _controllerHistory.undo(_controller)) { _previewDirty = true; _controllerPreviewDirty = true; }
+        if (ImGui::Button("Delete Controller"))
+        {
+            delete_selected_controller_asset();
+        }
         ImGui::SameLine();
-        if (ImGui::Button("Redo Controller") && _controllerHistory.redo(_controller)) { _previewDirty = true; _controllerPreviewDirty = true; }
+        if (ImGui::Button("Undo Controller"))
+        {
+            (void)_controllerSession.undo([this]()
+            {
+                reset_controller_preview_state(true);
+                _previewDirty = true;
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Redo Controller"))
+        {
+            (void)_controllerSession.redo([this]()
+            {
+                reset_controller_preview_state(true);
+                _previewDirty = true;
+            });
+        }
     }
 
     if (_mode == EditorMode::Clip)
@@ -3092,9 +3168,26 @@ void AnimationEditorScene::draw_editor_window()
         }
 
         ImGui::SeparatorText("Preview Parameters");
+        ImGui::TextWrapped("Parameters only affect the controller when a transition condition or blend-space axis references them. A parameter by itself does not change states.");
         if (_controller.parameters.empty())
         {
             ImGui::TextWrapped("Add parameters to drive the graph preview and runtime conditions.");
+        }
+
+        if (!_selectedControllerLayerId.empty())
+        {
+            const auto runtimeIt = std::ranges::find_if(_previewAnimation.layerStates, [&](const VoxelAnimationLayerPlaybackState& state)
+            {
+                return state.layerId == _selectedControllerLayerId;
+            });
+            if (runtimeIt != _previewAnimation.layerStates.end())
+            {
+                ImGui::Text("Preview Active State: %s", runtimeIt->activeStateId.empty() ? "<none>" : runtimeIt->activeStateId.c_str());
+                if (runtimeIt->inTransition)
+                {
+                    ImGui::Text("Preview Transition: %s -> %s", runtimeIt->activeStateId.c_str(), runtimeIt->targetStateId.c_str());
+                }
+            }
         }
         else
         {
@@ -3300,6 +3393,11 @@ void AnimationEditorScene::draw_editor_window()
                 }
                 ImGui::EndCombo();
             }
+
+            if (ImGui::Button("Delete Layer"))
+            {
+                try_delete_selection(DeleteSelection{ .kind = DeleteSelectionKind::ControllerLayer });
+            }
         }
 
         ImGui::SeparatorText("Selected Graph Item");
@@ -3448,6 +3546,152 @@ void AnimationEditorScene::draw_editor_window()
                             }
                         }
                     });
+                }
+
+                float exitTimeNormalized = transition->exitTimeNormalized;
+                if (ImGui::SliderFloat("Exit Time", &exitTimeNormalized, 0.0f, 1.0f))
+                {
+                    const std::string layerId = selectedLayer->layerId;
+                    apply_controller_edit("Edit transition exit time", [layerId, sourceStateId, targetStateId, exitTimeNormalized](VoxelAnimationControllerAsset& controller)
+                    {
+                        if (VoxelAnimationLayerDefinition* const layer = controller.find_layer(layerId); layer != nullptr)
+                        {
+                            for (VoxelAnimationTransitionDefinition& transition : layer->transitions)
+                            {
+                                if (transition.sourceStateId == sourceStateId && transition.targetStateId == targetStateId)
+                                {
+                                    transition.exitTimeNormalized = std::clamp(exitTimeNormalized, 0.0f, 1.0f);
+                                }
+                            }
+                        }
+                    });
+                }
+
+                ImGui::SeparatorText("Conditions");
+                ImGui::TextWrapped("All conditions on this transition must match for the controller to leave '%s' and enter '%s'.", sourceStateId.c_str(), targetStateId.c_str());
+                if (ImGui::Button("Add Condition"))
+                {
+                    const std::string layerId = selectedLayer->layerId;
+                    apply_controller_edit("Add transition condition", [layerId, sourceStateId, targetStateId](VoxelAnimationControllerAsset& controller)
+                    {
+                        if (VoxelAnimationLayerDefinition* const layer = controller.find_layer(layerId); layer != nullptr)
+                        {
+                            for (VoxelAnimationTransitionDefinition& transition : layer->transitions)
+                            {
+                                if (transition.sourceStateId == sourceStateId && transition.targetStateId == targetStateId)
+                                {
+                                    transition.conditions.push_back(VoxelAnimationCondition{});
+                                    break;
+                                }
+                            }
+                        }
+                    });
+                }
+
+                for (size_t conditionIndex = 0; conditionIndex < transition->conditions.size(); ++conditionIndex)
+                {
+                    const VoxelAnimationCondition& condition = transition->conditions[conditionIndex];
+                    ImGui::PushID(static_cast<int>(conditionIndex));
+                    if (ImGui::BeginCombo("Parameter", condition.parameterId.empty() ? "<none>" : condition.parameterId.c_str()))
+                    {
+                        for (const VoxelAnimationParameterDefinition& parameter : _controller.parameters)
+                        {
+                            const bool selected = parameter.parameterId == condition.parameterId;
+                            if (ImGui::Selectable(parameter.parameterId.c_str(), selected))
+                            {
+                                const std::string layerId = selectedLayer->layerId;
+                                const std::string parameterId = parameter.parameterId;
+                                apply_controller_edit("Edit transition condition parameter", [layerId, sourceStateId, targetStateId, conditionIndex, parameterId](VoxelAnimationControllerAsset& controller)
+                                {
+                                    if (VoxelAnimationLayerDefinition* const layer = controller.find_layer(layerId); layer != nullptr)
+                                    {
+                                        for (VoxelAnimationTransitionDefinition& transition : layer->transitions)
+                                        {
+                                            if (transition.sourceStateId == sourceStateId &&
+                                                transition.targetStateId == targetStateId &&
+                                                conditionIndex < transition.conditions.size())
+                                            {
+                                                transition.conditions[conditionIndex].parameterId = parameterId;
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+
+                    int opIndex = static_cast<int>(condition.op);
+                    if (ImGui::Combo("Operation", &opIndex, ControllerConditionOpLabels))
+                    {
+                        const std::string layerId = selectedLayer->layerId;
+                        apply_controller_edit("Edit transition condition operation", [layerId, sourceStateId, targetStateId, conditionIndex, opIndex](VoxelAnimationControllerAsset& controller)
+                        {
+                            if (VoxelAnimationLayerDefinition* const layer = controller.find_layer(layerId); layer != nullptr)
+                            {
+                                for (VoxelAnimationTransitionDefinition& transition : layer->transitions)
+                                {
+                                    if (transition.sourceStateId == sourceStateId &&
+                                        transition.targetStateId == targetStateId &&
+                                        conditionIndex < transition.conditions.size())
+                                    {
+                                        transition.conditions[conditionIndex].op = static_cast<VoxelAnimationConditionOp>(opIndex);
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    if (condition.op != VoxelAnimationConditionOp::IsTrue &&
+                        condition.op != VoxelAnimationConditionOp::IsFalse &&
+                        condition.op != VoxelAnimationConditionOp::Triggered)
+                    {
+                        float compareValue = condition.value;
+                        if (ImGui::InputFloat("Compare Value", &compareValue, 0.0f, 0.0f, "%.3f"))
+                        {
+                            const std::string layerId = selectedLayer->layerId;
+                            apply_controller_edit("Edit transition condition value", [layerId, sourceStateId, targetStateId, conditionIndex, compareValue](VoxelAnimationControllerAsset& controller)
+                            {
+                                if (VoxelAnimationLayerDefinition* const layer = controller.find_layer(layerId); layer != nullptr)
+                                {
+                                    for (VoxelAnimationTransitionDefinition& transition : layer->transitions)
+                                    {
+                                        if (transition.sourceStateId == sourceStateId &&
+                                            transition.targetStateId == targetStateId &&
+                                            conditionIndex < transition.conditions.size())
+                                        {
+                                            transition.conditions[conditionIndex].value = compareValue;
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+
+                    if (ImGui::SmallButton("Delete Condition"))
+                    {
+                        const std::string layerId = selectedLayer->layerId;
+                        apply_controller_edit("Delete transition condition", [layerId, sourceStateId, targetStateId, conditionIndex](VoxelAnimationControllerAsset& controller)
+                        {
+                            if (VoxelAnimationLayerDefinition* const layer = controller.find_layer(layerId); layer != nullptr)
+                            {
+                                for (VoxelAnimationTransitionDefinition& transition : layer->transitions)
+                                {
+                                    if (transition.sourceStateId == sourceStateId &&
+                                        transition.targetStateId == targetStateId &&
+                                        conditionIndex < transition.conditions.size())
+                                    {
+                                        transition.conditions.erase(transition.conditions.begin() + static_cast<std::ptrdiff_t>(conditionIndex));
+                                        break;
+                                    }
+                                }
+                            }
+                        });
+                        ImGui::PopID();
+                        break;
+                    }
+                    ImGui::Separator();
+                    ImGui::PopID();
                 }
             }
         }

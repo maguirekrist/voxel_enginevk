@@ -22,6 +22,7 @@
 #include "backends/imgui_impl_vulkan.h"
 #include "ImGuizmo.h"
 #include "editor_shortcuts.h"
+#include "editor_preview_primitives.h"
 #include "imgui.h"
 #include "orbit_orientation_gizmo.h"
 #include "render/material_manager.h"
@@ -39,16 +40,6 @@ namespace
     constexpr glm::vec3 EditorBackgroundColor{0.06f, 0.07f, 0.09f};
     constexpr glm::vec3 EditorFogColor{0.12f, 0.14f, 0.17f};
 
-    glm::vec3 orbit_front(const float yawDegrees, const float pitchDegrees)
-    {
-        const float yaw = glm::radians(yawDegrees);
-        const float pitch = glm::radians(pitchDegrees);
-        return glm::normalize(glm::vec3(
-            std::cos(pitch) * std::cos(yaw),
-            std::sin(pitch),
-            std::cos(pitch) * std::sin(yaw)));
-    }
-
     float uniform_scale_from_vec3(const glm::vec3& scale)
     {
         return (scale.x + scale.y + scale.z) / 3.0f;
@@ -64,53 +55,6 @@ namespace
         return glm::quat(glm::radians(rotationDegrees));
     }
 
-    [[nodiscard]] glm::mat4 pivot_transform_matrix(
-        const glm::vec3& position,
-        const glm::quat& rotation,
-        const float scale)
-    {
-        glm::mat4 result = glm::translate(glm::mat4(1.0f), position);
-        result *= glm::mat4_cast(rotation);
-        result = glm::scale(result, glm::vec3(scale));
-        return result;
-    }
-
-    [[nodiscard]] glm::mat4 pivot_transform_matrix(const VoxelRenderInstance& instance)
-    {
-        const glm::vec3 pivotWorldPosition = (instance.asset != nullptr)
-            ? instance.world_point_from_asset_local(instance.asset->model.pivot)
-            : instance.position;
-        return pivot_transform_matrix(pivotWorldPosition, instance.rotation, instance.scale);
-    }
-
-    [[nodiscard]] glm::mat4 parent_basis_matrix(
-        const std::unordered_map<std::string, VoxelRenderInstance>& resolvedPreviewInstances,
-        const VoxelAssemblyBindingState& bindingState)
-    {
-        if (bindingState.parentPartId.empty())
-        {
-            return glm::mat4(1.0f);
-        }
-
-        const auto parentIt = resolvedPreviewInstances.find(bindingState.parentPartId);
-        if (parentIt == resolvedPreviewInstances.end())
-        {
-            return glm::mat4(1.0f);
-        }
-
-        const VoxelRenderInstance& parentInstance = parentIt->second;
-        if (!bindingState.parentAttachmentName.empty())
-        {
-            if (const std::optional<glm::mat4> attachmentTransform =
-                parentInstance.attachment_world_transform(bindingState.parentAttachmentName);
-                attachmentTransform.has_value())
-            {
-                return attachmentTransform.value();
-            }
-        }
-
-        return pivot_transform_matrix(parentInstance);
-    }
 }
 
 VoxelAssemblyScene::VoxelAssemblyScene(const SceneServices& services) :
@@ -172,11 +116,7 @@ VoxelAssemblyScene::~VoxelAssemblyScene()
         _renderState.opaqueObjects.remove(_assemblyRootPivotHandle.value());
         _assemblyRootPivotHandle.reset();
     }
-    if (_selectedPartBoundsHandle.has_value())
-    {
-        _renderState.transparentObjects.remove(_selectedPartBoundsHandle.value());
-        _selectedPartBoundsHandle.reset();
-    }
+    editor::clear_bounds_overlay(_selectedPartBoundsMesh, _selectedPartBoundsHandle, _renderState);
     if (_assemblyRootPivotHandle.has_value())
     {
         _renderState.opaqueObjects.remove(_assemblyRootPivotHandle.value());
@@ -263,15 +203,18 @@ void VoxelAssemblyScene::handle_input(const SDL_Event& event)
     {
         if (_orbitDragging)
         {
-            _orbitYawDegrees += static_cast<float>(event.motion.xrel) * 0.18f;
-            _orbitPitchDegrees -= static_cast<float>(event.motion.yrel) * 0.18f;
+            _orbitCamera.yawDegrees += static_cast<float>(event.motion.xrel) * 0.18f;
+            _orbitCamera.pitchDegrees -= static_cast<float>(event.motion.yrel) * 0.18f;
         }
         return;
     }
 
     if (event.type == SDL_MOUSEWHEEL)
     {
-        _orbitDistance = std::clamp(_orbitDistance - (static_cast<float>(event.wheel.y) * 0.25f), 0.75f, 64.0f);
+        _orbitCamera.distance = std::clamp(
+            _orbitCamera.distance - (static_cast<float>(event.wheel.y) * 0.25f),
+            _orbitCamera.minDistance,
+            _orbitCamera.maxDistance);
         return;
     }
 
@@ -424,24 +367,12 @@ void VoxelAssemblyScene::update_uniform_buffers() const
 
 void VoxelAssemblyScene::update_camera()
 {
-    _orbitPitchDegrees = std::clamp(_orbitPitchDegrees, -85.0f, 85.0f);
-    _orbitDistance = std::clamp(_orbitDistance, 0.75f, 64.0f);
-
-    const glm::vec3 front = orbit_front(_orbitYawDegrees, _orbitPitchDegrees);
-    const glm::vec3 target = orbit_target();
-    _camera->_front = front;
-    _camera->_up = glm::vec3(0.0f, 1.0f, 0.0f);
-    _camera->_position = target - (front * _orbitDistance);
-    _camera->update(0.0f);
+    editor::update_orbit_camera(*_camera, orbit_target(), _orbitCamera);
 }
 
 void VoxelAssemblyScene::draw_orientation_gizmo()
 {
-    glm::mat4 gizmoView = _camera->_view;
-    if (draw_orbit_orientation_gizmo(gizmoView, _orbitDistance))
-    {
-        sync_orbit_from_view_matrix(gizmoView);
-    }
+    (void)editor::draw_orbit_orientation_gizmo(*_camera, orbit_target(), _orbitCamera);
 }
 
 void VoxelAssemblyScene::draw_transform_gizmo()
@@ -469,19 +400,13 @@ void VoxelAssemblyScene::draw_transform_gizmo()
         return;
     }
 
-    ImGuiViewport* const viewport = ImGui::GetMainViewport();
-    if (viewport == nullptr)
+    if (editor::begin_main_viewport_gizmo() == nullptr)
     {
         return;
     }
 
-    glm::mat4 worldMatrix = pivot_transform_matrix(instanceIt->second);
-    const glm::mat4 parentBasis = parent_basis_matrix(_resolvedPreviewInstances, *bindingState);
-
-    ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList());
-    ImGuizmo::SetRect(viewport->WorkPos.x, viewport->WorkPos.y, viewport->WorkSize.x, viewport->WorkSize.y);
-    ImGuizmo::SetOrthographic(false);
-    ImGuizmo::Enable(true);
+    glm::mat4 worldMatrix = editor::pivot_transform_matrix(instanceIt->second);
+    const glm::mat4 parentBasis = editor::parent_basis_matrix(_resolvedPreviewInstances, *bindingState);
 
     float snap[3]{};
     float* snapPtr = nullptr;
@@ -542,27 +467,6 @@ void VoxelAssemblyScene::draw_transform_gizmo()
             }
         });
     }
-}
-
-void VoxelAssemblyScene::sync_orbit_from_view_matrix(const glm::mat4& viewMatrix)
-{
-    const glm::mat4 inverseView = glm::inverse(viewMatrix);
-    const glm::vec3 target = orbit_target();
-    const glm::vec3 position = glm::vec3(inverseView[3]);
-    glm::vec3 front = glm::normalize(target - position);
-
-    if (!std::isfinite(front.x) || !std::isfinite(front.y) || !std::isfinite(front.z) || glm::length(front) <= 0.0001f)
-    {
-        return;
-    }
-
-    _orbitDistance = glm::distance(position, target);
-    _orbitYawDegrees = glm::degrees(std::atan2(front.z, front.x));
-    _orbitPitchDegrees = glm::degrees(std::asin(std::clamp(front.y, -1.0f, 1.0f)));
-    _camera->_position = position;
-    _camera->_front = front;
-    _camera->_up = glm::vec3(0.0f, 1.0f, 0.0f);
-    _camera->_view = viewMatrix;
 }
 
 void VoxelAssemblyScene::sync_preview_instances()
@@ -695,11 +599,7 @@ void VoxelAssemblyScene::sync_selection_overlay()
 
     _selectionOverlayDirty = false;
 
-    if (_selectedPartBoundsHandle.has_value())
-    {
-        _renderState.transparentObjects.remove(_selectedPartBoundsHandle.value());
-        _selectedPartBoundsHandle.reset();
-    }
+    editor::clear_bounds_overlay(_selectedPartBoundsMesh, _selectedPartBoundsHandle, _renderState);
     if (_selectedPartPivotHandle.has_value())
     {
         _renderState.opaqueObjects.remove(_selectedPartPivotHandle.value());
@@ -838,22 +738,15 @@ void VoxelAssemblyScene::sync_selection_overlay()
     }
 
     const VoxelRenderInstance& instance = instanceIt->second;
-    if (_showSelectedPartBounds && instance.asset->bounds.valid)
-    {
-        const VoxelSpatialBounds partLocalBounds = evaluate_voxel_model_local_bounds(instance.asset->model);
-        if (partLocalBounds.valid)
-        {
-            _selectedPartBoundsMesh = Mesh::create_box_outline_mesh(partLocalBounds.min, partLocalBounds.max, glm::vec3(0.28f, 0.92f, 1.0f));
-            _services.meshManager->UploadQueue.enqueue(_selectedPartBoundsMesh);
-            _selectedPartBoundsHandle = _renderState.transparentObjects.insert(RenderObject{
-                .mesh = _selectedPartBoundsMesh,
-                .material = _services.materialManager->get_material(VoxelAssemblyMaterialScope, "chunkboundary"),
-                .transform = instance.model_matrix(),
-                .layer = RenderLayer::Transparent,
-                .lightingMode = LightingMode::Unlit
-            });
-        }
-    }
+    (void)editor::sync_bounds_overlay_for_instance(
+        _selectedPartBoundsMesh,
+        _selectedPartBoundsHandle,
+        _renderState,
+        _services,
+        VoxelAssemblyMaterialScope,
+        &instance,
+        _showSelectedPartBounds && instance.asset != nullptr && instance.asset->bounds.valid,
+        glm::vec3(0.28f, 0.92f, 1.0f));
 
     if (_showSelectedPartPivot)
     {
@@ -997,10 +890,7 @@ void VoxelAssemblyScene::release_selection_meshes()
     {
         render::enqueue_mesh_release(std::move(_collisionBoundsMesh));
     }
-    if (_selectedPartBoundsMesh != nullptr)
-    {
-        render::enqueue_mesh_release(std::move(_selectedPartBoundsMesh));
-    }
+    editor::clear_bounds_overlay(_selectedPartBoundsMesh, _selectedPartBoundsHandle, _renderState);
     if (_selectedPartPivotMesh != nullptr)
     {
         render::enqueue_mesh_release(std::move(_selectedPartPivotMesh));
@@ -1123,45 +1013,29 @@ void VoxelAssemblyScene::apply_assembly_edit(
     const std::string_view description,
     const std::function<void(VoxelAssemblyAsset&)>& edit)
 {
-    if (edit == nullptr)
+    (void)_editorSession.apply(description, edit, [this]()
     {
-        return;
-    }
-
-    if (!editing::apply_snapshot_edit(_history, _assembly, std::string(description), edit))
-    {
-        return;
-    }
-
-    sync_selection_indices();
-    mark_preview_dirty();
-    _statusMessage = std::format("Edited assembly: {}", description);
+        sync_selection_indices();
+        mark_preview_dirty();
+    }, &_statusMessage);
 }
 
 void VoxelAssemblyScene::undo_assembly_edit()
 {
-    if (!_history.undo(_assembly))
+    (void)_editorSession.undo([this]()
     {
-        _statusMessage = "Nothing to undo";
-        return;
-    }
-
-    sync_selection_indices();
-    mark_preview_dirty();
-    _statusMessage = std::format("Undo: {}", _history.redo_description());
+        sync_selection_indices();
+        mark_preview_dirty();
+    }, &_statusMessage);
 }
 
 void VoxelAssemblyScene::redo_assembly_edit()
 {
-    if (!_history.redo(_assembly))
+    (void)_editorSession.redo([this]()
     {
-        _statusMessage = "Nothing to redo";
-        return;
-    }
-
-    sync_selection_indices();
-    mark_preview_dirty();
-    _statusMessage = std::format("Redo: {}", _history.undo_description());
+        sync_selection_indices();
+        mark_preview_dirty();
+    }, &_statusMessage);
 }
 
 void VoxelAssemblyScene::sync_selection_indices()

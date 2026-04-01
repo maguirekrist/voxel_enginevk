@@ -1,0 +1,106 @@
+{
+  "assemblyAssetId": "player_1",
+  "assetId": "test2",
+  "blendSpaces": [],
+  "displayName": "test2",
+  "layers": [
+    {
+      "blendMode": "additive",
+      "displayName": "layer",
+      "entryStateId": "state",
+      "includeMaskedPartDescendants": true,
+      "layerId": "layer",
+      "maskedPartIds": [],
+      "states": [
+        {
+          "blendSpaceId": "",
+          "clipAssetId": "temp",
+          "displayName": "state_2",
+          "nodeType": "clip_player",
+          "playbackSpeed": 1.0,
+          "rootMotionMode": "ignore",
+          "stateId": "state_2"
+        },
+        {
+          "blendSpaceId": "",
+          "clipAssetId": "temp",
+          "displayName": "state",
+          "nodeType": "clip_player",
+          "playbackSpeed": 1.0,
+          "rootMotionMode": "ignore",
+          "stateId": "state"
+        }
+      ],
+      "transitions": [
+        {
+          "conditions": [],
+          "durationSeconds": 0.11999999731779099,
+          "exitTimeNormalized": 1.0,
+          "requiresExitTime": false,
+          "sourceStateId": "state",
+          "targetStateId": "state_2"
+        }
+      ],
+      "weight": 0.5199999809265137
+    },
+    {
+      "blendMode": "override",
+      "displayName": "layer_1",
+      "entryStateId": "state",
+      "includeMaskedPartDescendants": true,
+      "layerId": "layer_1",
+      "maskedPartIds": [],
+      "states": [
+        {
+          "blendSpaceId": "",
+          "clipAssetId": "temp",
+          "displayName": "state",
+          "nodeType": "clip_player",
+          "playbackSpeed": 1.0,
+          "rootMotionMode": "ignore",
+          "stateId": "state"
+        }
+      ],
+      "transitions": [],
+      "weight": 1.0
+    }
+  ],
+  "parameters": [
+    {
+      "defaultBoolValue": false,
+      "defaultFloatValue": 0.0,
+      "displayName": "float_param",
+      "parameterId": "float_param",
+      "type": "float"
+    },
+    {
+      "defaultBoolValue": false,
+      "defaultFloatValue": 0.0,
+      "displayName": "float_param_1",
+      "parameterId": "float_param_1",
+      "type": "float"
+    },
+    {
+      "defaultBoolValue": false,
+      "defaultFloatValue": 0.0,
+      "displayName": "trigger_param",
+      "parameterId": "trigger_param",
+      "type": "trigger"
+    },
+    {
+      "defaultBoolValue": false,
+      "defaultFloatValue": 0.0,
+      "displayName": "bool_param",
+      "parameterId": "bool_param",
+      "type": "bool"
+    },
+    {
+      "defaultBoolValue": false,
+      "defaultFloatValue": 0.0,
+      "displayName": "trigger_param_1",
+      "parameterId": "trigger_param_1",
+      "type": "trigger"
+    }
+  ],
+  "version": 1
+}

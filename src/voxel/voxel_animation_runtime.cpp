@@ -906,7 +906,7 @@ void tick_voxel_animation_component(
     VoxelAnimationComponent& component,
     const VoxelAssemblyComponent& assemblyComponent,
     const VoxelAssemblyAsset& assemblyAsset,
-    VoxelAnimationControllerAssetManager& controllerAssetManager,
+    const VoxelAnimationControllerAsset& controller,
     VoxelAnimationClipAssetManager& clipAssetManager,
     const float deltaTime)
 {
@@ -914,18 +914,16 @@ void tick_voxel_animation_component(
     component.currentPose.clear();
     component.rootMotion = {};
 
-    if (!component.enabled || component.controllerAssetId.empty())
+    if (!component.enabled)
+    {
+        return;
+    }
+    if (controller.assemblyAssetId != assemblyAsset.assetId)
     {
         return;
     }
 
-    const auto controller = controllerAssetManager.load_or_get(component.controllerAssetId);
-    if (controller == nullptr || controller->assemblyAssetId != assemblyAsset.assetId)
-    {
-        return;
-    }
-
-    for (const auto& definition : controller->parameters)
+    for (const auto& definition : controller.parameters)
     {
         if (definition.type == VoxelAnimationParameterType::Float && !component.floatParameters.contains(definition.parameterId))
             component.floatParameters.insert_or_assign(definition.parameterId, definition.defaultFloatValue);
@@ -935,7 +933,7 @@ void tick_voxel_animation_component(
             component.triggerParameters.insert_or_assign(definition.parameterId, false);
     }
 
-    for (const auto& layer : controller->layers)
+    for (const auto& layer : controller.layers)
     {
         if (std::ranges::find_if(component.layerStates, [&](const VoxelAnimationLayerPlaybackState& state) { return state.layerId == layer.layerId; }) == component.layerStates.end())
         {
@@ -946,9 +944,9 @@ void tick_voxel_animation_component(
         }
     }
 
-    for (size_t layerIndex = 0; layerIndex < controller->layers.size(); ++layerIndex)
+    for (size_t layerIndex = 0; layerIndex < controller.layers.size(); ++layerIndex)
     {
-        const auto& layer = controller->layers[layerIndex];
+        const auto& layer = controller.layers[layerIndex];
         auto runtimeIt = std::ranges::find_if(component.layerStates, [&](const VoxelAnimationLayerPlaybackState& state) { return state.layerId == layer.layerId; });
         if (runtimeIt == component.layerStates.end() || runtimeIt->activeStateId.empty())
         {
@@ -961,7 +959,7 @@ void tick_voxel_animation_component(
             for (const auto& transition : layer.transitions)
             {
                 if (transition.sourceStateId == runtime.activeStateId &&
-                    transition_ready(transition, runtime, layer, *controller, clipAssetManager, component))
+                    transition_ready(transition, runtime, layer, controller, clipAssetManager, component))
                 {
                     runtime.inTransition = true;
                     runtime.targetStateId = transition.targetStateId;
@@ -981,7 +979,7 @@ void tick_voxel_animation_component(
         }
 
         const float activeTime = runtime.stateTimeSeconds * std::max(activeState->playbackSpeed, 0.0f);
-        NodeSample blended = sample_state_node(*activeState, *controller, clipAssetManager, component, activeTime);
+        NodeSample blended = sample_state_node(*activeState, controller, clipAssetManager, component, activeTime);
         for (const auto& clip : blended.clips)
         {
             if (clip.clip != nullptr)
@@ -995,7 +993,7 @@ void tick_voxel_animation_component(
             if (const auto* targetState = layer.find_state(runtime.targetStateId); targetState != nullptr)
             {
                 const float targetTime = runtime.targetStateTimeSeconds * std::max(targetState->playbackSpeed, 0.0f);
-                NodeSample target = sample_state_node(*targetState, *controller, clipAssetManager, component, targetTime);
+                NodeSample target = sample_state_node(*targetState, controller, clipAssetManager, component, targetTime);
                 for (const auto& clip : target.clips)
                 {
                     if (clip.clip != nullptr)
@@ -1098,4 +1096,38 @@ void tick_voxel_animation_component(
         (void)parameterId;
         value = false;
     }
+}
+
+void tick_voxel_animation_component(
+    VoxelAnimationComponent& component,
+    const VoxelAssemblyComponent& assemblyComponent,
+    const VoxelAssemblyAsset& assemblyAsset,
+    VoxelAnimationControllerAssetManager& controllerAssetManager,
+    VoxelAnimationClipAssetManager& clipAssetManager,
+    const float deltaTime)
+{
+    if (!component.enabled || component.controllerAssetId.empty())
+    {
+        component.pendingEvents.clear();
+        component.currentPose.clear();
+        component.rootMotion = {};
+        return;
+    }
+
+    const auto controller = controllerAssetManager.load_or_get(component.controllerAssetId);
+    if (controller == nullptr)
+    {
+        component.pendingEvents.clear();
+        component.currentPose.clear();
+        component.rootMotion = {};
+        return;
+    }
+
+    tick_voxel_animation_component(
+        component,
+        assemblyComponent,
+        assemblyAsset,
+        *controller,
+        clipAssetManager,
+        deltaTime);
 }

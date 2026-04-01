@@ -19,6 +19,7 @@ public:
     [[nodiscard]] std::optional<VoxelAnimationClipAsset> load(std::string_view assetId) const;
     [[nodiscard]] std::vector<std::string> list_asset_ids() const;
     void save(const VoxelAnimationClipAsset& asset) const;
+    bool remove(std::string_view assetId) const;
     [[nodiscard]] std::filesystem::path resolve_path(std::string_view assetId) const;
     [[nodiscard]] const std::filesystem::path& root_path() const noexcept;
 

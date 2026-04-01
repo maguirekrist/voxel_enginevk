@@ -11,10 +11,12 @@
 #include "camera.h"
 #include "config/json_document_store.h"
 #include "editing/document_command_history.h"
+#include "editing/document_editor_session.h"
 #include "render/mesh.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
 #include "scene.h"
+#include "editor_orbit_camera.h"
 #include "scene_services.h"
 #include "voxel/voxel_assembly_asset.h"
 #include "voxel/voxel_assembly_repository.h"
@@ -85,7 +87,6 @@ private:
     void update_camera();
     void draw_orientation_gizmo();
     void draw_transform_gizmo();
-    void sync_orbit_from_view_matrix(const glm::mat4& viewMatrix);
     void sync_preview_instances();
     void sync_selection_overlay();
     void pick_part(int mouseX, int mouseY);
@@ -146,6 +147,7 @@ private:
     std::unordered_map<std::string, VoxelRenderInstance> _resolvedPreviewInstances{};
     VoxelAssemblyAsset _assembly;
     editing::DocumentCommandHistory<VoxelAssemblyAsset> _history{50};
+    editing::DocumentEditorSession<VoxelAssemblyAsset> _editorSession{_history, _assembly, "assembly"};
     std::unique_ptr<Camera> _camera;
     std::vector<std::string> _savedModelAssetIds{};
     std::vector<std::string> _savedAssemblyAssetIds{};
@@ -167,9 +169,7 @@ private:
     bool _showTransformGizmo{true};
     int _gizmoOperation{1};
     int _gizmoMode{0};
-    float _orbitYawDegrees{40.0f};
-    float _orbitPitchDegrees{24.0f};
-    float _orbitDistance{5.5f};
+    editor::OrbitCameraState _orbitCamera{};
     glm::vec3 _previewOrbitTarget{0.0f};
     std::string _statusMessage{"Ready"};
 };

@@ -39,6 +39,14 @@ void tick_voxel_animation_component(
     VoxelAnimationComponent& component,
     const VoxelAssemblyComponent& assemblyComponent,
     const VoxelAssemblyAsset& assemblyAsset,
+    const VoxelAnimationControllerAsset& controller,
+    VoxelAnimationClipAssetManager& clipAssetManager,
+    float deltaTime);
+
+void tick_voxel_animation_component(
+    VoxelAnimationComponent& component,
+    const VoxelAssemblyComponent& assemblyComponent,
+    const VoxelAssemblyAsset& assemblyAsset,
     VoxelAnimationControllerAssetManager& controllerAssetManager,
     VoxelAnimationClipAssetManager& clipAssetManager,
     float deltaTime);

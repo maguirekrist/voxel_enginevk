@@ -14,6 +14,8 @@
 #include "components/voxel_assembly_component.h"
 #include "config/json_document_store.h"
 #include "editing/document_command_history.h"
+#include "editing/document_editor_session.h"
+#include "editor_orbit_camera.h"
 #include "render/mesh.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
@@ -54,6 +56,21 @@ private:
     {
         Clip,
         Controller
+    };
+
+    enum class DeleteSelectionKind
+    {
+        None,
+        ClipTimelineLane,
+        ClipTimelineKey,
+        ControllerLayer,
+        ControllerState,
+        ControllerTransition
+    };
+
+    struct DeleteSelection
+    {
+        DeleteSelectionKind kind{DeleteSelectionKind::None};
     };
 
     struct CameraUBO
@@ -112,7 +129,6 @@ private:
     void new_controller();
     void save_controller();
     void load_controller(const std::string& assetId);
-    void save_controller_preview_if_dirty();
     void apply_clip_edit(std::string_view description, const std::function<void(VoxelAnimationClipAsset&)>& edit);
     void apply_controller_edit(std::string_view description, const std::function<void(VoxelAnimationControllerAsset&)>& edit);
     void draw_editor_window();
@@ -120,6 +136,11 @@ private:
     void draw_controller_graph_window();
     void reset_controller_preview_state(bool preserveParameters);
     void sync_controller_preview_parameters();
+    [[nodiscard]] DeleteSelection current_delete_selection() const;
+    bool try_delete_selection(DeleteSelection selection);
+    bool try_delete_current_selection();
+    bool delete_selected_clip_asset();
+    bool delete_selected_controller_asset();
     [[nodiscard]] glm::vec3 orbit_target() const;
 
     SceneServices _services;
@@ -142,11 +163,13 @@ private:
     std::unordered_map<std::string, VoxelRenderInstance> _previewParts{};
     editing::DocumentCommandHistory<VoxelAnimationClipAsset> _clipHistory{50};
     editing::DocumentCommandHistory<VoxelAnimationControllerAsset> _controllerHistory{50};
-    std::unique_ptr<Camera> _camera;
     VoxelAssemblyComponent _previewAssembly{};
     VoxelAnimationComponent _previewAnimation{};
     VoxelAnimationClipAsset _clip{};
     VoxelAnimationControllerAsset _controller{};
+    editing::DocumentEditorSession<VoxelAnimationClipAsset> _clipSession{_clipHistory, _clip, "clip"};
+    editing::DocumentEditorSession<VoxelAnimationControllerAsset> _controllerSession{_controllerHistory, _controller, "controller"};
+    std::unique_ptr<Camera> _camera;
     std::vector<std::string> _assemblyAssetIds{};
     std::vector<std::string> _clipAssetIds{};
     std::vector<std::string> _controllerAssetIds{};
@@ -159,7 +182,6 @@ private:
     bool _orbitDragging{false};
     bool _previewDirty{true};
     bool _selectionOverlayDirty{true};
-    bool _controllerPreviewDirty{true};
     bool _showSelectedPartBounds{true};
     bool _showTransformGizmo{true};
     bool _autoCenterPreview{false};
@@ -175,9 +197,7 @@ private:
     std::string _selectedControllerStateId{};
     std::string _selectedControllerTransitionKey{};
     std::unordered_set<int> _initializedControllerNodeIds{};
-    float _orbitYawDegrees{40.0f};
-    float _orbitPitchDegrees{24.0f};
-    float _orbitDistance{5.5f};
+    editor::OrbitCameraState _orbitCamera{};
     glm::vec3 _previewOrbitTarget{0.0f};
     float _controllerPreviewPendingDeltaSeconds{0.0f};
 };

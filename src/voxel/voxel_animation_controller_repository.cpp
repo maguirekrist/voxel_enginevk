@@ -544,6 +544,12 @@ void VoxelAnimationControllerRepository::save(const VoxelAnimationControllerAsse
     _documentStore.save(resolve_path(normalized.assetId), serialize(normalized));
 }
 
+bool VoxelAnimationControllerRepository::remove(const std::string_view assetId) const
+{
+    std::error_code error{};
+    return std::filesystem::remove(resolve_path(assetId), error);
+}
+
 std::filesystem::path VoxelAnimationControllerRepository::resolve_path(const std::string_view assetId) const
 {
     return _rootPath / std::format("{}.vxanimc.json", sanitize_asset_id(assetId));

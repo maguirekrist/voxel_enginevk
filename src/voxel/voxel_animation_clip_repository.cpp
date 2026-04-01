@@ -428,6 +428,12 @@ void VoxelAnimationClipRepository::save(const VoxelAnimationClipAsset& asset) co
     _documentStore.save(resolve_path(normalized.assetId), serialize(normalized));
 }
 
+bool VoxelAnimationClipRepository::remove(const std::string_view assetId) const
+{
+    std::error_code error{};
+    return std::filesystem::remove(resolve_path(assetId), error);
+}
+
 std::filesystem::path VoxelAnimationClipRepository::resolve_path(const std::string_view assetId) const
 {
     return _rootPath / std::format("{}.vxanim.json", sanitize_asset_id(assetId));
