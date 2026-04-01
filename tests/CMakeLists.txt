@@ -27,6 +27,11 @@ add_executable(engine_tests
     ../src/voxel/voxel_assembly_asset_manager.cpp
     ../src/voxel/voxel_assembly_component_adapter.cpp
     ../src/voxel/voxel_assembly_repository.cpp
+    ../src/voxel/voxel_animation_clip_asset_manager.cpp
+    ../src/voxel/voxel_animation_clip_repository.cpp
+    ../src/voxel/voxel_animation_controller_asset_manager.cpp
+    ../src/voxel/voxel_animation_controller_repository.cpp
+    ../src/voxel/voxel_animation_runtime.cpp
     ../src/voxel/voxel_component_render_adapter.cpp
     ../src/voxel/voxel_model_component_adapter.cpp
     ../src/voxel/voxel_placement.cpp

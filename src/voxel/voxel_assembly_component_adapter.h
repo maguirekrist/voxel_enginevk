@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "components/voxel_assembly_component.h"
+#include "voxel_animation_pose.h"
 #include "voxel_assembly_asset_manager.h"
 #include "voxel_asset_manager.h"
 #include "voxel_render_instance.h"
@@ -41,9 +42,11 @@ struct VoxelAssemblyRenderBundle
 [[nodiscard]] VoxelAssemblyLocalBundle build_voxel_assembly_local_bundle(
     const VoxelAssemblyComponent& component,
     VoxelAssemblyAssetManager& assemblyAssetManager,
-    VoxelAssetManager& assetManager);
+    VoxelAssetManager& assetManager,
+    const VoxelAssemblyPose* pose = nullptr);
 
 [[nodiscard]] VoxelAssemblyRenderBundle build_voxel_assembly_render_bundle(
     const VoxelAssemblyComponent& component,
     VoxelAssemblyAssetManager& assemblyAssetManager,
-    VoxelAssetManager& assetManager);
+    VoxelAssetManager& assetManager,
+    const VoxelAssemblyPose* pose = nullptr);

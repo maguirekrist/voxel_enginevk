@@ -3,7 +3,34 @@
 #include "tracy/Tracy.hpp"
 #include "camera.h"
 #include "components/spatial_collider_component.h"
+#include "voxel/voxel_animation_runtime.h"
 #include "voxel/voxel_spatial_collider.h"
+
+namespace
+{
+    void seed_player_animation_parameters(PlayerEntity& player)
+    {
+        VoxelAnimationComponent* const animation = player.animation_component();
+        if (animation == nullptr)
+        {
+            return;
+        }
+
+        const glm::vec3 forward = player.body_facing();
+        const glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
+        const glm::vec3 velocity = player.movement().velocity;
+        const glm::vec3 planarVelocity(velocity.x, 0.0f, velocity.z);
+
+        set_voxel_animation_float_parameter(*animation, "move_x", glm::dot(planarVelocity, right));
+        set_voxel_animation_float_parameter(*animation, "move_y", glm::dot(planarVelocity, forward));
+        set_voxel_animation_float_parameter(*animation, "speed", glm::length(planarVelocity));
+        set_voxel_animation_bool_parameter(*animation, "grounded", player.movement().grounded);
+        set_voxel_animation_float_parameter(*animation, "vertical_speed", velocity.y);
+        set_voxel_animation_bool_parameter(*animation, "fly_mode", player.fly_mode_enabled());
+        set_voxel_animation_float_parameter(*animation, "body_yaw", player.body_yaw_degrees());
+        set_voxel_animation_float_parameter(*animation, "look_pitch", player.camera_pitch_degrees());
+    }
+}
 
 CubeEngine::CubeEngine()
 {
@@ -42,6 +69,16 @@ void CubeEngine::set_player_render_assembly_asset_id(const std::string_view asse
     _player->set_render_assembly_asset_id(std::string(assetId));
 }
 
+void CubeEngine::set_player_animation_controller_asset_id(const std::string_view assetId)
+{
+    if (_player == nullptr)
+    {
+        return;
+    }
+
+    _player->set_animation_controller_asset_id(std::string(assetId));
+}
+
 void CubeEngine::update(const float deltaTime)
 {
     ZoneScopedN("GameUpdate");
@@ -62,6 +99,33 @@ void CubeEngine::update(const float deltaTime)
         collider.diagnostic = evaluation.diagnostic;
     }
     _player->simulate(deltaTime, _worldCollision);
+    seed_player_animation_parameters(*_player);
+
+    if (VoxelAnimationComponent* const animation = _player->animation_component();
+        animation != nullptr)
+    {
+        VoxelAssemblyComponent& assemblyComponent = _player->Get<VoxelAssemblyComponent>();
+        if (!assemblyComponent.assetId.empty())
+        {
+            if (const std::shared_ptr<const VoxelAssemblyAsset> assemblyAsset =
+                _voxelAssemblyAssetManager.load_or_get(assemblyComponent.assetId);
+                assemblyAsset != nullptr)
+            {
+                tick_voxel_animation_component(
+                    *animation,
+                    assemblyComponent,
+                    *assemblyAsset,
+                    _voxelAnimationControllerAssetManager,
+                    _voxelAnimationClipAssetManager,
+                    deltaTime);
+
+                if (animation->rootMotion.valid)
+                {
+                    _player->apply_animation_root_motion(animation->rootMotion, _worldCollision);
+                }
+            }
+        }
+    }
 
     _chunkManager.update_player_position(_player->_position);
     _current_chunk = _world.get_chunk(_player->_position);
@@ -191,6 +255,26 @@ const VoxelAssemblyRepository& CubeEngine::voxel_assembly_repository() const noe
     return _voxelAssemblyRepository;
 }
 
+VoxelAnimationClipRepository& CubeEngine::voxel_animation_clip_repository() noexcept
+{
+    return _voxelAnimationClipRepository;
+}
+
+const VoxelAnimationClipRepository& CubeEngine::voxel_animation_clip_repository() const noexcept
+{
+    return _voxelAnimationClipRepository;
+}
+
+VoxelAnimationControllerRepository& CubeEngine::voxel_animation_controller_repository() noexcept
+{
+    return _voxelAnimationControllerRepository;
+}
+
+const VoxelAnimationControllerRepository& CubeEngine::voxel_animation_controller_repository() const noexcept
+{
+    return _voxelAnimationControllerRepository;
+}
+
 VoxelAssetManager& CubeEngine::voxel_asset_manager() noexcept
 {
     return _voxelAssetManager;
@@ -199,4 +283,14 @@ VoxelAssetManager& CubeEngine::voxel_asset_manager() noexcept
 VoxelAssemblyAssetManager& CubeEngine::voxel_assembly_asset_manager() noexcept
 {
     return _voxelAssemblyAssetManager;
+}
+
+VoxelAnimationClipAssetManager& CubeEngine::voxel_animation_clip_asset_manager() noexcept
+{
+    return _voxelAnimationClipAssetManager;
+}
+
+VoxelAnimationControllerAssetManager& CubeEngine::voxel_animation_controller_asset_manager() noexcept
+{
+    return _voxelAnimationControllerAssetManager;
 }

@@ -3,6 +3,7 @@
 #include <string>
 
 #include "components/game_object.h"
+#include "components/voxel_animation_component.h"
 #include "components/voxel_assembly_component.h"
 #include "components/voxel_model_component.h"
 #include "physics/aabb.h"
@@ -26,7 +27,8 @@ struct VoxelSpatialColliderEvaluation
 [[nodiscard]] VoxelSpatialColliderEvaluation evaluate_voxel_assembly_local_collider(
     const VoxelAssemblyComponent& component,
     VoxelAssemblyAssetManager& assemblyAssetManager,
-    VoxelAssetManager& assetManager);
+    VoxelAssetManager& assetManager,
+    const VoxelAssemblyPose* pose = nullptr);
 
 [[nodiscard]] VoxelSpatialColliderEvaluation evaluate_voxel_local_collider(
     const GameObject& object,

@@ -1,0 +1,39 @@
+{
+  "assemblyAssetId": "player_1",
+  "assetId": "testtttt",
+  "blendSpaces": [],
+  "displayName": "Untitled Controller",
+  "layers": [
+    {
+      "blendMode": "override",
+      "displayName": "layer",
+      "entryStateId": "state",
+      "includeMaskedPartDescendants": true,
+      "layerId": "layer",
+      "maskedPartIds": [],
+      "states": [
+        {
+          "blendSpaceId": "",
+          "clipAssetId": "temp",
+          "displayName": "state",
+          "nodeType": "clip_player",
+          "playbackSpeed": 1.0,
+          "rootMotionMode": "ignore",
+          "stateId": "state"
+        }
+      ],
+      "transitions": [],
+      "weight": 1.0
+    }
+  ],
+  "parameters": [
+    {
+      "defaultBoolValue": false,
+      "defaultFloatValue": 0.0,
+      "displayName": "float_param",
+      "parameterId": "float_param",
+      "type": "float"
+    }
+  ],
+  "version": 1
+}

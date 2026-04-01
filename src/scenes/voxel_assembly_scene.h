@@ -11,10 +11,12 @@
 #include "camera.h"
 #include "config/json_document_store.h"
 #include "editing/document_command_history.h"
+#include "editing/document_editor_session.h"
 #include "render/mesh.h"
 #include "render/resource.h"
 #include "render/scene_render_state.h"
 #include "scene.h"
+#include "editor_orbit_camera.h"
 #include "scene_services.h"
 #include "voxel/voxel_assembly_asset.h"
 #include "voxel/voxel_assembly_repository.h"
@@ -84,9 +86,10 @@ private:
     void update_uniform_buffers() const;
     void update_camera();
     void draw_orientation_gizmo();
-    void sync_orbit_from_view_matrix(const glm::mat4& viewMatrix);
+    void draw_transform_gizmo();
     void sync_preview_instances();
     void sync_selection_overlay();
+    void pick_part(int mouseX, int mouseY);
     void clear_preview();
     void release_selection_meshes();
     void add_part_from_selected_model();
@@ -144,6 +147,7 @@ private:
     std::unordered_map<std::string, VoxelRenderInstance> _resolvedPreviewInstances{};
     VoxelAssemblyAsset _assembly;
     editing::DocumentCommandHistory<VoxelAssemblyAsset> _history{50};
+    editing::DocumentEditorSession<VoxelAssemblyAsset> _editorSession{_history, _assembly, "assembly"};
     std::unique_ptr<Camera> _camera;
     std::vector<std::string> _savedModelAssetIds{};
     std::vector<std::string> _savedAssemblyAssetIds{};
@@ -155,16 +159,17 @@ private:
     bool _orbitDragging{false};
     bool _previewDirty{true};
     bool _selectionOverlayDirty{true};
-    bool _showAssemblyBounds{true};
-    bool _showCollisionBounds{true};
-    bool _showAssemblyRootPivot{true};
+    bool _showAssemblyBounds{false};
+    bool _showCollisionBounds{false};
+    bool _showAssemblyRootPivot{false};
     bool _showSelectedPartBounds{true};
     bool _showSelectedPartPivot{true};
     bool _showSelectedPartAttachments{true};
     bool _showParentAttachmentMarker{true};
-    float _orbitYawDegrees{40.0f};
-    float _orbitPitchDegrees{24.0f};
-    float _orbitDistance{5.5f};
+    bool _showTransformGizmo{true};
+    int _gizmoOperation{1};
+    int _gizmoMode{0};
+    editor::OrbitCameraState _orbitCamera{};
     glm::vec3 _previewOrbitTarget{0.0f};
     std::string _statusMessage{"Ready"};
 };

@@ -7,8 +7,11 @@
 
 #include "test_support.h"
 #include "components/voxel_assembly_component.h"
+#include "components/voxel_animation_component.h"
 #include "voxel/voxel_assembly_asset_manager.h"
 #include "voxel/voxel_assembly_repository.h"
+#include "voxel/voxel_animation_clip_repository.h"
+#include "voxel/voxel_animation_controller_repository.h"
 #include "voxel/voxel_asset_manager.h"
 #include "voxel/voxel_component_render_adapter.h"
 #include "voxel/voxel_model_component_adapter.h"
@@ -611,4 +614,235 @@ TEST(VoxelAssemblyRepositoryTest, ListsSavedAssemblyAssets)
     ASSERT_EQ(assetIds.size(), 2u);
     EXPECT_EQ(assetIds[0], "alpha");
     EXPECT_EQ(assetIds[1], "beta");
+}
+
+TEST(VoxelAnimationClipRepositoryTest, SavesAndLoadsClipRoundTrip)
+{
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_animation_clip_repo_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const VoxelAnimationClipRepository repository(documentStore, "clips");
+
+    VoxelAnimationClipAsset clip{};
+    clip.assetId = "Player Run";
+    clip.displayName = "Player Run";
+    clip.assemblyAssetId = "player_base";
+    clip.durationSeconds = 0.8f;
+    clip.frameRateHint = 24.0f;
+    clip.motionSourcePartId = "torso";
+    clip.partTracks.push_back(VoxelAnimationPartTrack{
+        .partId = "torso",
+        .transformKeys = {
+            VoxelAnimationTransformKeyframe{ .timeSeconds = 0.0f, .localPosition = glm::vec3(0.0f) },
+            VoxelAnimationTransformKeyframe{ .timeSeconds = 0.8f, .localPosition = glm::vec3(1.0f, 0.0f, 0.0f) }
+        }
+    });
+    clip.bindingTracks.push_back(VoxelAnimationBindingTrack{
+        .partId = "hand",
+        .keys = {
+            VoxelAnimationBindingStateKeyframe{ .timeSeconds = 0.25f, .stateId = "equipped" }
+        }
+    });
+    clip.eventTracks.push_back(VoxelAnimationEventTrack{
+        .trackId = "gameplay",
+        .events = {
+            VoxelAnimationEventKeyframe{
+                .timeSeconds = 0.4f,
+                .eventId = "footstep",
+                .payload = nlohmann::json{ { "surface", "grass" } }
+            }
+        }
+    });
+
+    repository.save(clip);
+    const std::optional<VoxelAnimationClipAsset> loaded = repository.load("Player Run");
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->assetId, "playerrun");
+    EXPECT_EQ(loaded->assemblyAssetId, "player_base");
+    EXPECT_EQ(loaded->motionSourcePartId, "torso");
+    ASSERT_EQ(loaded->partTracks.size(), 1u);
+    ASSERT_EQ(loaded->bindingTracks.size(), 1u);
+    ASSERT_EQ(loaded->eventTracks.size(), 1u);
+    EXPECT_EQ(loaded->eventTracks[0].events[0].eventId, "footstep");
+    EXPECT_EQ(loaded->eventTracks[0].events[0].payload.at("surface"), "grass");
+}
+
+TEST(VoxelAnimationControllerRepositoryTest, SavesAndLoadsControllerRoundTrip)
+{
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_animation_controller_repo_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const VoxelAnimationControllerRepository repository(documentStore, "controllers");
+
+    VoxelAnimationControllerAsset controller{};
+    controller.assetId = "Player Locomotion";
+    controller.displayName = "Player Locomotion";
+    controller.assemblyAssetId = "player_base";
+    controller.parameters.push_back(VoxelAnimationParameterDefinition{
+        .parameterId = "speed",
+        .displayName = "Speed",
+        .type = VoxelAnimationParameterType::Float,
+        .defaultFloatValue = 0.0f
+    });
+    controller.layers.push_back(VoxelAnimationLayerDefinition{
+        .layerId = "base",
+        .displayName = "Base",
+        .blendMode = VoxelAnimationLayerBlendMode::Override,
+        .entryStateId = "idle",
+        .states = {
+            VoxelAnimationStateDefinition{
+                .stateId = "idle",
+                .displayName = "Idle",
+                .nodeType = VoxelAnimationStateNodeType::ClipPlayer,
+                .clipAssetId = "idle",
+                .rootMotionMode = RootMotionMode::Ignore
+            },
+            VoxelAnimationStateDefinition{
+                .stateId = "roll",
+                .displayName = "Roll",
+                .nodeType = VoxelAnimationStateNodeType::ClipPlayer,
+                .clipAssetId = "roll",
+                .rootMotionMode = RootMotionMode::ExtractPlanar
+            }
+        },
+        .transitions = {
+            VoxelAnimationTransitionDefinition{
+                .sourceStateId = "idle",
+                .targetStateId = "roll",
+                .durationSeconds = 0.1f,
+                .conditions = {
+                    VoxelAnimationCondition{
+                        .parameterId = "speed",
+                        .op = VoxelAnimationConditionOp::Greater,
+                        .value = 0.5f
+                    }
+                }
+            }
+        }
+    });
+
+    repository.save(controller);
+    const std::optional<VoxelAnimationControllerAsset> loaded = repository.load("Player Locomotion");
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->assetId, "playerlocomotion");
+    ASSERT_EQ(loaded->parameters.size(), 1u);
+    ASSERT_EQ(loaded->layers.size(), 1u);
+    ASSERT_EQ(loaded->layers[0].states.size(), 2u);
+    ASSERT_EQ(loaded->layers[0].transitions.size(), 1u);
+    EXPECT_EQ(loaded->layers[0].states[1].rootMotionMode, RootMotionMode::ExtractPlanar);
+}
+
+TEST(VoxelComponentRenderAdapterTest, AnimatedParentPoseMovesAttachmentChainAutomatically)
+{
+    const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_voxel_animation_attachment_chain_test";
+    std::filesystem::remove_all(tempRoot);
+    const TestJsonDocumentStore documentStore(tempRoot);
+    const VoxelModelRepository modelRepository(documentStore, "models");
+    const VoxelAssemblyRepository assemblyRepository(documentStore, "assemblies");
+
+    VoxelModel torso{};
+    torso.assetId = "torso";
+    torso.voxelSize = 1.0f;
+    torso.pivot = glm::vec3(0.0f);
+    torso.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 255, 255, 255});
+    torso.attachments.push_back(VoxelAttachment{
+        .name = "hand_socket",
+        .position = glm::vec3(1.0f, 0.0f, 0.0f),
+        .forward = glm::vec3(1.0f, 0.0f, 0.0f),
+        .up = glm::vec3(0.0f, 1.0f, 0.0f)
+    });
+    modelRepository.save(torso);
+
+    VoxelModel hand{};
+    hand.assetId = "hand";
+    hand.voxelSize = 1.0f;
+    hand.pivot = glm::vec3(0.0f);
+    hand.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 255, 255, 255});
+    hand.attachments.push_back(VoxelAttachment{
+        .name = "weapon_socket",
+        .position = glm::vec3(1.0f, 0.0f, 0.0f),
+        .forward = glm::vec3(1.0f, 0.0f, 0.0f),
+        .up = glm::vec3(0.0f, 1.0f, 0.0f)
+    });
+    modelRepository.save(hand);
+
+    VoxelModel dagger{};
+    dagger.assetId = "dagger";
+    dagger.voxelSize = 1.0f;
+    dagger.pivot = glm::vec3(0.0f);
+    dagger.set_voxel(VoxelCoord{0, 0, 0}, VoxelColor{255, 255, 255, 255});
+    modelRepository.save(dagger);
+
+    VoxelAssemblyAsset assembly{};
+    assembly.assetId = "fighter";
+    assembly.rootPartId = "torso";
+    assembly.parts.push_back(VoxelAssemblyPartDefinition{
+        .partId = "torso",
+        .defaultModelAssetId = "torso",
+        .visibleByDefault = true
+    });
+    assembly.parts.push_back(VoxelAssemblyPartDefinition{
+        .partId = "hand",
+        .defaultModelAssetId = "hand",
+        .visibleByDefault = true,
+        .defaultStateId = "default",
+        .bindingStates = {
+            VoxelAssemblyBindingState{
+                .stateId = "default",
+                .parentPartId = "torso",
+                .parentAttachmentName = "hand_socket",
+                .localScale = glm::vec3(1.0f),
+                .visible = true
+            }
+        }
+    });
+    assembly.parts.push_back(VoxelAssemblyPartDefinition{
+        .partId = "weapon",
+        .defaultModelAssetId = "dagger",
+        .visibleByDefault = true,
+        .defaultStateId = "default",
+        .bindingStates = {
+            VoxelAssemblyBindingState{
+                .stateId = "default",
+                .parentPartId = "hand",
+                .parentAttachmentName = "weapon_socket",
+                .localScale = glm::vec3(1.0f),
+                .visible = true
+            }
+        }
+    });
+    assemblyRepository.save(assembly);
+
+    VoxelAssetManager assetManager(modelRepository);
+    VoxelAssemblyAssetManager assemblyAssetManager(assemblyRepository);
+
+    GameObject object(glm::vec3(0.0f));
+    auto& assemblyComponent = object.Add<VoxelAssemblyComponent>();
+    assemblyComponent.assetId = "fighter";
+    assemblyComponent.visible = true;
+    auto& animation = object.Add<VoxelAnimationComponent>();
+    animation.currentPose.ensure_part("hand").localPosition = glm::vec3(2.0f, 0.0f, 0.0f);
+
+    const VoxelComponentRenderBundle bundle =
+        build_voxel_component_render_bundle(object, assemblyAssetManager, assetManager);
+
+    std::filesystem::remove_all(tempRoot);
+
+    ASSERT_FALSE(bundle.has_error());
+    const auto handIt = std::ranges::find_if(bundle.entries, [](const VoxelComponentRenderEntry& entry)
+    {
+        return entry.stableId == "hand";
+    });
+    const auto weaponIt = std::ranges::find_if(bundle.entries, [](const VoxelComponentRenderEntry& entry)
+    {
+        return entry.stableId == "weapon";
+    });
+    ASSERT_NE(handIt, bundle.entries.end());
+    ASSERT_NE(weaponIt, bundle.entries.end());
+    EXPECT_FLOAT_EQ(handIt->renderInstance.position.x, 3.0f);
+    EXPECT_FLOAT_EQ(weaponIt->renderInstance.position.x, 4.0f);
 }

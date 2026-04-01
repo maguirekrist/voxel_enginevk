@@ -1,0 +1,266 @@
+{
+  "assemblyAssetId": "player_1",
+  "assetId": "temp",
+  "bindingTracks": [],
+  "displayName": "temp",
+  "durationSeconds": 1.0,
+  "eventTracks": [],
+  "frameRateHint": 24.0,
+  "loopMode": "loop",
+  "motionSourcePartId": "torso_1",
+  "partTracks": [
+    {
+      "partId": "shoe_1",
+      "transformKeys": [
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": -1.8626409303834635e-09,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.0
+        },
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": -0.0625,
+            "z": -0.2187499701976776
+          },
+          "localRotation": {
+            "w": 0.9470384120941162,
+            "x": 0.3111431300640106,
+            "y": 0.007394818589091301,
+            "z": 0.07907865941524506
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 0.9999999403953552,
+            "z": 0.9999999403953552
+          },
+          "timeSeconds": 0.125
+        },
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 0.9999999403953552,
+            "z": 0.9999999403953552
+          },
+          "timeSeconds": 0.4583333432674408
+        }
+      ],
+      "visibilityKeys": []
+    },
+    {
+      "partId": "shoe_1_2",
+      "transformKeys": [
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.3333333432674408
+        },
+        {
+          "localPosition": {
+            "x": -0.006957128643989563,
+            "y": -0.04641735553741455,
+            "z": -0.2344992458820343
+          },
+          "localRotation": {
+            "w": 0.9700992107391357,
+            "x": 0.22981737554073334,
+            "y": 0.007370766252279282,
+            "z": -0.07769861817359924
+          },
+          "localScale": {
+            "x": 0.9999999403953552,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.6666666865348816
+        },
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 0.9999999403953552,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.9583333134651184
+        }
+      ],
+      "visibilityKeys": []
+    },
+    {
+      "partId": "hand_1_2",
+      "transformKeys": [
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.0
+        },
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": -0.1875
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.125
+        },
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.5
+        }
+      ],
+      "visibilityKeys": []
+    },
+    {
+      "partId": "hand_1",
+      "transformKeys": [
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.0
+        },
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": -0.125
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.7083333134651184
+        },
+        {
+          "localPosition": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localRotation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "timeSeconds": 0.9583333134651184
+        }
+      ],
+      "visibilityKeys": []
+    }
+  ],
+  "version": 1
+}

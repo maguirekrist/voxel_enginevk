@@ -22,8 +22,32 @@ namespace
         const VoxelAssemblyAsset& assembly,
         const VoxelAssemblyPartDefinition& part,
         const VoxelAssemblyComponent& component,
+        const VoxelAssemblyPose* pose,
         std::string& diagnostic)
     {
+        if (pose != nullptr)
+        {
+            if (const VoxelAssemblyPosePart* const posePart = pose->find_part(part.partId);
+                posePart != nullptr && posePart->bindingStateId.has_value() && !posePart->bindingStateId->empty())
+            {
+                if (const VoxelAssemblyBindingState* const poseState =
+                    assembly.find_binding_state(part.partId, posePart->bindingStateId.value());
+                    poseState != nullptr)
+                {
+                    return poseState;
+                }
+
+                if (diagnostic.empty())
+                {
+                    diagnostic = std::format(
+                        "Assembly '{}' part '{}' requested missing animation binding state '{}'.",
+                        assembly.assetId,
+                        part.partId,
+                        posePart->bindingStateId.value());
+                }
+            }
+        }
+
         if (const auto overrideIt = component.partBindingStateOverrides.find(part.partId);
             overrideIt != component.partBindingStateOverrides.end() && !overrideIt->second.empty())
         {
@@ -67,7 +91,8 @@ namespace
 VoxelAssemblyLocalBundle build_voxel_assembly_local_bundle(
     const VoxelAssemblyComponent& component,
     VoxelAssemblyAssetManager& assemblyAssetManager,
-    VoxelAssetManager& assetManager)
+    VoxelAssetManager& assetManager,
+    const VoxelAssemblyPose* pose)
 {
     VoxelAssemblyLocalBundle bundle{};
     if (!component.visible || component.assetId.empty())
@@ -135,16 +160,30 @@ VoxelAssemblyLocalBundle build_voxel_assembly_local_bundle(
             return false;
         }
 
-        if (const VoxelAssemblyBindingState* const bindingState = resolve_binding_state(*assembly, part, component, bundle.diagnostic);
+        if (const VoxelAssemblyBindingState* const bindingState = resolve_binding_state(*assembly, part, component, pose, bundle.diagnostic);
             bindingState != nullptr)
         {
             localInstance.visible = localInstance.visible && bindingState->visible;
             const bool isRoot = part.partId == assembly->rootPartId || assembly->rootPartId.empty();
+            const VoxelAssemblyPosePart* const posePart = pose != nullptr ? pose->find_part(part.partId) : nullptr;
+            const glm::vec3 localPosition = posePart != nullptr && posePart->localPosition.has_value()
+                ? (bindingState->localPositionOffset + posePart->localPosition.value())
+                : bindingState->localPositionOffset;
+            const glm::quat localRotation = posePart != nullptr && posePart->localRotation.has_value()
+                ? glm::normalize(bindingState->localRotationOffset * posePart->localRotation.value())
+                : bindingState->localRotationOffset;
+            const glm::vec3 localScale = posePart != nullptr && posePart->localScale.has_value()
+                ? (bindingState->localScale * posePart->localScale.value())
+                : bindingState->localScale;
+            if (posePart != nullptr && posePart->visible.has_value())
+            {
+                localInstance.visible = localInstance.visible && posePart->visible.value();
+            }
             if (isRoot || bindingState->parentPartId.empty())
             {
-                localInstance.scale = uniform_scale_from_vec3(bindingState->localScale);
-                localInstance.rotation = bindingState->localRotationOffset;
-                localInstance.position = bindingState->localPositionOffset;
+                localInstance.scale = uniform_scale_from_vec3(localScale);
+                localInstance.rotation = localRotation;
+                localInstance.position = localPosition;
             }
             else if (const VoxelAssemblyPartDefinition* const parentPart = assembly->find_part(bindingState->parentPartId);
                 parentPart != nullptr)
@@ -152,7 +191,7 @@ VoxelAssemblyLocalBundle build_voxel_assembly_local_bundle(
                 VoxelRenderInstance parentInstance{};
                 if (resolvePart(*parentPart, parentInstance))
                 {
-                    localInstance.scale = parentInstance.scale * uniform_scale_from_vec3(bindingState->localScale);
+                    localInstance.scale = parentInstance.scale * uniform_scale_from_vec3(localScale);
 
                     if (const VoxelAttachment* const attachment =
                         parentInstance.asset->model.find_attachment(bindingState->parentAttachmentName);
@@ -160,15 +199,15 @@ VoxelAssemblyLocalBundle build_voxel_assembly_local_bundle(
                     {
                         const glm::quat attachmentRotation = voxel::orientation::basis_quat_from_attachment(*attachment);
                         const glm::quat parentAttachmentRotation = parentInstance.rotation * attachmentRotation;
-                        localInstance.rotation = parentAttachmentRotation * bindingState->localRotationOffset;
+                        localInstance.rotation = parentAttachmentRotation * localRotation;
                         localInstance.position = parentInstance.world_point_from_asset_local(attachment->position) +
-                            (parentAttachmentRotation * (bindingState->localPositionOffset * parentInstance.scale));
+                            (parentAttachmentRotation * (localPosition * parentInstance.scale));
                     }
                     else
                     {
-                        localInstance.rotation = parentInstance.rotation * bindingState->localRotationOffset;
+                        localInstance.rotation = parentInstance.rotation * localRotation;
                         localInstance.position = parentInstance.position +
-                            (parentInstance.rotation * (bindingState->localPositionOffset * parentInstance.scale));
+                            (parentInstance.rotation * (localPosition * parentInstance.scale));
                     }
                 }
             }
@@ -235,10 +274,11 @@ VoxelAssemblyLocalBundle build_voxel_assembly_local_bundle(
 VoxelAssemblyRenderBundle build_voxel_assembly_render_bundle(
     const VoxelAssemblyComponent& component,
     VoxelAssemblyAssetManager& assemblyAssetManager,
-    VoxelAssetManager& assetManager)
+    VoxelAssetManager& assetManager,
+    const VoxelAssemblyPose* pose)
 {
     const VoxelAssemblyLocalBundle localBundle =
-        build_voxel_assembly_local_bundle(component, assemblyAssetManager, assetManager);
+        build_voxel_assembly_local_bundle(component, assemblyAssetManager, assetManager, pose);
 
     VoxelAssemblyRenderBundle bundle{};
     bundle.assemblyAssetId = localBundle.assemblyAssetId;
