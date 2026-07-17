@@ -7,12 +7,38 @@
 #include "tracy/Tracy.hpp"
 #include <algorithm>
 #include <memory>
+#include <thread>
 
 namespace
 {
-    constexpr int MaxGenerateJobsPerTick = 8;
-    constexpr int MaxLightJobsPerTick = 8;
-    constexpr int MaxMeshJobsPerTick = 8;
+    struct ChunkWorkerBudget
+    {
+        int generateWorkers{1};
+        int lightWorkers{1};
+        int meshWorkers{2};
+    };
+
+    [[nodiscard]] ChunkWorkerBudget default_chunk_worker_budget() noexcept
+    {
+        const unsigned int hardwareThreads = std::thread::hardware_concurrency();
+        if (hardwareThreads == 0)
+        {
+            return ChunkWorkerBudget{};
+        }
+
+        // Background chunk work can use more cores than the previous conservative cap,
+        // but still leave headroom for the main/render threads and the OS.
+        const unsigned int desiredThreads = hardwareThreads > 4 ? hardwareThreads - 2 : hardwareThreads;
+        const int totalWorkers = static_cast<int>(std::clamp(desiredThreads, 4u, 12u));
+        const int lightWorkers = std::max(2, totalWorkers / 3);
+        const int meshWorkers = std::max(2, totalWorkers / 4);
+        const int generateWorkers = std::max(2, totalWorkers - lightWorkers - meshWorkers);
+        return ChunkWorkerBudget{
+            .generateWorkers = generateWorkers,
+            .lightWorkers = lightWorkers,
+            .meshWorkers = meshWorkers
+        };
+    }
 
     [[nodiscard]] int chunk_distance_sq(const ChunkCoord a, const ChunkCoord b) noexcept
     {
@@ -22,18 +48,28 @@ namespace
     }
 }
 
-ChunkManager::ChunkManager() : m_chunkCache(nullptr)
+ChunkManager::ChunkManager() :
+    m_chunkCache(nullptr),
+    _generateThreadPool(default_chunk_worker_budget().generateWorkers),
+    _lightThreadPool(default_chunk_worker_budget().lightWorkers),
+    _meshThreadPool(default_chunk_worker_budget().meshWorkers)
 {
+    const ChunkWorkerBudget workerBudget = default_chunk_worker_budget();
+    _generateWorkerCount = workerBudget.generateWorkers;
+    _lightWorkerCount = workerBudget.lightWorkers;
+    _meshWorkerCount = workerBudget.meshWorkers;
 }
 
 ChunkManager::~ChunkManager() = default;
 
 void ChunkManager::update_player_position(const glm::vec3& position)
 {
-    const ChunkCoord playerChunk = World::get_chunk_coordinates(position);
+    ZoneScopedN("ChunkManager::update_player_position");
+    const ChunkCoord playerChunk = World::get_chunk_coordinates(position, _geometry);
 
     if (playerChunk != _lastPlayerChunk || _initialLoad)
     {
+        ZoneScopedN("ChunkManager::HandlePlayerChunkTransition");
         const auto changeX = playerChunk.x - _lastPlayerChunk.x;
         const auto changeZ = playerChunk.z - _lastPlayerChunk.z;
         _lastPlayerChunk = playerChunk;
@@ -46,22 +82,32 @@ void ChunkManager::update_player_position(const glm::vec3& position)
         }
         else
         {
-            auto new_chunks = m_chunkCache->slide({ changeX, changeZ });
-
-            for (Chunk* const chunk : new_chunks)
+            std::vector<Chunk*> new_chunks{};
             {
-                reset_chunk_runtime(chunk);
-                _renderResetEvents.enqueue(ChunkRenderResetEvent{
-                    .chunk = chunk,
-                    .generation = chunk->_gen.load(std::memory_order::acquire)
-                });
+                ZoneScopedN("ChunkManager::SlideChunkCache");
+                new_chunks = m_chunkCache->slide({ changeX, changeZ });
+            }
+
+            {
+                ZoneScopedN("ChunkManager::ResetRecycledChunks");
+                for (Chunk* const chunk : new_chunks)
+                {
+                    reset_chunk_runtime(chunk);
+                    _renderResetEvents.enqueue(ChunkRenderResetEvent{
+                        .chunk = chunk,
+                        .generation = chunk->_gen.load(std::memory_order_acquire)
+                    });
+                }
             }
 
         }
     }
 
     drain_generate_results();
-    apply_pending_world_edits();
+    {
+        ZoneScopedN("ChunkManager::ApplyPendingWorldEdits");
+        apply_pending_world_edits();
+    }
     drain_light_results();
     drain_mesh_results();
     run_scheduler();
@@ -106,7 +152,10 @@ std::optional<ChunkManager::ChunkDebugState> ChunkManager::debug_state(const Chu
 
 void ChunkManager::initialize_map(const MapRange mapRange)
 {
-    m_chunkCache = std::make_unique<ChunkCache>(_viewDistance);
+    m_chunkCache = std::make_unique<ChunkCache>(
+        _viewDistance,
+        _geometry.chunk_voxel_width(),
+        _geometry.chunk_voxel_height());
     _runtimeByChunk.clear();
 
     for (auto& chunk : m_chunkCache->m_chunks)
@@ -165,7 +214,7 @@ void ChunkManager::regenerate_world()
         }
 
         const ChunkCoord coord = chunk->_data != nullptr ? chunk->_data->coord : ChunkCoord{};
-        chunk->reset(coord);
+        chunk->reset(coord, _geometry.chunk_voxel_width(), _geometry.chunk_voxel_height());
         reset_chunk_runtime(chunk);
         _renderResetEvents.enqueue(ChunkRenderResetEvent{
             .chunk = chunk,
@@ -197,7 +246,19 @@ int ChunkManager::view_distance() const noexcept
     return _viewDistance;
 }
 
-void ChunkManager::notify_chunk_uploaded(Chunk* chunk, const uint32_t generationId, const uint64_t neighborhoodSignature)
+void ChunkManager::set_world_geometry(const WorldGeometrySettings& settings) noexcept
+{
+    _geometry = WorldGeometry(settings);
+    TerrainGenerator::instance().set_world_geometry(
+        _geometry.chunk_voxel_width(),
+        _geometry.chunk_voxel_height(),
+        _geometry.block_world_size());
+}
+
+void ChunkManager::notify_chunk_uploaded(
+    Chunk* chunk,
+    const uint32_t generationId,
+    const uint64_t neighborhoodSignature)
 {
     if (chunk == nullptr)
     {
@@ -226,6 +287,7 @@ void ChunkManager::notify_chunk_uploaded(Chunk* chunk, const uint32_t generation
 
 void ChunkManager::drain_generate_results()
 {
+    ZoneScopedN("ChunkManager::DrainGenerateResults");
     ChunkGenerateResult result;
     while (_generateResults.try_dequeue(result))
     {
@@ -259,6 +321,7 @@ void ChunkManager::drain_generate_results()
 
 void ChunkManager::drain_light_results()
 {
+    ZoneScopedN("ChunkManager::DrainLightResults");
     ChunkLightBuildResult result;
     while (_lightResults.try_dequeue(result))
     {
@@ -296,8 +359,7 @@ void ChunkManager::drain_light_results()
         record.lightVersion += 1;
         record.litAgainstSignature = result.neighborhoodSignature;
         record.lightState = LightState::Ready;
-        record.meshState = MeshState::Missing;
-        record.meshedAgainstSignature = 0;
+        record.meshState = MeshState::Stale;
         record.uploadPending = false;
         result.chunk->_state.store(ChunkState::Generated, std::memory_order::release);
     }
@@ -305,6 +367,7 @@ void ChunkManager::drain_light_results()
 
 void ChunkManager::drain_mesh_results()
 {
+    ZoneScopedN("ChunkManager::DrainMeshResults");
     ChunkMeshBuildResult result;
     while (_meshResults.try_dequeue(result))
     {
@@ -347,7 +410,7 @@ void ChunkManager::apply_pending_world_edits()
 {
     while (const std::optional<BlockEdit> edit = _worldEditQueue.try_dequeue())
     {
-        Chunk* const ownerChunk = get_chunk(World::get_chunk_coordinates(edit->worldPos));
+        Chunk* const ownerChunk = get_chunk(World::get_chunk_coordinates(glm::vec3(edit->worldPos), _geometry));
         if (ownerChunk == nullptr)
         {
             continue;
@@ -366,7 +429,7 @@ void ChunkManager::apply_pending_world_edits()
         }
 
         const glm::ivec3 localPos = ownerRecord.data->to_local_position(edit->worldPos);
-        if (Chunk::is_outside_chunk(localPos))
+        if (Chunk::is_outside_chunk(localPos, ownerRecord.data->voxelWidth, ownerRecord.data->voxelHeight))
         {
             continue;
         }
@@ -380,12 +443,24 @@ void ChunkManager::apply_pending_world_edits()
         }
 
         const bool opacityChanged = existingBlock._solid != edit->newBlock._solid;
+        const bool removedEmitter = get_block_emission(existingBlock._type).emits && !get_block_emission(edit->newBlock._type).emits;
         Block updatedBlock = edit->newBlock;
         updatedBlock._sunlight = 0;
         updatedBlock._localLight = {};
         existingBlock = updatedBlock;
+        if (ownerRecord.data != nullptr)
+        {
+            if (get_block_emission(updatedBlock._type).emits)
+            {
+                ownerRecord.data->mark_emissive_blocks_present();
+            }
+            else if (removedEmitter)
+            {
+                ownerRecord.data->invalidate_cached_properties();
+            }
+        }
 
-        for (const DirtyChunkMark& mark : _dirtyTracker.affected_chunks(ownerRecord.coord, localPos))
+        for (const DirtyChunkMark& mark : _dirtyTracker.affected_chunks(ownerRecord.coord, localPos, ownerRecord.data->voxelWidth))
         {
             if (Chunk* const dirtyChunk = get_chunk(mark.coord))
             {
@@ -397,6 +472,7 @@ void ChunkManager::apply_pending_world_edits()
 
 void ChunkManager::run_scheduler()
 {
+    ZoneScopedN("ChunkManager::RunScheduler");
     if (m_chunkCache == nullptr)
     {
         return;
@@ -419,6 +495,24 @@ void ChunkManager::run_scheduler()
     int generateJobsQueued = 0;
     int lightJobsQueued = 0;
     int meshJobsQueued = 0;
+    int generateJobsInFlight = 0;
+    int lightJobsInFlight = 0;
+    int meshJobsInFlight = 0;
+
+    for (const auto& [chunk, runtime] : _runtimeByChunk)
+    {
+        static_cast<void>(chunk);
+        generateJobsInFlight += runtime.record.generationJobInFlight ? 1 : 0;
+        lightJobsInFlight += runtime.record.lightJobInFlight ? 1 : 0;
+        meshJobsInFlight += runtime.record.meshJobInFlight ? 1 : 0;
+    }
+
+    TracyPlot("Chunk Jobs InFlight Generate", static_cast<int64_t>(generateJobsInFlight));
+    TracyPlot("Chunk Jobs InFlight Light", static_cast<int64_t>(lightJobsInFlight));
+    TracyPlot("Chunk Jobs InFlight Mesh", static_cast<int64_t>(meshJobsInFlight));
+    TracyPlot("Chunk Jobs Queued Generate", static_cast<int64_t>(generateJobsQueued));
+    TracyPlot("Chunk Jobs Queued Light", static_cast<int64_t>(lightJobsQueued));
+    TracyPlot("Chunk Jobs Queued Mesh", static_cast<int64_t>(meshJobsQueued));
 
     for (Chunk* const chunk : prioritizedChunks)
     {
@@ -429,48 +523,25 @@ void ChunkManager::run_scheduler()
         }
 
         ChunkRecord& record = runtime->record;
-        if (generateJobsQueued < MaxGenerateJobsPerTick && _scheduler.should_generate(record))
+        if (_scheduler.should_generate(record))
         {
             queue_generate(chunk);
             ++generateJobsQueued;
             continue;
         }
 
-        ChunkNeighborhood neighborhood{};
-        uint64_t lightSignature = 0;
-        const bool lightNeighborsReady = required_neighbors_have_data(record.coord, lightSignature, neighborhood);
-
-        if (record.lightState == LightState::Ready &&
-            lightNeighborsReady &&
-            record.litAgainstSignature != 0 &&
-            record.litAgainstSignature != lightSignature)
+        if (try_queue_light_for_chunk(chunk))
         {
-            record.lightState = LightState::Stale;
-        }
-
-        if (lightJobsQueued < MaxLightJobsPerTick && _scheduler.should_light(record, lightNeighborsReady, lightSignature))
-        {
-            queue_light(chunk, lightSignature, neighborhood);
             ++lightJobsQueued;
-            continue;
         }
 
+        ChunkNeighborhood neighborhood{};
         uint64_t meshSignature = 0;
         const bool meshNeighborsReady = required_neighbors_have_lighting(record.coord, meshSignature, neighborhood);
-
-        if ((record.meshState == MeshState::Uploaded || record.meshState == MeshState::MeshReady) &&
-            meshNeighborsReady &&
-            record.meshedAgainstSignature != 0 &&
-            record.meshedAgainstSignature != meshSignature)
-        {
-            record.meshState = MeshState::Stale;
-        }
-
-        if (meshJobsQueued < MaxMeshJobsPerTick && _scheduler.should_mesh(record, meshNeighborsReady, meshSignature))
+        if (_scheduler.should_mesh(record, meshNeighborsReady, meshSignature))
         {
             queue_mesh(chunk, meshSignature, neighborhood);
             ++meshJobsQueued;
-            continue;
         }
 
         if (_scheduler.should_upload(record))
@@ -487,6 +558,10 @@ void ChunkManager::run_scheduler()
             });
         }
     }
+
+    TracyPlot("Chunk Jobs Queued Generate", static_cast<int64_t>(generateJobsQueued));
+    TracyPlot("Chunk Jobs Queued Light", static_cast<int64_t>(lightJobsQueued));
+    TracyPlot("Chunk Jobs Queued Mesh", static_cast<int64_t>(meshJobsQueued));
 }
 
 void ChunkManager::reset_chunk_runtime(Chunk* chunk)
@@ -553,6 +628,7 @@ void ChunkManager::mark_chunk_dirty(Chunk* chunk, const bool dataChanged, const 
 
 void ChunkManager::queue_generate(Chunk* const chunk)
 {
+    ZoneScopedN("ChunkManager::QueueGenerate");
     ChunkRuntime* const runtime = runtime_for(chunk);
     if (runtime == nullptr)
     {
@@ -564,11 +640,17 @@ void ChunkManager::queue_generate(Chunk* const chunk)
     record.dataState = DataState::Generating;
     const uint32_t generationId = record.chunkGenerationId;
     const ChunkCoord coord = record.coord;
-    const glm::ivec2 position = record.data != nullptr ? record.data->position : glm::ivec2(coord.x * CHUNK_SIZE, coord.z * CHUNK_SIZE);
+    const glm::ivec2 position = record.data != nullptr
+        ? record.data->position
+        : glm::ivec2(coord.x * _geometry.chunk_voxel_width(), coord.z * _geometry.chunk_voxel_width());
 
-    _threadPool.post([this, chunk, generationId, coord, position]() noexcept
+    _generateThreadPool.post([this, chunk, generationId, coord, position]() noexcept
     {
-        auto generated = std::make_shared<ChunkData>(coord, position);
+        auto generated = std::make_shared<ChunkData>(
+            coord,
+            position,
+            _geometry.chunk_voxel_width(),
+            _geometry.chunk_voxel_height());
         generated->generate();
 
         _generateResults.enqueue(ChunkGenerateResult{
@@ -581,6 +663,7 @@ void ChunkManager::queue_generate(Chunk* const chunk)
 
 void ChunkManager::queue_light(Chunk* const chunk, const uint64_t neighborhoodSignature, const ChunkNeighborhood& neighborhood)
 {
+    ZoneScopedN("ChunkManager::QueueLight");
     ChunkRuntime* const runtime = runtime_for(chunk);
     if (runtime == nullptr)
     {
@@ -593,7 +676,7 @@ void ChunkManager::queue_light(Chunk* const chunk, const uint64_t neighborhoodSi
     const uint32_t generationId = record.chunkGenerationId;
     const uint32_t dataVersion = record.dataVersion;
 
-    _threadPool.post([this, chunk, generationId, dataVersion, neighborhoodSignature, neighborhood]() noexcept
+    _lightThreadPool.post([this, chunk, generationId, dataVersion, neighborhoodSignature, neighborhood]() noexcept
     {
         auto litData = ChunkLighting::solve_skylight(neighborhood);
 
@@ -608,8 +691,12 @@ void ChunkManager::queue_light(Chunk* const chunk, const uint64_t neighborhoodSi
     });
 }
 
-void ChunkManager::queue_mesh(Chunk* const chunk, const uint64_t neighborhoodSignature, const ChunkNeighborhood& neighborhood)
+void ChunkManager::queue_mesh(
+    Chunk* const chunk,
+    const uint64_t neighborhoodSignature,
+    const ChunkNeighborhood& neighborhood)
 {
+    ZoneScopedN("ChunkManager::QueueMesh");
     ChunkRuntime* const runtime = runtime_for(chunk);
     if (runtime == nullptr)
     {
@@ -621,10 +708,11 @@ void ChunkManager::queue_mesh(Chunk* const chunk, const uint64_t neighborhoodSig
     record.meshState = MeshState::Meshing;
     const uint32_t generationId = record.chunkGenerationId;
     const uint32_t dataVersion = record.dataVersion;
+    const WorldGeometry geometry = _geometry;
 
-    _threadPool.post([this, chunk, generationId, dataVersion, neighborhoodSignature, neighborhood]() noexcept
+    _meshThreadPool.post([this, chunk, generationId, dataVersion, neighborhoodSignature, neighborhood, geometry]() noexcept
     {
-        ChunkMesher mesher{ neighborhood, _ambientOcclusionEnabled };
+        ChunkMesher mesher{ neighborhood, geometry, _ambientOcclusionEnabled };
         auto meshData = mesher.generate_mesh();
 
         _meshResults.enqueue(ChunkMeshBuildResult{
@@ -636,6 +724,41 @@ void ChunkManager::queue_mesh(Chunk* const chunk, const uint64_t neighborhoodSig
             .meshData = std::move(meshData)
         });
     });
+}
+
+bool ChunkManager::try_queue_light_for_chunk(Chunk* const chunk)
+{
+    if (chunk == nullptr)
+    {
+        return false;
+    }
+
+    ChunkRuntime* const runtime = runtime_for(chunk);
+    if (runtime == nullptr)
+    {
+        return false;
+    }
+
+    ChunkRecord& record = runtime->record;
+    ChunkNeighborhood neighborhood{};
+    uint64_t lightSignature = 0;
+    const bool lightNeighborsReady = required_neighbors_have_data(record.coord, lightSignature, neighborhood);
+
+    if (record.lightState == LightState::Ready &&
+        lightNeighborsReady &&
+        record.litAgainstSignature != 0 &&
+        record.litAgainstSignature != lightSignature)
+    {
+        record.lightState = LightState::Stale;
+    }
+
+    if (_scheduler.should_light(record, lightNeighborsReady, lightSignature))
+    {
+        queue_light(chunk, lightSignature, neighborhood);
+        return true;
+    }
+
+    return false;
 }
 
 bool ChunkManager::try_dequeue_render_reset(ChunkRenderResetEvent& event)

@@ -3,6 +3,7 @@
 set -euo pipefail
 
 config="Debug"
+exe_name="game"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -14,8 +15,16 @@ while [[ $# -gt 0 ]]; do
             config="Debug"
             shift
             ;;
+        --exe-name)
+            if [[ $# -lt 2 ]]; then
+                echo "Usage: $0 [--debug|--release] [--exe-name <name>]" >&2
+                exit 1
+            fi
+            exe_name="$2"
+            shift 2
+            ;;
         *)
-            echo "Usage: $0 [--debug|--release]" >&2
+            echo "Usage: $0 [--debug|--release] [--exe-name <name>]" >&2
             exit 1
             ;;
     esac
@@ -38,6 +47,7 @@ configure_args=(
     -S "${repo_root}"
     -B "${build_dir}"
     -G "${generator}"
+    -DVOXEL_ENGINE_OUTPUT_NAME="${exe_name}"
 )
 
 case "${generator}" in
@@ -66,3 +76,4 @@ cp -R "${shader_source_dir}/." "${runtime_shader_dir}/"
 
 echo "Build and shader sync complete."
 echo "Executable directory: ${runtime_dir}"
+echo "Executable path: ${runtime_dir}/${exe_name}"

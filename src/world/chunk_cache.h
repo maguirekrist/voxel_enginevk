@@ -10,9 +10,11 @@
 class ChunkCache {
     int m_radius{};
     int m_width{};
+    int m_chunkVoxelWidth{static_cast<int>(CHUNK_SIZE)};
+    int m_chunkVoxelHeight{static_cast<int>(CHUNK_HEIGHT)};
     mutable std::shared_mutex m_mutex{};
 
-    [[nodiscard]] std::optional<std::size_t> get_chunk_index(ChunkCoord coord) const;
+    [[nodiscard]] std::optional<std::size_t> get_chunk_index_unlocked(ChunkCoord coord) const;
 
     std::vector<Chunk*> slide_east();
     std::vector<Chunk*> slide_west();
@@ -32,7 +34,7 @@ public:
     int m_origin_buf_z{0};
     std::vector<std::unique_ptr<Chunk>> m_chunks{};
 
-    explicit ChunkCache(int view_distance);
+    ChunkCache(int view_distance, int chunkVoxelWidth, int chunkVoxelHeight);
     ~ChunkCache();
 
     ChunkCache(ChunkCache&&) noexcept = delete;

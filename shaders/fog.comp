@@ -11,6 +11,8 @@ layout(set = 2, binding = 0) uniform FogUBO {
     vec3 fogCenter;
     float fogRadius;
     ivec2 screenSize; //width, height
+    vec4 fogParams1; // x=fogDistanceRange, y=fogHeightMin, z=fogHeightMax
+    vec4 waterFogParams;
     mat4 inverseViewProject;
 } ubo;
 
@@ -19,9 +21,6 @@ layout(local_size_x = 16, local_size_y = 16) in;         // Define workgroup siz
 
 // float camNear = 1.0f;
 // float camFar = 10000.0f;
-
-float minHeight = 0.0f;
-float maxHeight = 15000.0f;
 
 float linearizeDepth(float depth, float near, float far) {
     float z = depth * 2.0 - 1.0; // Convert [0, 1] depth to NDC space [-1, 1]
@@ -54,14 +53,17 @@ void main() {
     
 
     //float heightFactor = clamp((worldPos.y - minHeight) / (maxHeight - minHeight), 0.0, 1.0);
-    float heightFactor = smoothstep(minHeight, maxHeight, worldPos.y);
+    float fogHeightMin = ubo.fogParams1.y;
+    float fogHeightMax = max(fogHeightMin + 0.001, ubo.fogParams1.z);
+    float heightFactor = smoothstep(fogHeightMin, fogHeightMax, worldPos.y);
     vec3 fogColor = mix(ubo.fogColor, ubo.fogEndColor, heightFactor);
 
     float distanceToCenter = length(worldPos.xyz - ubo.fogCenter);
 
     //float delta = (distanceToCenter - ubo.fogRadius);
 
-    float fogFactor = computeFogFactor(distanceToCenter, ubo.fogRadius, ubo.fogRadius + 60.0f);
+    float fogDistanceRange = max(0.001, ubo.fogParams1.x);
+    float fogFactor = computeFogFactor(distanceToCenter, ubo.fogRadius, ubo.fogRadius + fogDistanceRange);
 
 
 

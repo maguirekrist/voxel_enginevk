@@ -50,6 +50,20 @@ private:
         bool boundsCached{false};
     };
 
+    struct WorldGenPreviewCache
+    {
+        bool valid{false};
+        ChunkCoord centerChunk{};
+        int viewDistance{0};
+        int layer{0};
+        int previewResolution{0};
+        int worldSpan{0};
+        int chunkVoxelWidth{0};
+        int chunkVoxelHeight{0};
+        TerrainGeneratorSettings appliedSettings{};
+        std::vector<uint32_t> colors{};
+    };
+
     struct CameraUBO {
         glm::mat4 projection;
         glm::mat4 view;
@@ -89,6 +103,9 @@ private:
         glm::ivec2 screenSize; // 8 bytes
         float padding2[2];     // 8 bytes of padding to align the next mat4
 
+        glm::vec4 fogParams1;   // x=fogDistanceRange, y=fogHeightMin, z=fogHeightMax
+        glm::vec4 waterFogParams; // x=distanceClear, y=distanceDense, z=factorClear, w=factorDense
+
         glm::mat4 invViewProject; // 64 bytes
     };
 
@@ -117,7 +134,9 @@ private:
     int _viewDistanceDraft{GameConfig::DEFAULT_VIEW_DISTANCE};
     TerrainGeneratorSettings _worldGenDraft{};
     int _worldGenPreviewLayer{0};
+    int _worldGenPreviewMaxResolution{72};
     bool _worldGenDraftInitialized{false};
+    WorldGenPreviewCache _worldGenPreviewCache{};
 
     CubeEngine _game;
     std::unique_ptr<Camera> _camera;
@@ -158,6 +177,13 @@ private:
     void apply_ambient_occlusion_settings(const settings::AmbientOcclusionRuntimeSettings& settings);
     void apply_player_settings(const settings::PlayerRuntimeSettings& settings);
     void sync_world_gen_draft();
+    void invalidate_world_gen_preview_cache() noexcept;
+    void rebuild_world_gen_preview_cache(
+        ChunkCoord centerChunk,
+        int viewDistance,
+        int layer,
+        int previewResolution);
+    void draw_world_gen_preview(const char* label, ChunkCoord centerChunk, int viewDistance, int layer);
     void clear_target_block_outline();
     void clear_spatial_collider_debug();
     void release_spatial_collider_debug_meshes();

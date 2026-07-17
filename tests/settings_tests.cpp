@@ -28,7 +28,15 @@ TEST(GameSettingsConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     persistence.dayNight.tuning.nightMoon = { 0.31f, 0.37f, 0.72f };
     persistence.dayNight.tuning.aoStrength = 0.22f;
     persistence.dayNight.tuning.shadowStrength = 2.2f;
+    persistence.dayNight.tuning.fogDistanceOffset = -96.0f;
+    persistence.dayNight.tuning.fogDistanceRange = 124.0f;
+    persistence.dayNight.tuning.fogHeightMin = -32.0f;
+    persistence.dayNight.tuning.fogHeightMax = 4096.0f;
     persistence.dayNight.tuning.cycleDurationSeconds = 420.0f;
+    persistence.dayNight.tuning.waterFogDistanceClear = 220.0f;
+    persistence.dayNight.tuning.waterFogDistanceDense = 36.0f;
+    persistence.dayNight.tuning.waterFogFactorClear = 0.55f;
+    persistence.dayNight.tuning.waterFogFactorDense = 1.65f;
 
     const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_game_settings_repo_test";
     std::filesystem::remove_all(tempRoot);
@@ -59,6 +67,14 @@ TEST(GameSettingsConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     EXPECT_FLOAT_EQ(loaded.dayNight.tuning.nightMoon.z, persistence.dayNight.tuning.nightMoon.z);
     EXPECT_FLOAT_EQ(loaded.dayNight.tuning.aoStrength, persistence.dayNight.tuning.aoStrength);
     EXPECT_FLOAT_EQ(loaded.dayNight.tuning.shadowStrength, persistence.dayNight.tuning.shadowStrength);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.fogDistanceOffset, persistence.dayNight.tuning.fogDistanceOffset);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.fogDistanceRange, persistence.dayNight.tuning.fogDistanceRange);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.fogHeightMin, persistence.dayNight.tuning.fogHeightMin);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.fogHeightMax, persistence.dayNight.tuning.fogHeightMax);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.waterFogDistanceClear, persistence.dayNight.tuning.waterFogDistanceClear);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.waterFogDistanceDense, persistence.dayNight.tuning.waterFogDistanceDense);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.waterFogFactorClear, persistence.dayNight.tuning.waterFogFactorClear);
+    EXPECT_FLOAT_EQ(loaded.dayNight.tuning.waterFogFactorDense, persistence.dayNight.tuning.waterFogFactorDense);
     EXPECT_FLOAT_EQ(loaded.dayNight.tuning.cycleDurationSeconds, persistence.dayNight.tuning.cycleDurationSeconds);
 }
 
@@ -77,16 +93,23 @@ TEST(SettingsManagerTest, ViewDistanceHandlersReceiveDerivedRuntimeValues)
     EXPECT_EQ(notifications, 1);
     EXPECT_EQ(last.viewDistance, GameConfig::DEFAULT_VIEW_DISTANCE);
     EXPECT_EQ(last.maximumResidentChunks, maximum_chunks_for_view_distance(GameConfig::DEFAULT_VIEW_DISTANCE));
+    EXPECT_FLOAT_EQ(last.fogRadius, (static_cast<float>(CHUNK_SIZE) * static_cast<float>(GameConfig::DEFAULT_VIEW_DISTANCE)) - 60.0f);
 
     const bool changed = manager.mutate([](settings::GameSettingsPersistence& persistence)
     {
         persistence.world.viewDistance = 18;
+        persistence.dayNight.tuning.fogDistanceOffset = -96.0f;
     });
 
     EXPECT_TRUE(changed);
     EXPECT_EQ(notifications, 2);
     EXPECT_EQ(last.viewDistance, 18);
     EXPECT_EQ(last.maximumResidentChunks, maximum_chunks_for_view_distance(18));
+    EXPECT_FLOAT_EQ(last.fogRadius, (static_cast<float>(CHUNK_SIZE) * 18.0f) - 96.0f);
+
+    manager.set_chunk_world_width(24.0f);
+    EXPECT_EQ(notifications, 3);
+    EXPECT_FLOAT_EQ(last.fogRadius, (24.0f * 18.0f) - 96.0f);
 }
 
 TEST(SettingsManagerTest, AmbientOcclusionUpdatesOnlyRelevantSubscribers)

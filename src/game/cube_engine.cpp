@@ -121,6 +121,11 @@ void CubeEngine::regenerate_world()
     _chunkManager.regenerate_world();
 }
 
+void CubeEngine::set_world_geometry(const WorldGeometrySettings& settings)
+{
+    _chunkManager.set_world_geometry(settings);
+}
+
 ChunkManager& CubeEngine::chunk_manager()
 {
     return _chunkManager;
@@ -129,6 +134,11 @@ ChunkManager& CubeEngine::chunk_manager()
 const ChunkManager& CubeEngine::chunk_manager() const
 {
     return _chunkManager;
+}
+
+const WorldGeometry& CubeEngine::world_geometry() const noexcept
+{
+    return _chunkManager.geometry();
 }
 
 void CubeEngine::create_player()

@@ -17,7 +17,7 @@ struct Mesh {
 
     static std::shared_ptr<Mesh> create_cube_mesh();
     static std::shared_ptr<Mesh> create_quad_mesh();
-    static std::shared_ptr<Mesh> create_chunk_boundary_mesh();
+    static std::shared_ptr<Mesh> create_chunk_boundary_mesh(float chunkWidth, float chunkHeight);
     static std::shared_ptr<Mesh> create_block_indicator_mesh(const glm::vec3& blockMinCorner, float blockSize);
     static std::shared_ptr<Mesh> create_point_marker_mesh(const glm::vec3& center, float size, const glm::vec3& color);
     static std::shared_ptr<Mesh> create_box_preview_mesh(const glm::vec3& minCorner, const glm::vec3& maxCorner, const glm::vec3& color);

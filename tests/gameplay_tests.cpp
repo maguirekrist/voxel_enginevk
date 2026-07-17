@@ -13,6 +13,31 @@
 
 using test_support::contains_block;
 
+namespace
+{
+    struct StructureBounds
+    {
+        glm::ivec3 min{};
+        glm::ivec3 max{};
+    };
+
+    [[nodiscard]] StructureBounds compute_structure_bounds(const std::vector<StructureBlockEdit>& edits)
+    {
+        StructureBounds bounds{
+            .min = glm::ivec3(std::numeric_limits<int>::max()),
+            .max = glm::ivec3(std::numeric_limits<int>::min())
+        };
+
+        for (const StructureBlockEdit& edit : edits)
+        {
+            bounds.min = glm::min(bounds.min, edit.worldPosition);
+            bounds.max = glm::max(bounds.max, edit.worldPosition);
+        }
+
+        return bounds;
+    }
+}
+
 TEST(PlayerEntityTest, WorldBoundsUseFeetPositionAsBase)
 {
     PlayerEntity player{ glm::vec3(4.0f, 10.0f, -2.0f) };
@@ -46,10 +71,7 @@ TEST(DecorationPlacementTest, ForestFlowersRequireForestBiome)
 
 TEST(DecorationPlacementTest, SurfaceDecorationRequiresGroundAndAirClearance)
 {
-    ChunkData chunk{
-        .coord = ChunkCoord{0, 0},
-        .position = glm::ivec2(0, 0)
-    };
+    ChunkData chunk{ ChunkCoord{0, 0}, glm::ivec2(0, 0) };
 
     for (int x = 0; x < CHUNK_SIZE; ++x)
     {
@@ -218,4 +240,47 @@ TEST(CloudStructureGeneratorTest, CloudBuildsFlatBottomPuffyVolume)
     EXPECT_EQ(minY, anchor.worldOrigin.y);
     EXPECT_GT(maxY, anchor.worldOrigin.y);
     EXPECT_GE(baseLayerBlocks, 12);
+}
+
+TEST(StructureScalingTest, OakTreePreservesApproximatePhysicalExtentAcrossFidelitySettings)
+{
+    TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
+    const int originalVoxelWidth = terrainGenerator.chunk_voxel_width();
+    const int originalVoxelHeight = terrainGenerator.chunk_voxel_height();
+    const float originalBlockWorldSize = terrainGenerator.block_world_size();
+
+    TreeStructureGenerator generator;
+    StructureGenerationContext context{
+        .terrainGenerator = &terrainGenerator
+    };
+
+    terrainGenerator.set_world_geometry(16, 256, 1.0f);
+    const StructureAnchor baselineAnchor{
+        .type = StructureType::TREE,
+        .worldOrigin = {24, 84, 24},
+        .seed = 1337,
+        .treeVariant = TreeVariant::Oak
+    };
+    const std::vector<StructureBlockEdit> baselineEdits = generator.generate(baselineAnchor, context);
+    const StructureBounds baselineBounds = compute_structure_bounds(baselineEdits);
+
+    terrainGenerator.set_world_geometry(24, 384, 2.0f / 3.0f);
+    const StructureAnchor denseAnchor{
+        .type = StructureType::TREE,
+        .worldOrigin = {36, 126, 36},
+        .seed = 1337,
+        .treeVariant = TreeVariant::Oak
+    };
+    const std::vector<StructureBlockEdit> denseEdits = generator.generate(denseAnchor, context);
+    const StructureBounds denseBounds = compute_structure_bounds(denseEdits);
+
+    terrainGenerator.set_world_geometry(originalVoxelWidth, originalVoxelHeight, originalBlockWorldSize);
+
+    const float baselineHeightWorld = static_cast<float>(baselineBounds.max.y - baselineBounds.min.y + 1);
+    const float baselineWidthWorld = static_cast<float>(baselineBounds.max.x - baselineBounds.min.x + 1);
+    const float denseHeightWorld = static_cast<float>(denseBounds.max.y - denseBounds.min.y + 1) * (2.0f / 3.0f);
+    const float denseWidthWorld = static_cast<float>(denseBounds.max.x - denseBounds.min.x + 1) * (2.0f / 3.0f);
+
+    EXPECT_NEAR(denseHeightWorld, baselineHeightWorld, 1.0f);
+    EXPECT_NEAR(denseWidthWorld, baselineWidthWorld, 1.0f);
 }

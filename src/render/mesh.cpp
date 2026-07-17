@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-#include "constants.h"
 #include "game/block.h"
 
 namespace
@@ -121,7 +120,7 @@ std::shared_ptr<Mesh> Mesh::create_quad_mesh()
     return quadMesh;
 }
 
-std::shared_ptr<Mesh> Mesh::create_chunk_boundary_mesh()
+std::shared_ptr<Mesh> Mesh::create_chunk_boundary_mesh(const float chunkWidth, const float chunkHeight)
 {
     auto debugMesh = std::make_shared<Mesh>();
     const glm::vec3 boundaryColor = glm::vec3(0.98f, 0.15f, 0.15f);
@@ -136,9 +135,9 @@ std::shared_ptr<Mesh> Mesh::create_chunk_boundary_mesh()
         debugMesh->_indices.push_back(baseIndex + 1);
     };
 
-    const float maxX = static_cast<float>(CHUNK_SIZE);
-    const float maxY = static_cast<float>(CHUNK_HEIGHT);
-    const float maxZ = static_cast<float>(CHUNK_SIZE);
+    const float maxX = chunkWidth;
+    const float maxY = chunkHeight;
+    const float maxZ = chunkWidth;
 
     const glm::vec3 p000{0.0f, 0.0f, 0.0f};
     const glm::vec3 p100{maxX, 0.0f, 0.0f};

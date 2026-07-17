@@ -38,11 +38,13 @@ std::shared_ptr<ChunkMeshData> ChunkMesher::generate_mesh()
     }
 
     _seaLevel = TerrainGenerator::sea_level();
+    const int chunkVoxelWidth = chunk->voxelWidth;
+    const int chunkVoxelHeight = chunk->voxelHeight;
 
-    for (int x = 0; x < CHUNK_SIZE; ++x) {
-        for (int y = 0; y < CHUNK_HEIGHT; ++y) {
-            for (int z = 0; z < CHUNK_SIZE; ++z) {
-                const Block block = chunk->blocks[x][y][z];
+    for (int x = 0; x < chunkVoxelWidth; ++x) {
+        for (int y = 0; y < chunkVoxelHeight; ++y) {
+            for (int z = 0; z < chunkVoxelWidth; ++z) {
+                const Block& block = chunk->blocks[x][y][z];
                 const BlockEmissionDef emission = get_block_emission(block._type);
                 if (emission.hasGlow)
                 {
@@ -75,9 +77,12 @@ std::shared_ptr<ChunkMeshData> ChunkMesher::generate_mesh()
 
 void ChunkMesher::add_glow_to_mesh(const int x, const int y, const int z, const BlockEmissionDef& emission, const std::shared_ptr<Mesh>& mesh) const
 {
-    const glm::vec3 center = glm::vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.58f, static_cast<float>(z) + 0.5f);
+    const glm::vec3 center = _geometry.voxel_to_world(glm::vec3(
+        static_cast<float>(x) + 0.5f,
+        static_cast<float>(y) + 0.58f,
+        static_cast<float>(z) + 0.5f));
     const glm::vec3 color = glm::vec3(emission.color) / 255.0f;
-    const float radius = emission.glowRadius;
+    const float radius = emission.glowRadius * _geometry.block_world_size();
     const float intensity = emission.glowIntensity;
     constexpr glm::vec2 corners[4] = {
         {-1.0f, -1.0f},
@@ -299,7 +304,13 @@ void ChunkMesher::add_face_to_opaque_mesh(const int x, const int y, const int z,
         const glm::vec3 localLight = calculate_vertex_local_light(blockPos, face, i);
 
         const auto normal = faceNormals[face];
-        mesh->_vertices.push_back({ position, normal, color, glm::vec2(sunLight, ao), localLight });
+        mesh->_vertices.push_back({
+            _geometry.voxel_to_world(glm::vec3(position)),
+            normal,
+            color,
+            glm::vec2(sunLight, ao),
+            localLight
+        });
     }
 
     // Add indices for the face (two triangles)
@@ -323,7 +334,13 @@ void ChunkMesher::add_face_to_water_mesh(const int x, const int y, const int z, 
         const float skylight = calculate_vertex_skylight(blockPos, face, i);
         const glm::vec3 localLight = calculate_vertex_local_light(blockPos, face, i);
 
-        mesh->_vertices.push_back({ position, normal, baseColor, glm::vec2(skylight, 1.0f), localLight });
+        mesh->_vertices.push_back({
+            _geometry.voxel_to_world(glm::vec3(position)),
+            normal,
+            baseColor,
+            glm::vec2(skylight, 1.0f),
+            localLight
+        });
     }
 
     uint32_t index = mesh->_vertices.size() - 4;

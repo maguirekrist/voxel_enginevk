@@ -22,8 +22,10 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, GameObject& 
 
 std::optional<RaycastResult> Camera::get_target_block(World& world, const glm::vec3& origin, const glm::vec3& direction, const float maxDistance)
 {
-    glm::vec3 rayStart = origin;
+    const WorldGeometry& geometry = world.geometry();
+    glm::vec3 rayStart = geometry.world_to_voxel(origin);
     glm::vec3 rayDir = glm::normalize(direction);
+    const float maxVoxelDistance = maxDistance / geometry.block_world_size();
 
     glm::vec3 stepSize = glm::sign(rayDir);
     glm::vec3 tDelta = glm::abs(1.0f / rayDir);
@@ -36,15 +38,13 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, const glm::v
     glm::ivec3 faceNormal(0);
     float distance = 0.0f;
 
-    while (distance < maxDistance)
+    while (distance < maxVoxelDistance)
     {
-        //Get the current chunk we're in
-        //voxel pos is worldPos
-        auto current_chunk = world.get_chunk(voxelPos);
+        auto current_chunk = world.get_chunk(geometry.voxel_to_world(glm::vec3(voxelPos)));
 
-        if (current_chunk == nullptr) return std::nullopt;
+        if (current_chunk == nullptr || current_chunk->_data == nullptr || !current_chunk->_data->has_block_storage()) return std::nullopt;
 
-        const auto localPos = World::get_local_coordinates(voxelPos);
+        const auto localPos = current_chunk->_data->to_local_position(voxelPos);
         auto block = current_chunk->_data->blocks[localPos.x][localPos.y][localPos.z];
 
 
@@ -54,7 +54,12 @@ std::optional<RaycastResult> Camera::get_target_block(World& world, const glm::v
             auto faceDir = get_face_direction(faceNormal);
 
             //TODO: re-add chunk to raycast result.
-            return RaycastResult{ block, faceDir.value_or(FaceDirection::FRONT_FACE), worldPos, distance };
+            return RaycastResult{
+                block,
+                faceDir.value_or(FaceDirection::FRONT_FACE),
+                worldPos,
+                distance * geometry.block_world_size()
+            };
         }
 
         // Advance to next voxel

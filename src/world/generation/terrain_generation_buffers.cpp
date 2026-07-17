@@ -37,22 +37,22 @@ glm::vec3 unpack_appearance_color(const uint32_t packedColor) noexcept
 
 const WorldRegionSample& WorldRegionScaffold2D::at(const int localX, const int localZ) const
 {
-    return cells[grid2d_index(CHUNK_SIZE, localX, localZ)];
+    return cells[grid2d_index(chunkVoxelWidth, localX, localZ)];
 }
 
 WorldRegionSample& WorldRegionScaffold2D::at(const int localX, const int localZ)
 {
-    return cells[grid2d_index(CHUNK_SIZE, localX, localZ)];
+    return cells[grid2d_index(chunkVoxelWidth, localX, localZ)];
 }
 
 const TerrainColumnSample& TerrainColumnScaffold2D::at(const int localX, const int localZ) const
 {
-    return columns[grid2d_index(CHUNK_SIZE, localX, localZ)];
+    return columns[grid2d_index(chunkVoxelWidth, localX, localZ)];
 }
 
 TerrainColumnSample& TerrainColumnScaffold2D::at(const int localX, const int localZ)
 {
-    return columns[grid2d_index(CHUNK_SIZE, localX, localZ)];
+    return columns[grid2d_index(chunkVoxelWidth, localX, localZ)];
 }
 
 const TerrainFeatureInstance* TerrainFeatureInstanceSet::find_by_id(const uint32_t id) const
@@ -71,35 +71,40 @@ const TerrainFeatureInstance* TerrainFeatureInstanceSet::find_by_id(const uint32
 
 const TerrainVolumeCell& TerrainVolumeBuffer::at(const int localX, const int y, const int localZ) const
 {
-    return cells[grid3d_index(CHUNK_SIZE, CHUNK_HEIGHT, localX, y, localZ)];
+    return cells[grid3d_index(chunkVoxelWidth, chunkVoxelHeight, localX, y, localZ)];
 }
 
 TerrainVolumeCell& TerrainVolumeBuffer::at(const int localX, const int y, const int localZ)
 {
-    return cells[grid3d_index(CHUNK_SIZE, CHUNK_HEIGHT, localX, y, localZ)];
+    return cells[grid3d_index(chunkVoxelWidth, chunkVoxelHeight, localX, y, localZ)];
 }
 
 const std::array<SurfaceClass, 6>& SurfaceClassificationBuffer::at(const int localX, const int y, const int localZ) const
 {
-    return faces[grid3d_index(CHUNK_SIZE, CHUNK_HEIGHT, localX, y, localZ)];
+    return faces[grid3d_index(chunkVoxelWidth, chunkVoxelHeight, localX, y, localZ)];
 }
 
 std::array<SurfaceClass, 6>& SurfaceClassificationBuffer::at(const int localX, const int y, const int localZ)
 {
-    return faces[grid3d_index(CHUNK_SIZE, CHUNK_HEIGHT, localX, y, localZ)];
+    return faces[grid3d_index(chunkVoxelWidth, chunkVoxelHeight, localX, y, localZ)];
 }
 
 const TerrainAppearanceVoxel& AppearanceBuffer::at(const int localX, const int y, const int localZ) const
 {
-    return voxels[grid3d_index(CHUNK_SIZE, CHUNK_HEIGHT, localX, y, localZ)];
+    return voxels[grid3d_index(chunkVoxelWidth, chunkVoxelHeight, localX, y, localZ)];
 }
 
 TerrainAppearanceVoxel& AppearanceBuffer::at(const int localX, const int y, const int localZ)
 {
-    return voxels[grid3d_index(CHUNK_SIZE, CHUNK_HEIGHT, localX, y, localZ)];
+    return voxels[grid3d_index(chunkVoxelWidth, chunkVoxelHeight, localX, y, localZ)];
 }
 
 uint32_t AppearanceBuffer::packed_color(const int localX, const int y, const int localZ) const
 {
+    if (voxels.empty())
+    {
+        return 0u;
+    }
+
     return at(localX, y, localZ).color;
 }

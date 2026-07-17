@@ -1,7 +1,9 @@
 # Add source to this project's executable.
 set(CMAKE_CXX_FLAGS_DEBUG, "/Zi")
 
-add_executable(vulkan_guide
+set(VOXEL_ENGINE_RUNTIME_TARGET game)
+
+add_executable(${VOXEL_ENGINE_RUNTIME_TARGET}
     main.cpp
     vk_engine.cpp
     vk_engine.h
@@ -122,8 +124,12 @@ add_executable(vulkan_guide
     config/config_service.cpp
     config/game_settings_config_repository.h
     config/game_settings_config_repository.cpp
+    config/world_geometry_config_repository.h
+    config/world_geometry_config_repository.cpp
     config/world_gen_config_repository.h
     config/world_gen_config_repository.cpp
+    world/world_geometry.h
+    world/world_geometry.cpp
     render/scene_renderer.h
     render/scene_renderer.cpp
         render/render_primitives.h
@@ -174,23 +180,24 @@ add_executable(vulkan_guide
 )
 
 
-set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
+set_target_properties(${VOXEL_ENGINE_RUNTIME_TARGET} PROPERTIES OUTPUT_NAME "${VOXEL_ENGINE_OUTPUT_NAME}")
+set_property(TARGET ${VOXEL_ENGINE_RUNTIME_TARGET} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${VOXEL_ENGINE_RUNTIME_TARGET}>")
 
-target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}")
-target_link_libraries(vulkan_guide vkbootstrap libcuckoo vma glm tinyobjloader imgui spirv_reflect stb_image)
-target_link_libraries(vulkan_guide Vulkan::Vulkan sdl2 FastNoise TracyClient)
+target_include_directories(${VOXEL_ENGINE_RUNTIME_TARGET} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}")
+target_link_libraries(${VOXEL_ENGINE_RUNTIME_TARGET} vkbootstrap libcuckoo vma glm tinyobjloader imgui spirv_reflect stb_image)
+target_link_libraries(${VOXEL_ENGINE_RUNTIME_TARGET} Vulkan::Vulkan sdl2 FastNoise TracyClient)
 
-target_compile_options(vulkan_guide PRIVATE)
-target_link_options(vulkan_guide PRIVATE)
+target_compile_options(${VOXEL_ENGINE_RUNTIME_TARGET} PRIVATE)
+target_link_options(${VOXEL_ENGINE_RUNTIME_TARGET} PRIVATE)
 
 if (MSVC)
-    target_compile_options(vulkan_guide PRIVATE /MP)
+    target_compile_options(${VOXEL_ENGINE_RUNTIME_TARGET} PRIVATE /MP)
 endif()
 
-add_dependencies(vulkan_guide Shaders)
+add_dependencies(${VOXEL_ENGINE_RUNTIME_TARGET} Shaders)
 
-add_custom_command(TARGET vulkan_guide POST_BUILD
+add_custom_command(TARGET ${VOXEL_ENGINE_RUNTIME_TARGET} POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_directory
 	"${CMAKE_SOURCE_DIR}/shaders"
-	"$<TARGET_FILE_DIR:vulkan_guide>/shaders"
+	"$<TARGET_FILE_DIR:${VOXEL_ENGINE_RUNTIME_TARGET}>/shaders"
 )

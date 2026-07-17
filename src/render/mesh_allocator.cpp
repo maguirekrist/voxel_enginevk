@@ -5,6 +5,8 @@
 #include <ranges>
 #include <stdexcept>
 
+#include <tracy/Tracy.hpp>
+
 #include "mesh.h"
 #include "vk_util.h"
 
@@ -41,6 +43,7 @@ ArenaMeshAllocator::~ArenaMeshAllocator()
 
 MeshAllocation ArenaMeshAllocator::acquire(const VkDeviceSize vertexSize, const VkDeviceSize indexSize)
 {
+    ZoneScopedN("ArenaMeshAllocator::Acquire");
     if (m_free_list.empty())
     {
         throw std::runtime_error("ArenaMeshAllocator::acquire: no free slots");
@@ -62,16 +65,19 @@ MeshAllocation ArenaMeshAllocator::acquire(const VkDeviceSize vertexSize, const 
 
 void ArenaMeshAllocator::free(const MeshAllocation allocation)
 {
+    ZoneScopedN("ArenaMeshAllocator::Free");
     if (allocation.handle < 0)
     {
         return;
     }
 
     m_free_list.push_back(allocation.handle);
+    TracyPlot("ArenaMeshAllocator FreeSlots", static_cast<int64_t>(m_free_list.size()));
 }
 
 void ArenaMeshAllocator::reconfigure(MeshAllocatorConfig config)
 {
+    ZoneScopedN("ArenaMeshAllocator::Reconfigure");
     if (!can_reconfigure() && (m_vertexBuffer._buffer != VK_NULL_HANDLE || m_indexBuffer._buffer != VK_NULL_HANDLE))
     {
         throw std::runtime_error("ArenaMeshAllocator::reconfigure: allocator still has live mesh allocations");
@@ -86,6 +92,7 @@ void ArenaMeshAllocator::reconfigure(MeshAllocatorConfig config)
     {
         m_free_list[i] = static_cast<int32_t>(i);
     }
+    TracyPlot("ArenaMeshAllocator FreeSlots", static_cast<int64_t>(m_free_list.size()));
 }
 
 bool ArenaMeshAllocator::can_reconfigure() const noexcept
@@ -123,6 +130,7 @@ ArenaMeshAllocator::MeshSlot ArenaMeshAllocator::get_slot(const size_t index) co
 
 void ArenaMeshAllocator::destroy_buffers()
 {
+    ZoneScopedN("ArenaMeshAllocator::DestroyBuffers");
     if (m_vertexBuffer._buffer != VK_NULL_HANDLE)
     {
         vmaDestroyBuffer(m_allocator, m_vertexBuffer._buffer, m_vertexBuffer._allocation);
@@ -138,6 +146,7 @@ void ArenaMeshAllocator::destroy_buffers()
 
 void ArenaMeshAllocator::create_buffers()
 {
+    ZoneScopedN("ArenaMeshAllocator::CreateBuffers");
     const VkDeviceSize vertexBufferSize = m_config.vertexSlabSize * m_config.slotCapacity;
     const VkDeviceSize indexBufferSize = m_config.indexSlabSize * m_config.slotCapacity;
 
@@ -166,6 +175,7 @@ VariableMeshAllocator::~VariableMeshAllocator()
 
 MeshAllocation VariableMeshAllocator::acquire(const VkDeviceSize vertexSize, const VkDeviceSize indexSize)
 {
+    ZoneScopedN("VariableMeshAllocator::Acquire");
     const VkDeviceSize vertexOffset = allocate_range(m_freeVertexRanges, vertexSize, VertexAlignment);
     try
     {
@@ -197,6 +207,9 @@ MeshAllocation VariableMeshAllocator::acquire(const VkDeviceSize vertexSize, con
         }
 
         ++m_liveAllocations;
+        TracyPlot("VariableMeshAllocator LiveAllocations", static_cast<int64_t>(m_liveAllocations));
+        TracyPlot("VariableMeshAllocator FreeVertexRanges", static_cast<int64_t>(m_freeVertexRanges.size()));
+        TracyPlot("VariableMeshAllocator FreeIndexRanges", static_cast<int64_t>(m_freeIndexRanges.size()));
         return MeshAllocation{
             .vertexOffset = vertexOffset,
             .indexOffset = indexOffset,
@@ -215,6 +228,7 @@ MeshAllocation VariableMeshAllocator::acquire(const VkDeviceSize vertexSize, con
 
 void VariableMeshAllocator::free(const MeshAllocation allocation)
 {
+    ZoneScopedN("VariableMeshAllocator::Free");
     if (allocation.handle < 0 || allocation.handle >= static_cast<int32_t>(m_records.size()))
     {
         return;
@@ -234,10 +248,14 @@ void VariableMeshAllocator::free(const MeshAllocation allocation)
     {
         --m_liveAllocations;
     }
+    TracyPlot("VariableMeshAllocator LiveAllocations", static_cast<int64_t>(m_liveAllocations));
+    TracyPlot("VariableMeshAllocator FreeVertexRanges", static_cast<int64_t>(m_freeVertexRanges.size()));
+    TracyPlot("VariableMeshAllocator FreeIndexRanges", static_cast<int64_t>(m_freeIndexRanges.size()));
 }
 
 void VariableMeshAllocator::reconfigure(MeshAllocatorConfig config)
 {
+    ZoneScopedN("VariableMeshAllocator::Reconfigure");
     if (!can_reconfigure() && (m_vertexBuffer._buffer != VK_NULL_HANDLE || m_indexBuffer._buffer != VK_NULL_HANDLE))
     {
         throw std::runtime_error("VariableMeshAllocator::reconfigure: allocator still has live mesh allocations");
@@ -252,6 +270,9 @@ void VariableMeshAllocator::reconfigure(MeshAllocatorConfig config)
     m_records.clear();
     m_freeHandles.clear();
     m_liveAllocations = 0;
+    TracyPlot("VariableMeshAllocator LiveAllocations", static_cast<int64_t>(m_liveAllocations));
+    TracyPlot("VariableMeshAllocator FreeVertexRanges", static_cast<int64_t>(m_freeVertexRanges.size()));
+    TracyPlot("VariableMeshAllocator FreeIndexRanges", static_cast<int64_t>(m_freeIndexRanges.size()));
 }
 
 bool VariableMeshAllocator::can_reconfigure() const noexcept
@@ -286,6 +307,7 @@ VkDeviceSize VariableMeshAllocator::align_up(const VkDeviceSize value, const VkD
 
 VkDeviceSize VariableMeshAllocator::allocate_range(std::vector<FreeRange>& ranges, const VkDeviceSize size, const VkDeviceSize alignment)
 {
+    ZoneScopedN("VariableMeshAllocator::AllocateRange");
     for (size_t i = 0; i < ranges.size(); ++i)
     {
         const VkDeviceSize alignedOffset = align_up(ranges[i].offset, alignment);
@@ -325,6 +347,7 @@ VkDeviceSize VariableMeshAllocator::allocate_range(std::vector<FreeRange>& range
 
 void VariableMeshAllocator::free_range(std::vector<FreeRange>& ranges, const VkDeviceSize offset, const VkDeviceSize size)
 {
+    ZoneScopedN("VariableMeshAllocator::FreeRange");
     if (size == 0)
     {
         return;
@@ -362,6 +385,7 @@ void VariableMeshAllocator::free_range(std::vector<FreeRange>& ranges, const VkD
 
 void VariableMeshAllocator::destroy_buffers()
 {
+    ZoneScopedN("VariableMeshAllocator::DestroyBuffers");
     if (m_vertexBuffer._buffer != VK_NULL_HANDLE)
     {
         vmaDestroyBuffer(m_allocator, m_vertexBuffer._buffer, m_vertexBuffer._allocation);
@@ -377,6 +401,7 @@ void VariableMeshAllocator::destroy_buffers()
 
 void VariableMeshAllocator::create_buffers()
 {
+    ZoneScopedN("VariableMeshAllocator::CreateBuffers");
     m_vertexBuffer = vkutil::create_buffer(
         m_allocator,
         m_config.vertexBufferSize,

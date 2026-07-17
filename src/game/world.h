@@ -3,6 +3,7 @@
 #include <vk_types.h>
 #include "block.h"
 #include "chunk.h"
+#include "world/world_geometry.h"
 
 class ChunkManager;
 
@@ -12,10 +13,14 @@ public:
 
     [[nodiscard]] Block* get_block(const glm::vec3& worldPos) const;
     [[nodiscard]] Chunk* get_chunk(glm::vec3 worldPos) const;
+    [[nodiscard]] const WorldGeometry& geometry() const;
 
     static ChunkCoord get_chunk_coordinates(const glm::vec3& worldPos);
+    static ChunkCoord get_chunk_coordinates(const glm::vec3& worldPos, const WorldGeometry& geometry);
     static glm::ivec2 get_chunk_origin(const glm::vec3& worldPos);
+    static glm::ivec2 get_chunk_origin(const glm::vec3& worldPos, const WorldGeometry& geometry);
     static glm::ivec3 get_local_coordinates(const glm::vec3& worldPos);
+    static glm::ivec3 get_local_coordinates(const glm::vec3& worldPos, const WorldGeometry& geometry);
 private:
     ChunkManager& _chunkManager;
 };

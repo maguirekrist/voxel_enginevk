@@ -143,6 +143,7 @@ struct TerrainDensitySettings
     float weightedStrength{0.0f};
     float strength{1.0f};
     int maxBandHalfSpanBlocks{16};
+    float sampleCellSizeBlocks{1.0f};
 };
 
 struct TerrainGeneratorSettings
@@ -158,6 +159,8 @@ struct TerrainGeneratorSettings
 struct WorldRegionScaffold2D
 {
     glm::ivec2 chunkOrigin{};
+    int chunkVoxelWidth{static_cast<int>(CHUNK_SIZE)};
+    int chunkVoxelHeight{static_cast<int>(CHUNK_HEIGHT)};
     std::vector<WorldRegionSample> cells{};
 
     [[nodiscard]] const WorldRegionSample& at(int localX, int localZ) const;
@@ -167,6 +170,8 @@ struct WorldRegionScaffold2D
 struct TerrainColumnScaffold2D
 {
     glm::ivec2 chunkOrigin{};
+    int chunkVoxelWidth{static_cast<int>(CHUNK_SIZE)};
+    int chunkVoxelHeight{static_cast<int>(CHUNK_HEIGHT)};
     std::vector<TerrainColumnSample> columns{};
 
     [[nodiscard]] const TerrainColumnSample& at(int localX, int localZ) const;
@@ -230,6 +235,8 @@ struct TerrainVolumeCell
 struct TerrainVolumeBuffer
 {
     glm::ivec2 chunkOrigin{};
+    int chunkVoxelWidth{static_cast<int>(CHUNK_SIZE)};
+    int chunkVoxelHeight{static_cast<int>(CHUNK_HEIGHT)};
     std::vector<TerrainVolumeCell> cells{};
 
     [[nodiscard]] const TerrainVolumeCell& at(int localX, int y, int localZ) const;
@@ -253,6 +260,8 @@ enum class SurfaceClass : uint8_t
 struct SurfaceClassificationBuffer
 {
     glm::ivec2 chunkOrigin{};
+    int chunkVoxelWidth{static_cast<int>(CHUNK_SIZE)};
+    int chunkVoxelHeight{static_cast<int>(CHUNK_HEIGHT)};
     std::vector<std::array<SurfaceClass, 6>> faces{};
 
     [[nodiscard]] const std::array<SurfaceClass, 6>& at(int localX, int y, int localZ) const;
@@ -278,6 +287,8 @@ struct TerrainAppearanceVoxel
 struct AppearanceBuffer
 {
     glm::ivec2 chunkOrigin{};
+    int chunkVoxelWidth{static_cast<int>(CHUNK_SIZE)};
+    int chunkVoxelHeight{static_cast<int>(CHUNK_HEIGHT)};
     std::vector<TerrainAppearanceVoxel> voxels{};
 
     [[nodiscard]] const TerrainAppearanceVoxel& at(int localX, int y, int localZ) const;
@@ -313,7 +324,11 @@ public:
     [[nodiscard]] TerrainGeneratorSettings settings() const;
     [[nodiscard]] static TerrainGeneratorSettings default_settings();
     [[nodiscard]] static int sea_level() noexcept;
+    [[nodiscard]] int chunk_voxel_width() const noexcept;
+    [[nodiscard]] int chunk_voxel_height() const noexcept;
+    [[nodiscard]] float block_world_size() const noexcept;
     void apply_settings(const TerrainGeneratorSettings& settings);
+    void set_world_geometry(int chunkVoxelWidth, int chunkVoxelHeight, float blockWorldSize);
     void RasterizeChunkTerrain(const WorldGenerationChunkResult& generation, ChunkData& chunkData) const;
     void PopulateBaseTerrainBlocks(const ChunkTerrainData& terrainData, ChunkData& chunkData) const;
     void ApplyVoxelTerrainFeatures(const ChunkTerrainData& terrainData, ChunkData& chunkData) const;
@@ -336,9 +351,11 @@ private:
     TerrainGenerator();
     ~TerrainGenerator() = default;
 
-    [[nodiscard]] WorldRegionScaffold2D generate_region_scaffold(int chunkX, int chunkZ) const;
+    [[nodiscard]] const WorldRegionScaffold2D& region_scaffold_for(int chunkX, int chunkZ) const;
+    [[nodiscard]] const ChunkTerrainData& chunk_data_for(int chunkX, int chunkZ) const;
+    [[nodiscard]] WorldRegionScaffold2D build_region_scaffold(int chunkX, int chunkZ) const;
     [[nodiscard]] ChunkTerrainData build_chunk_data(int chunkX, int chunkZ) const;
-    static void normalize_settings(TerrainGeneratorSettings& settings);
+    static void normalize_settings(TerrainGeneratorSettings& settings, int chunkVoxelHeight, float blockWorldSize);
     void rebuild_noise();
 
     FastNoise::SmartNode<> _erosion;
@@ -348,6 +365,9 @@ private:
     FastNoise::SmartNode<> _density;
 
     TerrainGeneratorSettings _settings{};
+    int _chunkVoxelWidth{static_cast<int>(CHUNK_SIZE)};
+    int _chunkVoxelHeight{static_cast<int>(CHUNK_HEIGHT)};
+    float _blockWorldSize{1.0f};
 
     mutable std::mutex _stateMutex;
     mutable std::unordered_map<ChunkCacheKey, WorldRegionScaffold2D, ChunkCacheKeyHash> _regionCache;

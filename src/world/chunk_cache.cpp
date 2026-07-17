@@ -4,11 +4,12 @@
 
 #include "chunk_cache.h"
 
+#include <tracy/Tracy.hpp>
+
 
 std::optional<std::size_t>
-ChunkCache::get_chunk_index(const ChunkCoord coord) const
+ChunkCache::get_chunk_index_unlocked(const ChunkCoord coord) const
 {
-    std::shared_lock lock(m_mutex);
     const int rx = coord.x - m_origin.x;
     const int rz = coord.z - m_origin.z;
 
@@ -30,6 +31,7 @@ ChunkCache::get_chunk_index(const ChunkCoord coord) const
 
 std::vector<Chunk*> ChunkCache::slide_east()
 {
+    ZoneScopedN("ChunkCache::slide_east");
     std::vector<Chunk*> chunks;
     const auto origin_col = m_origin.z + m_radius;
     const auto left_col = origin_col - m_radius;
@@ -38,7 +40,10 @@ std::vector<Chunk*> ChunkCache::slide_east()
     {
         auto chunkIndex = wrapped_index_col + (i * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        chunk->reset(ChunkCoord{chunk->_data->coord.x, m_origin.z + m_radius + 1});
+        chunk->reset(
+            ChunkCoord{chunk->_data->coord.x, m_origin.z + m_radius + 1},
+            m_chunkVoxelWidth,
+            m_chunkVoxelHeight);
         chunks.push_back(chunk);
     }
     m_origin.z += 1;
@@ -47,6 +52,7 @@ std::vector<Chunk*> ChunkCache::slide_east()
 
 std::vector<Chunk*> ChunkCache::slide_west()
 {
+    ZoneScopedN("ChunkCache::slide_west");
     std::vector<Chunk*> chunks;
     const auto origin_col = m_origin.z + m_radius;
     const auto right_col = origin_col + m_radius;
@@ -56,7 +62,10 @@ std::vector<Chunk*> ChunkCache::slide_west()
     {
         auto chunkIndex = wrapped_index_col + (i * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        chunk->reset(ChunkCoord{chunk->_data->coord.x, m_origin.z - m_radius - 1});
+        chunk->reset(
+            ChunkCoord{chunk->_data->coord.x, m_origin.z - m_radius - 1},
+            m_chunkVoxelWidth,
+            m_chunkVoxelHeight);
         chunks.push_back(chunk);
     }
     m_origin.z -= 1;
@@ -65,7 +74,7 @@ std::vector<Chunk*> ChunkCache::slide_west()
 
 std::vector<Chunk*> ChunkCache::slide_north()
 {
-    std::println("Slide North");
+    ZoneScopedN("ChunkCache::slide_north");
     std::vector<Chunk*> chunks;
     const auto origin_row = m_origin.x + m_radius;
     const auto bottom_row = origin_row - m_radius;
@@ -75,7 +84,10 @@ std::vector<Chunk*> ChunkCache::slide_north()
     {
         auto chunkIndex = i + (wrapped_index_row * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        chunk->reset(ChunkCoord{m_origin.x + m_radius + 1, chunk->_data->coord.z});
+        chunk->reset(
+            ChunkCoord{m_origin.x + m_radius + 1, chunk->_data->coord.z},
+            m_chunkVoxelWidth,
+            m_chunkVoxelHeight);
         chunks.push_back(chunk);
     }
     m_origin.x += 1;
@@ -84,7 +96,7 @@ std::vector<Chunk*> ChunkCache::slide_north()
 
 std::vector<Chunk*> ChunkCache::slide_south()
 {
-    std::println("Slide South");
+    ZoneScopedN("ChunkCache::slide_south");
     std::vector<Chunk*> chunks;
     const auto origin_row = m_origin.x + m_radius;
     const auto top_row = origin_row + m_radius;
@@ -94,7 +106,10 @@ std::vector<Chunk*> ChunkCache::slide_south()
     {
         auto chunkIndex = i + (wrapped_index_row * m_width);
         auto chunk = m_chunks[chunkIndex].get();
-        chunk->reset(ChunkCoord{m_origin.x - m_radius - 1, chunk->_data->coord.z});
+        chunk->reset(
+            ChunkCoord{m_origin.x - m_radius - 1, chunk->_data->coord.z},
+            m_chunkVoxelWidth,
+            m_chunkVoxelHeight);
         chunks.push_back(chunk);
     }
 
@@ -102,8 +117,12 @@ std::vector<Chunk*> ChunkCache::slide_south()
     return chunks;
 }
 
-ChunkCache::ChunkCache(const int view_distance) : m_radius(view_distance),
-    m_width(view_distance * 2 + 1), m_chunks(m_width * m_width)
+ChunkCache::ChunkCache(const int view_distance, const int chunkVoxelWidth, const int chunkVoxelHeight) :
+    m_radius(view_distance),
+    m_width(view_distance * 2 + 1),
+    m_chunkVoxelWidth(chunkVoxelWidth),
+    m_chunkVoxelHeight(chunkVoxelHeight),
+    m_chunks(m_width * m_width)
 {
     if (view_distance == 0)
     {
@@ -116,7 +135,10 @@ ChunkCache::ChunkCache(const int view_distance) : m_radius(view_distance),
         {
             auto x_index = x + m_radius;
             auto z_index = z + m_radius;
-            m_chunks[z_index + (x_index * m_width)] = std::make_unique<Chunk>(ChunkCoord{x, z});
+            m_chunks[z_index + (x_index * m_width)] = std::make_unique<Chunk>(
+                ChunkCoord{x, z},
+                m_chunkVoxelWidth,
+                m_chunkVoxelHeight);
         }
     }
 
@@ -124,7 +146,11 @@ ChunkCache::ChunkCache(const int view_distance) : m_radius(view_distance),
     m_origin_buf_z = m_radius;
 
     std::println("Chunk Cache created with {} chunks, totallying to {}", m_chunks.size(), m_chunks.size() * (sizeof(Chunk) + sizeof(ChunkData)));
-    std::println("Size of chunk blocks {}", sizeof(ChunkBlocks));
+    std::println(
+        "Chunk voxel dimensions {}x{}x{}",
+        m_chunkVoxelWidth,
+        m_chunkVoxelHeight,
+        m_chunkVoxelWidth);
 }
 
 ChunkCache::~ChunkCache() = default;
@@ -132,7 +158,7 @@ ChunkCache::~ChunkCache() = default;
 Chunk* ChunkCache::get_chunk(const ChunkCoord coord) const
 {
     std::shared_lock lock(m_mutex);
-    auto chunk_index = get_chunk_index(coord);
+    auto chunk_index = get_chunk_index_unlocked(coord);
     if (chunk_index.has_value())
     {
         return m_chunks[chunk_index.value()].get();
@@ -144,6 +170,7 @@ Chunk* ChunkCache::get_chunk(const ChunkCoord coord) const
 //
 std::vector<Chunk*> ChunkCache::slide(const ChunkCoord delta)
 {
+    ZoneScopedN("ChunkCache::slide");
     std::unique_lock lock(m_mutex);
     std::vector<Chunk*> chunks;
     if (delta.x == 1)

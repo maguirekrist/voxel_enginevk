@@ -4,8 +4,9 @@
     "frequency": 0.004999999888241291,
     "gain": 0.5,
     "lacunarity": 2.0,
-    "maxBandHalfSpanBlocks": 140,
+    "maxBandHalfSpanBlocks": 110,
     "octaves": 4,
+    "sampleCellSizeBlocks": 2.0,
     "strength": 1.0,
     "weightedStrength": 0.0
   },
@@ -63,10 +64,10 @@
       "gain": 0.5,
       "lacunarity": 2.0,
       "octaves": 5,
-      "remapFromMax": -0.009999999776482582,
-      "remapFromMin": -0.12999999523162842,
-      "remapToMax": 0.4399999976158142,
-      "remapToMin": -0.029999999329447746,
+      "remapFromMax": 0.800000011920929,
+      "remapFromMin": -1.0,
+      "remapToMax": 1.0,
+      "remapToMin": -1.0,
       "strength": 1.0,
       "terraceSmoothness": 0.0,
       "terraceStepCount": 1,
@@ -141,5 +142,5 @@
       }
     ]
   },
-  "version": 14
+  "version": 15
 }

@@ -9,6 +9,7 @@
 #include "chunk_record.h"
 #include "chunk_scheduler.h"
 #include "thread_pool.h"
+#include "world_geometry.h"
 #include "world_edit_queue.h"
 
 
@@ -104,6 +105,8 @@ public:
     [[nodiscard]] bool ambient_occlusion_enabled() const noexcept;
     void apply_streaming_settings(const ChunkStreamingSettings& settings);
     [[nodiscard]] int view_distance() const noexcept;
+    void set_world_geometry(const WorldGeometrySettings& settings) noexcept;
+    [[nodiscard]] const WorldGeometry& geometry() const noexcept { return _geometry; }
     bool try_dequeue_render_reset(ChunkRenderResetEvent& event);
     bool try_dequeue_render_ready(ChunkRenderReadyEvent& event);
 
@@ -151,6 +154,7 @@ private:
     void queue_generate(Chunk* chunk);
     void queue_light(Chunk* chunk, uint64_t neighborhoodSignature, const ChunkNeighborhood& neighborhood);
     void queue_mesh(Chunk* chunk, uint64_t neighborhoodSignature, const ChunkNeighborhood& neighborhood);
+    [[nodiscard]] bool try_queue_light_for_chunk(Chunk* chunk);
     [[nodiscard]] ChunkRuntime* runtime_for(const Chunk* chunk);
     [[nodiscard]] const ChunkRuntime* runtime_for(const Chunk* chunk) const;
     [[nodiscard]] std::optional<ChunkNeighborhood> build_light_neighborhood(ChunkCoord coord) const;
@@ -162,7 +166,11 @@ private:
     bool _initialLoad{true};
     bool _ambientOcclusionEnabled{false};
     int _viewDistance{GameConfig::DEFAULT_VIEW_DISTANCE};
+    int _generateWorkerCount{1};
+    int _lightWorkerCount{1};
+    int _meshWorkerCount{2};
     ChunkCoord _lastPlayerChunk = {0, 0};
+    WorldGeometry _geometry{};
 
     std::unordered_map<Chunk*, ChunkRuntime> _runtimeByChunk;
     moodycamel::BlockingConcurrentQueue<ChunkRenderResetEvent> _renderResetEvents;
@@ -171,7 +179,9 @@ private:
     moodycamel::BlockingConcurrentQueue<ChunkLightBuildResult> _lightResults;
     moodycamel::BlockingConcurrentQueue<ChunkMeshBuildResult> _meshResults;
 
-    ThreadPool _threadPool{4};
+    ThreadPool _generateThreadPool;
+    ThreadPool _lightThreadPool;
+    ThreadPool _meshThreadPool;
     ChunkScheduler _scheduler{};
     ChunkDirtyTracker _dirtyTracker{};
     WorldEditQueue _worldEditQueue{};

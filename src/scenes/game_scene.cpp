@@ -77,7 +77,8 @@ namespace
             lhs.gain == rhs.gain &&
             lhs.weightedStrength == rhs.weightedStrength &&
             lhs.strength == rhs.strength &&
-            lhs.maxBandHalfSpanBlocks == rhs.maxBandHalfSpanBlocks;
+            lhs.maxBandHalfSpanBlocks == rhs.maxBandHalfSpanBlocks &&
+            lhs.sampleCellSizeBlocks == rhs.sampleCellSizeBlocks;
     }
 
     bool equal_world_gen_settings(const TerrainGeneratorSettings& lhs, const TerrainGeneratorSettings& rhs)
@@ -129,7 +130,7 @@ namespace
         ImGui::PopID();
     }
 
-    void draw_density_editor(const char* id, const char* label, TerrainDensitySettings& settings)
+    void draw_density_editor(const char* id, const char* label, TerrainDensitySettings& settings, const int maxBandHalfSpan)
     {
         static constexpr const char* BasisLabels[] = {
             "OpenSimplex2",
@@ -151,7 +152,8 @@ namespace
         ImGui::SliderFloat("Gain (Persistence)", &settings.gain, 0.0f, 1.0f, "%.2f");
         ImGui::SliderFloat("Weighted Strength", &settings.weightedStrength, 0.0f, 1.0f, "%.2f");
         ImGui::SliderFloat("Density Strength", &settings.strength, 0.0f, 1.0f, "%.2f");
-        ImGui::SliderInt("Max Band Half Span", &settings.maxBandHalfSpanBlocks, 0, static_cast<int>(CHUNK_HEIGHT), "%d");
+        ImGui::SliderInt("Max Band Half Span", &settings.maxBandHalfSpanBlocks, 0, maxBandHalfSpan, "%d");
+        ImGui::SliderFloat("Sample Cell Size", &settings.sampleCellSizeBlocks, 1.0f, 8.0f, "%.1f");
         ImGui::PopID();
     }
 
@@ -222,7 +224,7 @@ namespace
         }
     }
 
-    ImU32 noise_preview_color(const TerrainColumnSample& column, const int layer)
+    ImU32 noise_preview_color(const TerrainColumnSample& column, const int layer, const int chunkVoxelHeight)
     {
         auto biome_color = [](const BiomeType biome) -> ImU32
         {
@@ -248,7 +250,7 @@ namespace
         switch (layer)
         {
         case 0:
-            return pack_color(gradient_color(static_cast<float>(column.surfaceHeight) / static_cast<float>(CHUNK_HEIGHT - 1)));
+            return pack_color(gradient_color(static_cast<float>(column.surfaceHeight) / static_cast<float>(std::max(1, chunkVoxelHeight - 1))));
         case 1:
             return pack_color(gradient_color((column.noise.continentalness + 1.0f) * 0.5f));
         case 2:
@@ -266,7 +268,7 @@ namespace
         return IM_COL32(255, 255, 255, 255);
     }
 
-    void draw_spline_editor(const char* tableId, const char* label, std::vector<SplinePoint>& spline)
+    void draw_spline_editor(const char* tableId, const char* label, std::vector<SplinePoint>& spline, const float maxHeight)
     {
         ImGui::PushID(tableId);
         ImGui::SeparatorText(label);
@@ -277,7 +279,7 @@ namespace
             const float noise = -1.0f + (2.0f * static_cast<float>(i) / static_cast<float>(preview.size() - 1));
             preview[i] = sample_spline_height(spline, noise);
         }
-        ImGui::PlotLines("##SplinePreview", preview.data(), static_cast<int>(preview.size()), 0, nullptr, 0.0f, static_cast<float>(CHUNK_HEIGHT - 1), ImVec2(-1.0f, 70.0f));
+        ImGui::PlotLines("##SplinePreview", preview.data(), static_cast<int>(preview.size()), 0, nullptr, 0.0f, maxHeight, ImVec2(-1.0f, 70.0f));
 
         int removeIndex = -1;
         if (ImGui::BeginTable(tableId, 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame))
@@ -296,7 +298,7 @@ namespace
                 ImGui::SliderFloat("##noise", &spline[i].noiseValue, -1.0f, 1.0f, "%.2f");
 
                 ImGui::TableSetColumnIndex(1);
-                ImGui::SliderFloat("##height", &spline[i].heightValue, 0.0f, static_cast<float>(CHUNK_HEIGHT - 1), "%.1f");
+                ImGui::SliderFloat("##height", &spline[i].heightValue, 0.0f, maxHeight, "%.1f");
 
                 ImGui::TableSetColumnIndex(2);
                 if (spline.size() > 2)
@@ -327,7 +329,7 @@ namespace
             const SplinePoint tail = spline.empty() ? SplinePoint{} : spline.back();
             spline.push_back(SplinePoint{
                 .noiseValue = std::clamp(tail.noiseValue + 0.15f, -1.0f, 1.0f),
-                .heightValue = std::clamp(tail.heightValue + 8.0f, 0.0f, static_cast<float>(CHUNK_HEIGHT - 1))
+                .heightValue = std::clamp(tail.heightValue + 8.0f, 0.0f, maxHeight)
             });
         }
         ImGui::SameLine();
@@ -341,86 +343,6 @@ namespace
         ImGui::PopID();
     }
 
-    void draw_noise_preview(const char* label, const ChunkCoord centerChunk, const int viewDistance, const int layer)
-    {
-        const float availableWidth = ImGui::GetContentRegionAvail().x;
-        const int chunkSpan = (viewDistance * 2) + 1;
-        const int worldSpan = chunkSpan * static_cast<int>(CHUNK_SIZE);
-        const float previewSize = std::max(192.0f, std::min(availableWidth, 420.0f));
-        const float cellSize = previewSize / static_cast<float>(worldSpan);
-        const ImVec2 start = ImGui::GetCursorScreenPos();
-        const ImVec2 end = ImVec2(start.x + previewSize, start.y + previewSize);
-        ImDrawList* const drawList = ImGui::GetWindowDrawList();
-        TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
-
-        drawList->AddRectFilled(start, end, IM_COL32(18, 20, 24, 255), 6.0f);
-        for (int chunkOffsetZ = -viewDistance; chunkOffsetZ <= viewDistance; ++chunkOffsetZ)
-        {
-            for (int chunkOffsetX = -viewDistance; chunkOffsetX <= viewDistance; ++chunkOffsetX)
-            {
-                const ChunkCoord chunkCoord{ centerChunk.x + chunkOffsetX, centerChunk.z + chunkOffsetZ };
-                const ChunkTerrainData chunkData = terrainGenerator.GenerateChunkData(
-                    chunkCoord.x * static_cast<int>(CHUNK_SIZE),
-                    chunkCoord.z * static_cast<int>(CHUNK_SIZE));
-
-                for (int localZ = 0; localZ < CHUNK_SIZE; ++localZ)
-                {
-                    for (int localX = 0; localX < CHUNK_SIZE; ++localX)
-                    {
-                        const int worldX = ((chunkOffsetX + viewDistance) * static_cast<int>(CHUNK_SIZE)) + localX;
-                        const int worldZ = ((chunkOffsetZ + viewDistance) * static_cast<int>(CHUNK_SIZE)) + localZ;
-                        const TerrainColumnSample& column = chunkData.at(localX, localZ);
-                        const ImVec2 min(start.x + (static_cast<float>(worldX) * cellSize), start.y + (static_cast<float>(worldZ) * cellSize));
-                        const ImVec2 max(min.x + cellSize + 1.0f, min.y + cellSize + 1.0f);
-                        drawList->AddRectFilled(min, max, noise_preview_color(column, layer));
-                    }
-                }
-
-                const float chunkMinX = start.x + static_cast<float>((chunkOffsetX + viewDistance) * static_cast<int>(CHUNK_SIZE)) * cellSize;
-                const float chunkMinY = start.y + static_cast<float>((chunkOffsetZ + viewDistance) * static_cast<int>(CHUNK_SIZE)) * cellSize;
-                const float chunkMaxX = chunkMinX + (static_cast<float>(CHUNK_SIZE) * cellSize);
-                const float chunkMaxY = chunkMinY + (static_cast<float>(CHUNK_SIZE) * cellSize);
-                drawList->AddRect(
-                    ImVec2(chunkMinX, chunkMinY),
-                    ImVec2(chunkMaxX, chunkMaxY),
-                    chunkCoord == centerChunk ? IM_COL32(255, 245, 170, 200) : IM_COL32(255, 255, 255, 36),
-                    0.0f,
-                    0,
-                    chunkCoord == centerChunk ? 2.0f : 1.0f);
-            }
-        }
-
-        ImGui::InvisibleButton(label, ImVec2(previewSize, previewSize));
-        if (ImGui::IsItemHovered())
-        {
-            const ImVec2 mouse = ImGui::GetIO().MousePos;
-            const int previewX = std::clamp(static_cast<int>((mouse.x - start.x) / cellSize), 0, worldSpan - 1);
-            const int previewZ = std::clamp(static_cast<int>((mouse.y - start.y) / cellSize), 0, worldSpan - 1);
-            const int chunkOffsetX = (previewX / static_cast<int>(CHUNK_SIZE)) - viewDistance;
-            const int chunkOffsetZ = (previewZ / static_cast<int>(CHUNK_SIZE)) - viewDistance;
-            const int localX = previewX % static_cast<int>(CHUNK_SIZE);
-            const int localZ = previewZ % static_cast<int>(CHUNK_SIZE);
-            const ChunkCoord hoveredChunk{ centerChunk.x + chunkOffsetX, centerChunk.z + chunkOffsetZ };
-            const ChunkTerrainData chunkData = terrainGenerator.GenerateChunkData(
-                hoveredChunk.x * static_cast<int>(CHUNK_SIZE),
-                hoveredChunk.z * static_cast<int>(CHUNK_SIZE));
-            const TerrainColumnSample& column = chunkData.at(localX, localZ);
-            const int worldX = hoveredChunk.x * static_cast<int>(CHUNK_SIZE) + localX;
-            const int worldZ = hoveredChunk.z * static_cast<int>(CHUNK_SIZE) + localZ;
-
-            ImGui::BeginTooltip();
-            ImGui::Text("Chunk: %d, %d", hoveredChunk.x, hoveredChunk.z);
-            ImGui::Text("World: %d, %d", worldX, worldZ);
-            ImGui::Text("Local: %d, %d", localX, localZ);
-            ImGui::Text("Height: %d", column.surfaceHeight);
-            ImGui::Text("Cont: %.2f", column.noise.continentalness);
-            ImGui::Text("Erosion: %.2f", column.noise.erosion);
-            ImGui::Text("Peaks: %.2f", column.noise.peaksValleys);
-            ImGui::Text("Weirdness: %.2f", column.noise.weirdness);
-            ImGui::Text("Biome: %s", biome_label(column.biome));
-            ImGui::EndTooltip();
-        }
-    }
 }
 
 
@@ -444,10 +366,17 @@ GameScene::GameScene(const SceneServices& services):
 	build_pipelines();
 
 	create_camera();
+    WorldGeometrySettings worldGeometrySettings = default_world_geometry_settings();
+    if (_services.configService != nullptr)
+    {
+        worldGeometrySettings = _services.configService->world_geometry().load_or_default();
+    }
+    _game.set_world_geometry(worldGeometrySettings);
     if (_services.configService != nullptr)
     {
         _settings = settings::SettingsManager(_services.configService->game_settings().load_or_default());
     }
+    _settings.set_chunk_world_width(_game.world_geometry().chunk_world_width(), false);
     if (_services.configService != nullptr)
     {
         TerrainGenerator::instance().apply_settings(_services.configService->world_gen().load_or_default());
@@ -507,7 +436,7 @@ void GameScene::update_buffers() {
             GameSceneMaterialScope,
 			_renderState);
 	}
-    const ChunkCoord centerChunk = _game.snapshot().currentChunk.value_or(World::get_chunk_coordinates(_game.snapshot().player.position));
+    const ChunkCoord centerChunk = _game.snapshot().currentChunk.value_or(World::get_chunk_coordinates(_game.snapshot().player.position, _game.world_geometry()));
     {
         ZoneScopedN("GameScene::SyncDecorationRegistry");
         _chunkDecorationRenderRegistry.sync(
@@ -802,7 +731,7 @@ void GameScene::draw_debug_map()
             ImGui::Text("Window size: %d x %d", windowExtent.width, windowExtent.height);
 
             const GameSnapshot& snapshot = _game.snapshot();
-            ChunkCoord playerChunk = snapshot.currentChunk.value_or(World::get_chunk_coordinates(snapshot.player.position));
+            ChunkCoord playerChunk = snapshot.currentChunk.value_or(World::get_chunk_coordinates(snapshot.player.position, _game.world_geometry()));
             if (snapshot.currentChunk.has_value())
             {
                 ImGui::Text("Player Chunk: %d,%d", snapshot.currentChunk->x,  snapshot.currentChunk->z);
@@ -813,7 +742,7 @@ void GameScene::draw_debug_map()
                 ImGui::Text("Camera World Position: x: %f, z: %f, y: %f", _camera->_position.x, _camera->_position.z, _camera->_position.y);
                 ImGui::Text("Player World Position: x: %f, z: %f, y: %f", snapshot.player.position.x, snapshot.player.position.z, snapshot.player.position.y);
                 ImGui::Text("Camera Front: x: %f, z: %f, y: %f", _camera->_front.x, _camera->_front.z, _camera->_front.y);
-                auto local_pos = World::get_local_coordinates(snapshot.player.position);
+                auto local_pos = World::get_local_coordinates(snapshot.player.position, _game.world_geometry());
                 ImGui::Text("Player Local Position: x: %d, z: %d, y: %d", local_pos.x, local_pos.z, local_pos.y);
             }
 
@@ -1001,7 +930,15 @@ void GameScene::draw_debug_map()
             tuningChanged |= ImGui::SliderFloat("Hemi Strength", &tuning.hemiStrength, 0.0f, 1.0f);
             tuningChanged |= ImGui::SliderFloat("Skylight Strength", &tuning.skylightStrength, 0.0f, 1.5f);
             tuningChanged |= ImGui::SliderFloat("AO Strength", &tuning.aoStrength, 0.0f, 0.5f);
+            tuningChanged |= ImGui::SliderFloat("Fog Distance Offset", &tuning.fogDistanceOffset, -256.0f, 256.0f, "%.1f");
+            tuningChanged |= ImGui::SliderFloat("Fog Distance Range", &tuning.fogDistanceRange, 1.0f, 512.0f, "%.1f");
+            tuningChanged |= ImGui::SliderFloat("Fog Height Min", &tuning.fogHeightMin, -512.0f, 4096.0f, "%.1f");
+            tuningChanged |= ImGui::SliderFloat("Fog Height Max", &tuning.fogHeightMax, 1.0f, 20000.0f, "%.1f");
             tuningChanged |= ImGui::SliderFloat("Water Fog Strength", &tuning.waterFogStrength, 0.0f, 1.0f);
+            tuningChanged |= ImGui::SliderFloat("Water Fog Distance Clear", &tuning.waterFogDistanceClear, 1.0f, 512.0f, "%.1f");
+            tuningChanged |= ImGui::SliderFloat("Water Fog Distance Dense", &tuning.waterFogDistanceDense, 1.0f, 512.0f, "%.1f");
+            tuningChanged |= ImGui::SliderFloat("Water Fog Factor Clear", &tuning.waterFogFactorClear, 0.0f, 4.0f, "%.2f");
+            tuningChanged |= ImGui::SliderFloat("Water Fog Factor Dense", &tuning.waterFogFactorDense, 0.0f, 4.0f, "%.2f");
             tuningChanged |= ImGui::ColorEdit3("Day Sky Zenith", &(tuning.daySkyZenith.x));
             tuningChanged |= ImGui::ColorEdit3("Day Sky Horizon", &(tuning.daySkyHorizon.x));
             tuningChanged |= ImGui::ColorEdit3("Day Ground", &(tuning.dayGround.x));
@@ -1049,6 +986,7 @@ void GameScene::draw_debug_map()
             if (ImGui::Button("Reload Saved Settings"))
             {
                 _settings = settings::SettingsManager(_services.configService->game_settings().load_or_default());
+                _settings.set_chunk_world_width(_game.world_geometry().chunk_world_width(), false);
                 bind_settings();
             }
             if (_services.configService == nullptr)
@@ -1235,42 +1173,53 @@ void GameScene::draw_debug_map()
 
         if (ImGui::BeginTabItem("World Gen"))
         {
+            ZoneScopedN("GameScene::DrawWorldGenTab");
             sync_world_gen_draft();
             TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
             const TerrainGeneratorSettings appliedSettings = terrainGenerator.settings();
+            const float maxWorldHeight = _game.world_geometry().chunk_world_height();
+            const int maxWorldHeightInt = static_cast<int>(std::floor(maxWorldHeight));
             const bool draftDirty = !equal_world_gen_settings(_worldGenDraft, appliedSettings);
 
             ImGui::Text("Stage terrain changes here. Nothing regenerates until you press the button.");
             ImGui::InputScalar("Seed", ImGuiDataType_U32, &_worldGenDraft.seed);
-            ImGui::SeparatorText("Shape");
-            ImGui::SliderInt("Sea Level", &_worldGenDraft.shape.seaLevel, 0, static_cast<int>(CHUNK_HEIGHT) - 1);
-            draw_noise_layer_editor("ContinentalNoise", "Continental Noise", _worldGenDraft.shape.continental);
-            draw_noise_layer_editor("ErosionNoise", "Erosion Noise", _worldGenDraft.shape.erosion);
-            draw_noise_layer_editor("PeaksNoise", "Peaks / Valleys Noise", _worldGenDraft.shape.peaks);
-            draw_noise_layer_editor("WeirdnessNoise", "Weirdness Noise", _worldGenDraft.shape.weirdness, "Band Strength");
-            draw_density_editor("DensityNoise", "3D Density", _worldGenDraft.density);
-            ImGui::TextUnformatted("Biome-driven terrain materials are disabled for now. Terrain rasterizes as stone while decorations and biome enums stay in place for later work.");
+            if (ImGui::CollapsingHeader("Shape And Density", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ImGui::SliderInt("Sea Level", &_worldGenDraft.shape.seaLevel, 0, maxWorldHeightInt);
+                draw_noise_layer_editor("ContinentalNoise", "Continental Noise", _worldGenDraft.shape.continental);
+                draw_noise_layer_editor("ErosionNoise", "Erosion Noise", _worldGenDraft.shape.erosion);
+                draw_noise_layer_editor("PeaksNoise", "Peaks / Valleys Noise", _worldGenDraft.shape.peaks);
+                draw_noise_layer_editor("WeirdnessNoise", "Weirdness Noise", _worldGenDraft.shape.weirdness, "Band Strength");
+                draw_density_editor("DensityNoise", "3D Density", _worldGenDraft.density, maxWorldHeightInt);
+                ImGui::TextUnformatted("Biome-driven terrain materials are disabled for now. Terrain rasterizes as stone while decorations and biome enums stay in place for later work.");
+            }
 
-            draw_spline_editor("ErosionSplineTable", "Erosion Spline", _worldGenDraft.erosionSplines);
-            draw_spline_editor("PeakSplineTable", "Peak Spline", _worldGenDraft.peakSplines);
-            draw_spline_editor("ContinentalSplineTable", "Continentalness Spline", _worldGenDraft.continentalSplines);
+            if (ImGui::CollapsingHeader("Spline Tables"))
+            {
+                draw_spline_editor("ErosionSplineTable", "Erosion Spline", _worldGenDraft.erosionSplines, maxWorldHeight);
+                draw_spline_editor("PeakSplineTable", "Peak Spline", _worldGenDraft.peakSplines, maxWorldHeight);
+                draw_spline_editor("ContinentalSplineTable", "Continentalness Spline", _worldGenDraft.continentalSplines, maxWorldHeight);
+            }
 
-            ImGui::SeparatorText("Current Area Preview");
-            const char* layerLabels[] = {
-                "Height",
-                "Continentalness",
-                "Erosion",
-                "Peaks/Valleys",
-                "Weirdness",
-                "Biome",
-            };
-            ImGui::Combo("Preview Layer", &_worldGenPreviewLayer, layerLabels, IM_ARRAYSIZE(layerLabels));
+            if (ImGui::CollapsingHeader("Current Area Preview", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                const char* layerLabels[] = {
+                    "Height",
+                    "Continentalness",
+                    "Erosion",
+                    "Peaks/Valleys",
+                    "Weirdness",
+                    "Biome",
+                };
+                ImGui::Combo("Preview Layer", &_worldGenPreviewLayer, layerLabels, IM_ARRAYSIZE(layerLabels));
+                ImGui::SliderInt("Preview Resolution", &_worldGenPreviewMaxResolution, 32, 96);
 
-            const ChunkCoord centerChunk = _game.snapshot().currentChunk.value_or(World::get_chunk_coordinates(_game.snapshot().player.position));
-            const int previewViewDistance = _settings.persistence().world.viewDistance;
-            ImGui::Text("Preview Center Chunk: %d, %d", centerChunk.x, centerChunk.z);
-            ImGui::Text("Preview Area: %dx%d chunks", (previewViewDistance * 2) + 1, (previewViewDistance * 2) + 1);
-            draw_noise_preview("WorldGenPreview", centerChunk, previewViewDistance, _worldGenPreviewLayer);
+                const ChunkCoord centerChunk = _game.snapshot().currentChunk.value_or(World::get_chunk_coordinates(_game.snapshot().player.position, _game.world_geometry()));
+                const int previewViewDistance = _settings.persistence().world.viewDistance;
+                ImGui::Text("Preview Center Chunk: %d, %d", centerChunk.x, centerChunk.z);
+                ImGui::Text("Preview Area: %dx%d chunks", (previewViewDistance * 2) + 1, (previewViewDistance * 2) + 1);
+                draw_world_gen_preview("WorldGenPreview", centerChunk, previewViewDistance, _worldGenPreviewLayer);
+            }
 
             if (!draftDirty)
             {
@@ -1342,13 +1291,23 @@ void GameScene::update_fog_ubo() const
     const glm::vec3& dayFog = tuning.dayFog;
     const glm::vec3& duskFog = tuning.duskFog;
     const glm::vec3& nightFog = tuning.nightFog;
-	fogUBO.fogColor = glm::mix(glm::mix(nightFog, duskFog, std::clamp(1.0f - std::abs(sunHeight), 0.0f, 1.0f)), dayFog, dayFactor);
-	fogUBO.fogEndColor = glm::mix(fogUBO.fogColor * 0.82f, fogUBO.fogColor * 1.12f, dayFactor);
+    fogUBO.fogColor = glm::mix(glm::mix(nightFog, duskFog, std::clamp(1.0f - std::abs(sunHeight), 0.0f, 1.0f)), dayFog, dayFactor);
+    fogUBO.fogEndColor = glm::mix(fogUBO.fogColor * 0.82f, fogUBO.fogColor * 1.12f, dayFactor);
 
-	fogUBO.fogCenter = _game.snapshot().player.position;
-	fogUBO.fogRadius = _settings.view_distance_runtime_settings().fogRadius;
+    fogUBO.fogCenter = _game.snapshot().player.position;
+    fogUBO.fogRadius = _settings.view_distance_runtime_settings().fogRadius;
 	const VkExtent2D windowExtent = _services.current_window_extent();
 	fogUBO.screenSize = glm::ivec2(windowExtent.width, windowExtent.height);
+    fogUBO.fogParams1 = glm::vec4(
+        tuning.fogDistanceRange,
+        tuning.fogHeightMin,
+        tuning.fogHeightMax,
+        0.0f);
+    fogUBO.waterFogParams = glm::vec4(
+        tuning.waterFogDistanceClear,
+        tuning.waterFogDistanceDense,
+        tuning.waterFogFactorClear,
+        tuning.waterFogFactorDense);
 	fogUBO.invViewProject = glm::inverse(_camera->_projection * _camera->_view);
 
 	void* data;
@@ -1631,25 +1590,22 @@ void GameScene::sync_target_block_outline()
     }
 
     clear_target_block_outline();
-    const glm::ivec2 chunkOrigin = World::get_chunk_origin(glm::vec3(worldPos));
-    const glm::ivec3 localPos = World::get_local_coordinates(glm::vec3(worldPos));
+    const WorldGeometry& geometry = _game.world_geometry();
+    const glm::vec3 blockWorldMin = geometry.voxel_to_world(glm::vec3(worldPos));
 
     if (_targetBlockOutlineMesh != nullptr)
     {
         render::enqueue_mesh_release(std::move(_targetBlockOutlineMesh));
     }
 
-    _targetBlockOutlineMesh = Mesh::create_block_outline_mesh(glm::vec3(localPos));
+    _targetBlockOutlineMesh = Mesh::create_block_outline_mesh(blockWorldMin, geometry.block_world_size());
     _services.meshManager->UploadQueue.enqueue(_targetBlockOutlineMesh);
     _outlinedBlockWorldPos = worldPos;
 
     _targetBlockOutlineHandle = _renderState.transparentObjects.insert(RenderObject{
         .mesh = _targetBlockOutlineMesh,
         .material = _services.materialManager->get_material(GameSceneMaterialScope, "chunkboundary"),
-        .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
-            static_cast<float>(chunkOrigin.x),
-            0.0f,
-            static_cast<float>(chunkOrigin.y))),
+        .transform = glm::mat4(1.0f),
         .layer = RenderLayer::Transparent,
         .lightingMode = LightingMode::Unlit
     });
@@ -1666,13 +1622,15 @@ void GameScene::sync_chunk_boundary_debug()
 
     if (_chunkBoundaryMesh == nullptr)
     {
-        _chunkBoundaryMesh = Mesh::create_chunk_boundary_mesh();
+        _chunkBoundaryMesh = Mesh::create_chunk_boundary_mesh(
+            _game.world_geometry().chunk_world_width(),
+            _game.world_geometry().chunk_world_height());
         _services.meshManager->UploadQueue.enqueue(_chunkBoundaryMesh);
     }
 
     const auto debugMaterial = _services.materialManager->get_material(GameSceneMaterialScope, "chunkboundary");
     const GameSnapshot& snapshot = _game.snapshot();
-    const ChunkCoord playerChunk = snapshot.currentChunk.value_or(World::get_chunk_coordinates(snapshot.player.position));
+    const ChunkCoord playerChunk = snapshot.currentChunk.value_or(World::get_chunk_coordinates(snapshot.player.position, _game.world_geometry()));
     const int viewDistance = _settings.persistence().world.viewDistance;
     _chunkBoundaryHandles.reserve(static_cast<size_t>((viewDistance * 2 + 1) * (viewDistance * 2 + 1)));
 
@@ -1690,10 +1648,7 @@ void GameScene::sync_chunk_boundary_debug()
             _chunkBoundaryHandles.push_back(_renderState.transparentObjects.insert(RenderObject{
             .mesh = _chunkBoundaryMesh,
             .material = debugMaterial,
-            .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
-                static_cast<float>(chunk->_data->position.x),
-                0.0f,
-                static_cast<float>(chunk->_data->position.y))),
+            .transform = glm::translate(glm::mat4(1.0f), _game.world_geometry().chunk_world_origin(chunkCoord)),
             .layer = RenderLayer::Transparent,
             .lightingMode = LightingMode::Unlit
         }));
@@ -1755,14 +1710,16 @@ void GameScene::rebuild_runtime_voxel_demo()
 glm::vec3 GameScene::runtime_voxel_demo_position(const glm::ivec2& offset) const
 {
     const PlayerSnapshot& player = _game.snapshot().player;
-    const int worldX = static_cast<int>(std::floor(player.position.x)) + offset.x;
-    const int worldZ = static_cast<int>(std::floor(player.position.z)) + offset.y;
+    const WorldGeometry& geometry = _game.world_geometry();
+    const glm::ivec3 playerVoxel = geometry.world_to_voxel_cell(player.position);
+    const int worldX = playerVoxel.x + offset.x;
+    const int worldZ = playerVoxel.z + offset.y;
     const TerrainColumnSample column = TerrainGenerator::instance().SampleColumn(worldX, worldZ);
 
-    return glm::vec3(
+    return geometry.voxel_to_world(glm::vec3(
         static_cast<float>(worldX) + 0.5f,
         static_cast<float>(column.surfaceHeight + 1),
-        static_cast<float>(worldZ) + 0.5f);
+        static_cast<float>(worldZ) + 0.5f));
 }
 
 void GameScene::clear_chunk_boundary_debug()
@@ -1879,4 +1836,165 @@ void GameScene::sync_world_gen_draft()
 
     _worldGenDraft = TerrainGenerator::instance().settings();
     _worldGenDraftInitialized = true;
+}
+
+void GameScene::invalidate_world_gen_preview_cache() noexcept
+{
+    _worldGenPreviewCache = WorldGenPreviewCache{};
+}
+
+void GameScene::rebuild_world_gen_preview_cache(
+    const ChunkCoord centerChunk,
+    const int viewDistance,
+    const int layer,
+    const int previewResolution)
+{
+    ZoneScopedN("GameScene::RebuildWorldGenPreviewCache");
+    TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
+    const TerrainGeneratorSettings appliedSettings = terrainGenerator.settings();
+    const int chunkVoxelWidth = terrainGenerator.chunk_voxel_width();
+    const int chunkVoxelHeight = terrainGenerator.chunk_voxel_height();
+    const int chunkSpan = (viewDistance * 2) + 1;
+    const int worldSpan = chunkSpan * chunkVoxelWidth;
+    const int worldOriginX = (centerChunk.x - viewDistance) * chunkVoxelWidth;
+    const int worldOriginZ = (centerChunk.z - viewDistance) * chunkVoxelWidth;
+
+    _worldGenPreviewCache.valid = true;
+    _worldGenPreviewCache.centerChunk = centerChunk;
+    _worldGenPreviewCache.viewDistance = viewDistance;
+    _worldGenPreviewCache.layer = layer;
+    _worldGenPreviewCache.previewResolution = previewResolution;
+    _worldGenPreviewCache.worldSpan = worldSpan;
+    _worldGenPreviewCache.chunkVoxelWidth = chunkVoxelWidth;
+    _worldGenPreviewCache.chunkVoxelHeight = chunkVoxelHeight;
+    _worldGenPreviewCache.appliedSettings = appliedSettings;
+    _worldGenPreviewCache.colors.resize(static_cast<size_t>(previewResolution * previewResolution));
+
+    for (int previewZ = 0; previewZ < previewResolution; ++previewZ)
+    {
+        const int worldOffsetZ = std::clamp(
+            static_cast<int>((static_cast<float>(previewZ) + 0.5f) * static_cast<float>(worldSpan) / static_cast<float>(previewResolution)),
+            0,
+            worldSpan - 1);
+        const int worldZ = worldOriginZ + worldOffsetZ;
+        for (int previewX = 0; previewX < previewResolution; ++previewX)
+        {
+            const int worldOffsetX = std::clamp(
+                static_cast<int>((static_cast<float>(previewX) + 0.5f) * static_cast<float>(worldSpan) / static_cast<float>(previewResolution)),
+                0,
+                worldSpan - 1);
+            const int worldX = worldOriginX + worldOffsetX;
+            const TerrainColumnSample column = terrainGenerator.SampleColumn(worldX, worldZ);
+            _worldGenPreviewCache.colors[static_cast<size_t>(previewZ * previewResolution + previewX)] =
+                noise_preview_color(column, layer, chunkVoxelHeight);
+        }
+    }
+}
+
+void GameScene::draw_world_gen_preview(const char* label, const ChunkCoord centerChunk, const int viewDistance, const int layer)
+{
+    ZoneScopedN("GameScene::DrawWorldGenPreview");
+    TerrainGenerator& terrainGenerator = TerrainGenerator::instance();
+    const TerrainGeneratorSettings appliedSettings = terrainGenerator.settings();
+    const int chunkVoxelWidth = terrainGenerator.chunk_voxel_width();
+    const int chunkVoxelHeight = terrainGenerator.chunk_voxel_height();
+    const int chunkSpan = (viewDistance * 2) + 1;
+    const int worldSpan = chunkSpan * chunkVoxelWidth;
+    const float availableWidth = ImGui::GetContentRegionAvail().x;
+    const float previewSize = std::max(192.0f, std::min(availableWidth, 420.0f));
+    const int previewResolutionLimit = std::clamp(_worldGenPreviewMaxResolution, 32, 96);
+    const int previewResolution = std::min(
+        worldSpan,
+        std::min(previewResolutionLimit, std::max(32, static_cast<int>(std::floor(previewSize)))));
+
+    if (!_worldGenPreviewCache.valid ||
+        _worldGenPreviewCache.centerChunk != centerChunk ||
+        _worldGenPreviewCache.viewDistance != viewDistance ||
+        _worldGenPreviewCache.layer != layer ||
+        _worldGenPreviewCache.previewResolution != previewResolution ||
+        _worldGenPreviewCache.chunkVoxelWidth != chunkVoxelWidth ||
+        _worldGenPreviewCache.chunkVoxelHeight != chunkVoxelHeight ||
+        !equal_world_gen_settings(_worldGenPreviewCache.appliedSettings, appliedSettings))
+    {
+        rebuild_world_gen_preview_cache(centerChunk, viewDistance, layer, previewResolution);
+    }
+
+    const float cellSize = previewSize / static_cast<float>(previewResolution);
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    const ImVec2 end = ImVec2(start.x + previewSize, start.y + previewSize);
+    ImDrawList* const drawList = ImGui::GetWindowDrawList();
+    drawList->AddRectFilled(start, end, IM_COL32(18, 20, 24, 255), 6.0f);
+
+    for (int previewZ = 0; previewZ < previewResolution; ++previewZ)
+    {
+        for (int previewX = 0; previewX < previewResolution; ++previewX)
+        {
+            const ImVec2 min(
+                start.x + (static_cast<float>(previewX) * cellSize),
+                start.y + (static_cast<float>(previewZ) * cellSize));
+            const ImVec2 max(min.x + cellSize + 1.0f, min.y + cellSize + 1.0f);
+            drawList->AddRectFilled(
+                min,
+                max,
+                _worldGenPreviewCache.colors[static_cast<size_t>(previewZ * previewResolution + previewX)]);
+        }
+    }
+
+    const float worldCellSize = previewSize / static_cast<float>(worldSpan);
+    const ImU32 gridColor = IM_COL32(255, 255, 255, 28);
+    for (int boundary = 0; boundary <= chunkSpan; ++boundary)
+    {
+        const float axisOffset = static_cast<float>(boundary * chunkVoxelWidth) * worldCellSize;
+        drawList->AddLine(
+            ImVec2(start.x + axisOffset, start.y),
+            ImVec2(start.x + axisOffset, end.y),
+            gridColor,
+            1.0f);
+        drawList->AddLine(
+            ImVec2(start.x, start.y + axisOffset),
+            ImVec2(end.x, start.y + axisOffset),
+            gridColor,
+            1.0f);
+    }
+
+    const float centerChunkMinX = start.x + static_cast<float>(viewDistance * chunkVoxelWidth) * worldCellSize;
+    const float centerChunkMinY = start.y + static_cast<float>(viewDistance * chunkVoxelWidth) * worldCellSize;
+    const float centerChunkExtent = static_cast<float>(chunkVoxelWidth) * worldCellSize;
+    drawList->AddRect(
+        ImVec2(centerChunkMinX, centerChunkMinY),
+        ImVec2(centerChunkMinX + centerChunkExtent, centerChunkMinY + centerChunkExtent),
+        IM_COL32(255, 245, 170, 200),
+        0.0f,
+        0,
+        2.0f);
+
+    ImGui::InvisibleButton(label, ImVec2(previewSize, previewSize));
+    if (!ImGui::IsItemHovered())
+    {
+        return;
+    }
+
+    const ImVec2 mouse = ImGui::GetIO().MousePos;
+    const int previewX = std::clamp(static_cast<int>((mouse.x - start.x) / worldCellSize), 0, worldSpan - 1);
+    const int previewZ = std::clamp(static_cast<int>((mouse.y - start.y) / worldCellSize), 0, worldSpan - 1);
+    const int chunkOffsetX = (previewX / chunkVoxelWidth) - viewDistance;
+    const int chunkOffsetZ = (previewZ / chunkVoxelWidth) - viewDistance;
+    const int localX = previewX % chunkVoxelWidth;
+    const int localZ = previewZ % chunkVoxelWidth;
+    const ChunkCoord hoveredChunk{ centerChunk.x + chunkOffsetX, centerChunk.z + chunkOffsetZ };
+    const int worldX = hoveredChunk.x * chunkVoxelWidth + localX;
+    const int worldZ = hoveredChunk.z * chunkVoxelWidth + localZ;
+    const TerrainColumnSample column = terrainGenerator.SampleColumn(worldX, worldZ);
+
+    ImGui::BeginTooltip();
+    ImGui::Text("Chunk: %d, %d", hoveredChunk.x, hoveredChunk.z);
+    ImGui::Text("World: %d, %d", worldX, worldZ);
+    ImGui::Text("Local: %d, %d", localX, localZ);
+    ImGui::Text("Height: %d", column.surfaceHeight);
+    ImGui::Text("Cont: %.2f", column.noise.continentalness);
+    ImGui::Text("Erosion: %.2f", column.noise.erosion);
+    ImGui::Text("Peaks: %.2f", column.noise.peaksValleys);
+    ImGui::Text("Weirdness: %.2f", column.noise.weirdness);
+    ImGui::Text("Biome: %s", biome_label(column.biome));
+    ImGui::EndTooltip();
 }

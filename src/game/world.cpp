@@ -4,35 +4,16 @@
 #include "block.h"
 #include "../world/chunk_manager.h"
 
-namespace
-{
-    [[nodiscard]] int floor_to_int(const float value)
-    {
-        return static_cast<int>(std::floor(value));
-    }
-
-    [[nodiscard]] int chunk_axis_from_world(const float value)
-    {
-        return floor_to_int(value / static_cast<float>(CHUNK_SIZE));
-    }
-
-    [[nodiscard]] int wrap_to_chunk_axis(const int value, const int axisSize)
-    {
-        const int mod = value % axisSize;
-        return mod < 0 ? mod + axisSize : mod;
-    }
-}
-
 Block* World::get_block(const glm::vec3& worldPos) const
 {
-    auto localPos = get_local_coordinates(worldPos);
-    if (Chunk::is_outside_chunk(localPos))
+    auto localPos = get_local_coordinates(worldPos, geometry());
+    if (Chunk::is_outside_chunk(localPos, geometry().chunk_voxel_width(), geometry().chunk_voxel_height()))
     {
         return nullptr;
     }
 
     auto chunk = get_chunk(worldPos);
-    if (chunk != nullptr)
+    if (chunk != nullptr && chunk->_data != nullptr && chunk->_data->has_block_storage())
     {
         return &chunk->_data->blocks[localPos.x][localPos.y][localPos.z];
     }
@@ -41,7 +22,7 @@ Block* World::get_block(const glm::vec3& worldPos) const
 
 Chunk* World::get_chunk(const glm::vec3 worldPos) const
 {
-    const auto chunkCoord = get_chunk_coordinates(worldPos);
+    const auto chunkCoord = get_chunk_coordinates(worldPos, geometry());
     if (const auto chunk = _chunkManager.get_chunk(chunkCoord))
     {
         return chunk;
@@ -50,28 +31,45 @@ Chunk* World::get_chunk(const glm::vec3 worldPos) const
     return nullptr;
 }
 
+const WorldGeometry& World::geometry() const
+{
+    return _chunkManager.geometry();
+}
+
 ChunkCoord World::get_chunk_coordinates(const glm::vec3 &worldPos)
 {
-    return {
-        chunk_axis_from_world(worldPos.x),
-        chunk_axis_from_world(worldPos.z)
-    };
+    static const WorldGeometry defaultGeometry{};
+    return get_chunk_coordinates(worldPos, defaultGeometry);
+}
+
+ChunkCoord World::get_chunk_coordinates(const glm::vec3& worldPos, const WorldGeometry& geometry)
+{
+    return geometry.world_to_chunk(worldPos);
 }
 
 glm::ivec2 World::get_chunk_origin(const glm::vec3 &worldPos)
 {
-    const auto chunkCords = get_chunk_coordinates(worldPos);
+    static const WorldGeometry defaultGeometry{};
+    return get_chunk_origin(worldPos, defaultGeometry);
+}
+
+glm::ivec2 World::get_chunk_origin(const glm::vec3& worldPos, const WorldGeometry& geometry)
+{
+    const auto chunkCords = get_chunk_coordinates(worldPos, geometry);
+    const glm::ivec3 chunkOrigin = geometry.chunk_voxel_origin(chunkCords);
     return {
-        chunkCords.x * CHUNK_SIZE,
-        chunkCords.z * CHUNK_SIZE
+        chunkOrigin.x,
+        chunkOrigin.z
     };
 }
 
 glm::ivec3 World::get_local_coordinates(const glm::vec3 &worldPos)
 {
-    return {
-        wrap_to_chunk_axis(floor_to_int(worldPos.x), CHUNK_SIZE),
-        floor_to_int(worldPos.y),
-        wrap_to_chunk_axis(floor_to_int(worldPos.z), CHUNK_SIZE)
-    };
+    static const WorldGeometry defaultGeometry{};
+    return get_local_coordinates(worldPos, defaultGeometry);
+}
+
+glm::ivec3 World::get_local_coordinates(const glm::vec3& worldPos, const WorldGeometry& geometry)
+{
+    return geometry.world_to_local_voxel(worldPos);
 }

@@ -6,6 +6,7 @@
 
 #include "dynamic_light_registry.h"
 #include "game/chunk.h"
+#include "world_geometry.h"
 
 class ChunkManager;
 
@@ -20,6 +21,11 @@ namespace world_lighting
 
     [[nodiscard]] SampledWorldLight sample_baked_world_light(
         const ChunkData& chunkData,
+        const glm::vec3& worldPosition) noexcept;
+
+    [[nodiscard]] SampledWorldLight sample_baked_world_light(
+        const ChunkData& chunkData,
+        const WorldGeometry& geometry,
         const glm::vec3& worldPosition) noexcept;
 
     [[nodiscard]] glm::vec3 sample_dynamic_point_lights(

@@ -6,7 +6,7 @@ namespace config
 {
     namespace
     {
-        constexpr int GameSettingsConfigVersion = 3;
+        constexpr int GameSettingsConfigVersion = 4;
 
         nlohmann::json vec3_to_json(const glm::vec3& value)
         {
@@ -80,7 +80,15 @@ namespace config
                         { "skylightStrength", tuning.skylightStrength },
                         { "shadowStrength", tuning.shadowStrength },
                         { "localLightStrength", tuning.localLightStrength },
+                        { "fogDistanceOffset", tuning.fogDistanceOffset },
+                        { "fogDistanceRange", tuning.fogDistanceRange },
+                        { "fogHeightMin", tuning.fogHeightMin },
+                        { "fogHeightMax", tuning.fogHeightMax },
                         { "waterFogStrength", tuning.waterFogStrength },
+                        { "waterFogDistanceClear", tuning.waterFogDistanceClear },
+                        { "waterFogDistanceDense", tuning.waterFogDistanceDense },
+                        { "waterFogFactorClear", tuning.waterFogFactorClear },
+                        { "waterFogFactorDense", tuning.waterFogFactorDense },
                         { "cycleDurationSeconds", tuning.cycleDurationSeconds }
                     } }
                 } }
@@ -151,7 +159,15 @@ namespace config
                     tuning.skylightStrength = tuningNode.value("skylightStrength", tuning.skylightStrength);
                     tuning.shadowStrength = tuningNode.value("shadowStrength", tuning.shadowStrength);
                     tuning.localLightStrength = tuningNode.value("localLightStrength", tuning.localLightStrength);
+                    tuning.fogDistanceOffset = tuningNode.value("fogDistanceOffset", tuning.fogDistanceOffset);
+                    tuning.fogDistanceRange = tuningNode.value("fogDistanceRange", tuning.fogDistanceRange);
+                    tuning.fogHeightMin = tuningNode.value("fogHeightMin", tuning.fogHeightMin);
+                    tuning.fogHeightMax = tuningNode.value("fogHeightMax", tuning.fogHeightMax);
                     tuning.waterFogStrength = tuningNode.value("waterFogStrength", tuning.waterFogStrength);
+                    tuning.waterFogDistanceClear = tuningNode.value("waterFogDistanceClear", tuning.waterFogDistanceClear);
+                    tuning.waterFogDistanceDense = tuningNode.value("waterFogDistanceDense", tuning.waterFogDistanceDense);
+                    tuning.waterFogFactorClear = tuningNode.value("waterFogFactorClear", tuning.waterFogFactorClear);
+                    tuning.waterFogFactorDense = tuningNode.value("waterFogFactorDense", tuning.waterFogFactorDense);
                     tuning.cycleDurationSeconds = tuningNode.value("cycleDurationSeconds", tuning.cycleDurationSeconds);
                 }
             }

@@ -16,6 +16,7 @@ namespace terrain_generation
         const FastNoise::SmartNode<>& continentalNoise,
         const TerrainGeneratorSettings& settings,
         const glm::ivec2& chunkOrigin,
+        float blockWorldSize,
         WorldRegionScaffold2D& scaffold);
 
     void fill_column_scaffold(
@@ -25,6 +26,7 @@ namespace terrain_generation
         const TerrainGeneratorSettings& settings,
         const WorldRegionScaffold2D& regionScaffold,
         const glm::ivec2& chunkOrigin,
+        float blockWorldSize,
         TerrainColumnScaffold2D& scaffold);
 
     void fill_density_volume(
@@ -32,6 +34,7 @@ namespace terrain_generation
         const FastNoise::SmartNode<>& densityNoise,
         const TerrainGeneratorSettings& settings,
         const glm::ivec2& chunkOrigin,
+        float blockWorldSize,
         TerrainVolumeBuffer& volumeBuffer);
 
     void clear_surface_classification(SurfaceClassificationBuffer& surfaceBuffer);

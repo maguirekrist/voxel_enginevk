@@ -8,12 +8,27 @@
 
 namespace
 {
-    constexpr int CloudPlacementCellSize = 40;
+    constexpr float CloudPlacementCellSizeWorld = 40.0f;
     constexpr int CloudSpawnChancePercent = 42;
-    constexpr int CloudMinBaseHeight = 148;
-    constexpr int CloudMaxBaseHeight = 196;
-    constexpr int CloudMaxRadius = 11;
-    constexpr int CloudMaxHeight = 8;
+    constexpr float CloudMinBaseHeightWorld = 148.0f;
+    constexpr float CloudMaxBaseHeightWorld = 196.0f;
+    constexpr float CloudMaxRadiusWorld = 11.0f;
+    constexpr float CloudMaxHeightWorld = 8.0f;
+
+    [[nodiscard]] int world_units_to_voxels_round(const float worldUnits, const float blockWorldSize)
+    {
+        return std::max(1, static_cast<int>(std::lround(worldUnits / blockWorldSize)));
+    }
+
+    [[nodiscard]] int world_units_to_voxels_ceil(const float worldUnits, const float blockWorldSize)
+    {
+        return std::max(1, static_cast<int>(std::ceil(worldUnits / blockWorldSize)));
+    }
+
+    [[nodiscard]] int world_offset_to_voxels_round(const float worldUnits, const float blockWorldSize)
+    {
+        return static_cast<int>(std::lround(worldUnits / blockWorldSize));
+    }
 
     [[nodiscard]] Block make_cloud_block()
     {
@@ -73,7 +88,7 @@ namespace
                     }
 
                     const glm::ivec3 worldPos = center + glm::ivec3(x, y, z);
-                    if (worldPos.y < baseY || worldPos.y >= static_cast<int>(CHUNK_HEIGHT))
+                    if (worldPos.y < baseY)
                     {
                         continue;
                     }
@@ -93,12 +108,21 @@ StructureType CloudStructureGenerator::type() const noexcept
     return StructureType::CLOUD;
 }
 
-std::vector<StructureBlockEdit> CloudStructureGenerator::generate(const StructureAnchor& anchor, const StructureGenerationContext&) const
+std::vector<StructureBlockEdit> CloudStructureGenerator::generate(const StructureAnchor& anchor, const StructureGenerationContext& context) const
 {
+    const float blockWorldSize = context.terrainGenerator != nullptr ? context.terrainGenerator->block_world_size() : 1.0f;
     uint64_t seed = anchor.seed;
-    const int baseRadius = Random::generate_from_seed(seed, 5, 8);
-    const int crownHeight = Random::generate_from_seed(seed, 3, 5);
-    const int sideReach = std::max(3, baseRadius - 2);
+    const int baseRadius = world_units_to_voxels_round(
+        static_cast<float>(Random::generate_from_seed(seed, 5, 8)),
+        blockWorldSize);
+    const int crownHeight = world_units_to_voxels_round(
+        static_cast<float>(Random::generate_from_seed(seed, 3, 5)),
+        blockWorldSize);
+    const int oneUnit = world_units_to_voxels_round(1.0f, blockWorldSize);
+    const int twoUnits = world_units_to_voxels_round(2.0f, blockWorldSize);
+    const int threeUnits = world_units_to_voxels_round(3.0f, blockWorldSize);
+    const int fourUnits = world_units_to_voxels_round(4.0f, blockWorldSize);
+    const int sideReach = std::max(threeUnits, baseRadius - twoUnits);
     const glm::ivec3 cloudBase = anchor.worldOrigin;
 
     std::vector<StructureBlockEdit> edits{};
@@ -107,9 +131,9 @@ std::vector<StructureBlockEdit> CloudStructureGenerator::generate(const Structur
     const auto add_seeded_puff = [&](const glm::ivec3 offset, const int minRadiusXZ, const int maxRadiusXZ, const int minRadiusY, const int maxRadiusY)
     {
         const glm::ivec3 jitter{
-            Random::generate_from_seed(seed, -1, 1),
-            Random::generate_from_seed(seed, 0, 1),
-            Random::generate_from_seed(seed, -1, 1)
+            world_offset_to_voxels_round(static_cast<float>(Random::generate_from_seed(seed, -1, 1)), blockWorldSize),
+            world_offset_to_voxels_round(static_cast<float>(Random::generate_from_seed(seed, 0, 1)), blockWorldSize),
+            world_offset_to_voxels_round(static_cast<float>(Random::generate_from_seed(seed, -1, 1)), blockWorldSize)
         };
         const int puffRadiusXZ = Random::generate_from_seed(seed, minRadiusXZ, maxRadiusXZ);
         const int puffRadiusY = Random::generate_from_seed(seed, minRadiusY, maxRadiusY);
@@ -117,31 +141,31 @@ std::vector<StructureBlockEdit> CloudStructureGenerator::generate(const Structur
         add_cloud_puff(edits, cloudBase + offset + jitter, puffRadiusXZ, puffRadiusY, cloudBase.y, puffSeed);
     };
 
-    add_seeded_puff(glm::ivec3(0, 0, 0), std::max(4, baseRadius - 1), baseRadius + 1, 2, crownHeight);
-    add_seeded_puff(glm::ivec3(sideReach, 0, 0), std::max(3, baseRadius - 3), std::max(4, baseRadius - 1), 1, crownHeight - 1);
-    add_seeded_puff(glm::ivec3(-sideReach, 0, 0), std::max(3, baseRadius - 3), std::max(4, baseRadius - 1), 1, crownHeight - 1);
-    add_seeded_puff(glm::ivec3(0, 0, sideReach), std::max(3, baseRadius - 3), std::max(4, baseRadius - 1), 1, crownHeight - 1);
-    add_seeded_puff(glm::ivec3(0, 0, -sideReach), std::max(3, baseRadius - 3), std::max(4, baseRadius - 1), 1, crownHeight - 1);
+    add_seeded_puff(glm::ivec3(0, 0, 0), std::max(fourUnits, baseRadius - oneUnit), baseRadius + oneUnit, twoUnits, crownHeight);
+    add_seeded_puff(glm::ivec3(sideReach, 0, 0), std::max(threeUnits, baseRadius - threeUnits), std::max(fourUnits, baseRadius - oneUnit), oneUnit, std::max(oneUnit, crownHeight - oneUnit));
+    add_seeded_puff(glm::ivec3(-sideReach, 0, 0), std::max(threeUnits, baseRadius - threeUnits), std::max(fourUnits, baseRadius - oneUnit), oneUnit, std::max(oneUnit, crownHeight - oneUnit));
+    add_seeded_puff(glm::ivec3(0, 0, sideReach), std::max(threeUnits, baseRadius - threeUnits), std::max(fourUnits, baseRadius - oneUnit), oneUnit, std::max(oneUnit, crownHeight - oneUnit));
+    add_seeded_puff(glm::ivec3(0, 0, -sideReach), std::max(threeUnits, baseRadius - threeUnits), std::max(fourUnits, baseRadius - oneUnit), oneUnit, std::max(oneUnit, crownHeight - oneUnit));
 
-    const int diagonalReach = std::max(2, baseRadius - 3);
-    add_seeded_puff(glm::ivec3(diagonalReach, 1, diagonalReach), std::max(3, baseRadius - 4), std::max(3, baseRadius - 2), 1, crownHeight - 1);
-    add_seeded_puff(glm::ivec3(diagonalReach, 1, -diagonalReach), std::max(3, baseRadius - 4), std::max(3, baseRadius - 2), 1, crownHeight - 1);
-    add_seeded_puff(glm::ivec3(-diagonalReach, 1, diagonalReach), std::max(3, baseRadius - 4), std::max(3, baseRadius - 2), 1, crownHeight - 1);
-    add_seeded_puff(glm::ivec3(-diagonalReach, 1, -diagonalReach), std::max(3, baseRadius - 4), std::max(3, baseRadius - 2), 1, crownHeight - 1);
+    const int diagonalReach = std::max(twoUnits, baseRadius - threeUnits);
+    add_seeded_puff(glm::ivec3(diagonalReach, oneUnit, diagonalReach), std::max(threeUnits, baseRadius - fourUnits), std::max(threeUnits, baseRadius - twoUnits), oneUnit, std::max(oneUnit, crownHeight - oneUnit));
+    add_seeded_puff(glm::ivec3(diagonalReach, oneUnit, -diagonalReach), std::max(threeUnits, baseRadius - fourUnits), std::max(threeUnits, baseRadius - twoUnits), oneUnit, std::max(oneUnit, crownHeight - oneUnit));
+    add_seeded_puff(glm::ivec3(-diagonalReach, oneUnit, diagonalReach), std::max(threeUnits, baseRadius - fourUnits), std::max(threeUnits, baseRadius - twoUnits), oneUnit, std::max(oneUnit, crownHeight - oneUnit));
+    add_seeded_puff(glm::ivec3(-diagonalReach, oneUnit, -diagonalReach), std::max(threeUnits, baseRadius - fourUnits), std::max(threeUnits, baseRadius - twoUnits), oneUnit, std::max(oneUnit, crownHeight - oneUnit));
 
-    add_seeded_puff(glm::ivec3(0, crownHeight, 0), std::max(2, baseRadius - 4), std::max(3, baseRadius - 2), 1, 2);
+    add_seeded_puff(glm::ivec3(0, crownHeight, 0), std::max(twoUnits, baseRadius - fourUnits), std::max(threeUnits, baseRadius - twoUnits), oneUnit, twoUnits);
 
     return edits;
 }
 
-int CloudStructureGenerator::max_radius() const noexcept
+int CloudStructureGenerator::max_radius(const float blockWorldSize) const noexcept
 {
-    return CloudMaxRadius;
+    return world_units_to_voxels_ceil(CloudMaxRadiusWorld, blockWorldSize);
 }
 
-int CloudStructureGenerator::max_height() const noexcept
+int CloudStructureGenerator::max_height(const float blockWorldSize) const noexcept
 {
-    return CloudMaxHeight;
+    return world_units_to_voxels_ceil(CloudMaxHeightWorld, blockWorldSize);
 }
 
 CloudPlacementStrategy::CloudPlacementStrategy(const CloudStructureGenerator& generator) :
@@ -156,17 +180,32 @@ StructureType CloudPlacementStrategy::type() const noexcept
 
 void CloudPlacementStrategy::collect_anchors(const StructureGenerationContext& context, std::vector<StructureAnchor>& anchors) const
 {
-    const int maxRadius = _generator.max_radius();
-    const int maxHeight = _generator.max_height();
+    const float blockWorldSize =
+        context.terrainGenerator != nullptr ?
+        context.terrainGenerator->block_world_size() :
+        1.0f;
+    const int chunkVoxelWidth =
+        context.terrainScaffold != nullptr ?
+        context.terrainScaffold->chunkVoxelWidth :
+        static_cast<int>(CHUNK_SIZE);
+    const int chunkVoxelHeight =
+        context.terrainGenerator != nullptr ?
+        context.terrainGenerator->chunk_voxel_height() :
+        static_cast<int>(CHUNK_HEIGHT);
+    const int maxRadius = _generator.max_radius(blockWorldSize);
+    const int maxHeight = _generator.max_height(blockWorldSize);
+    const int placementCellSize = world_units_to_voxels_round(CloudPlacementCellSizeWorld, blockWorldSize);
+    const int minBaseHeight = world_units_to_voxels_round(CloudMinBaseHeightWorld, blockWorldSize);
+    const int maxBaseHeight = world_units_to_voxels_round(CloudMaxBaseHeightWorld, blockWorldSize);
     const int minWorldX = context.chunkOrigin.x - maxRadius;
-    const int maxWorldX = context.chunkOrigin.x + static_cast<int>(CHUNK_SIZE) - 1 + maxRadius;
+    const int maxWorldX = context.chunkOrigin.x + chunkVoxelWidth - 1 + maxRadius;
     const int minWorldZ = context.chunkOrigin.y - maxRadius;
-    const int maxWorldZ = context.chunkOrigin.y + static_cast<int>(CHUNK_SIZE) - 1 + maxRadius;
+    const int maxWorldZ = context.chunkOrigin.y + chunkVoxelWidth - 1 + maxRadius;
 
-    const int minCellX = floor_divide(minWorldX, CloudPlacementCellSize);
-    const int maxCellX = floor_divide(maxWorldX, CloudPlacementCellSize);
-    const int minCellZ = floor_divide(minWorldZ, CloudPlacementCellSize);
-    const int maxCellZ = floor_divide(maxWorldZ, CloudPlacementCellSize);
+    const int minCellX = floor_divide(minWorldX, placementCellSize);
+    const int maxCellX = floor_divide(maxWorldX, placementCellSize);
+    const int minCellZ = floor_divide(minWorldZ, placementCellSize);
+    const int maxCellZ = floor_divide(maxWorldZ, placementCellSize);
 
     anchors.reserve(anchors.size() + static_cast<size_t>((maxCellX - minCellX + 1) * (maxCellZ - minCellZ + 1)));
 
@@ -174,16 +213,16 @@ void CloudPlacementStrategy::collect_anchors(const StructureGenerationContext& c
     {
         for (int cellZ = minCellZ; cellZ <= maxCellZ; ++cellZ)
         {
-            uint64_t cellSeed = Random::seed_from_ints({ cellX, cellZ, CloudPlacementCellSize, 7711 });
+            uint64_t cellSeed = Random::seed_from_ints({ cellX, cellZ, placementCellSize, 7711 });
             if (Random::generate_from_seed(cellSeed, 0, 99) >= CloudSpawnChancePercent)
             {
                 continue;
             }
 
-            const int worldX = cellX * CloudPlacementCellSize + Random::generate_from_seed(cellSeed, 0, CloudPlacementCellSize - 1);
-            const int worldZ = cellZ * CloudPlacementCellSize + Random::generate_from_seed(cellSeed, 0, CloudPlacementCellSize - 1);
-            const int worldY = Random::generate_from_seed(cellSeed, CloudMinBaseHeight, CloudMaxBaseHeight);
-            if (worldY + maxHeight >= static_cast<int>(CHUNK_HEIGHT))
+            const int worldX = cellX * placementCellSize + Random::generate_from_seed(cellSeed, 0, placementCellSize - 1);
+            const int worldZ = cellZ * placementCellSize + Random::generate_from_seed(cellSeed, 0, placementCellSize - 1);
+            const int worldY = Random::generate_from_seed(cellSeed, minBaseHeight, maxBaseHeight);
+            if (worldY + maxHeight >= chunkVoxelHeight)
             {
                 continue;
             }

@@ -7,8 +7,8 @@ class CloudStructureGenerator final : public IStructureGenerator
 public:
     [[nodiscard]] StructureType type() const noexcept override;
     [[nodiscard]] std::vector<StructureBlockEdit> generate(const StructureAnchor& anchor, const StructureGenerationContext& context) const override;
-    [[nodiscard]] int max_radius() const noexcept;
-    [[nodiscard]] int max_height() const noexcept;
+    [[nodiscard]] int max_radius(float blockWorldSize) const noexcept;
+    [[nodiscard]] int max_height(float blockWorldSize) const noexcept;
 };
 
 class CloudPlacementStrategy final : public IStructurePlacementStrategy

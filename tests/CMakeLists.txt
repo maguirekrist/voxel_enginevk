@@ -5,6 +5,7 @@ add_executable(engine_tests
     world_tests.cpp
     gameplay_tests.cpp
     settings_tests.cpp
+    world_geometry_tests.cpp
     voxel_asset_tests.cpp
     voxel_geometry_tests.cpp
     ../src/settings/game_settings.cpp
@@ -12,6 +13,7 @@ add_executable(engine_tests
     ../src/config/json_document_store.cpp
     ../src/config/config_service.cpp
     ../src/config/game_settings_config_repository.cpp
+    ../src/config/world_geometry_config_repository.cpp
     ../src/config/world_gen_config_repository.cpp
     ../src/game/chunk.cpp
     ../src/game/world.cpp
@@ -39,6 +41,7 @@ add_executable(engine_tests
     ../src/render/mesh_release_queue.cpp
     ../src/world/chunk_neighborhood.cpp
     ../src/world/chunk_lighting.cpp
+    ../src/world/world_geometry.cpp
     ../src/world/generation/terrain_generation_buffers.cpp
     ../src/world/generation/terrain_generation_helpers.cpp
     ../src/world/terrain_gen.cpp

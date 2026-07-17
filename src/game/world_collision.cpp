@@ -31,12 +31,10 @@ bool WorldCollision::intersects_solid(const AABB& bounds) const
         return false;
     }
 
-    return intersects_solid_blocks(bounds, [this](const glm::ivec3& worldBlock) -> bool
+    return intersects_solid_blocks(bounds, _world->geometry(), [this](const glm::ivec3& worldBlock) -> bool
     {
-        const Block* const block = _world->get_block(glm::vec3(
-            static_cast<float>(worldBlock.x),
-            static_cast<float>(worldBlock.y),
-            static_cast<float>(worldBlock.z)));
+        const glm::vec3 samplePosition = _world->geometry().voxel_to_world(glm::vec3(worldBlock));
+        const Block* const block = _world->get_block(samplePosition);
         return block != nullptr && block->_solid;
     });
 }
@@ -45,12 +43,23 @@ bool WorldCollision::intersects_solid_blocks(
     const AABB& bounds,
     const std::function<bool(const glm::ivec3&)>& isSolidBlock)
 {
-    const int minX = min_block_index(bounds.min.x);
-    const int minY = min_block_index(bounds.min.y);
-    const int minZ = min_block_index(bounds.min.z);
-    const int maxX = max_block_index(bounds.max.x);
-    const int maxY = max_block_index(bounds.max.y);
-    const int maxZ = max_block_index(bounds.max.z);
+    static const WorldGeometry defaultGeometry{};
+    return intersects_solid_blocks(bounds, defaultGeometry, isSolidBlock);
+}
+
+bool WorldCollision::intersects_solid_blocks(
+    const AABB& bounds,
+    const WorldGeometry& geometry,
+    const std::function<bool(const glm::ivec3&)>& isSolidBlock)
+{
+    const glm::vec3 minVoxel = geometry.world_to_voxel(bounds.min);
+    const glm::vec3 maxVoxel = geometry.world_to_voxel(bounds.max);
+    const int minX = min_block_index(minVoxel.x);
+    const int minY = min_block_index(minVoxel.y);
+    const int minZ = min_block_index(minVoxel.z);
+    const int maxX = max_block_index(maxVoxel.x);
+    const int maxY = max_block_index(maxVoxel.y);
+    const int maxZ = max_block_index(maxVoxel.z);
 
     for (int x = minX; x <= maxX; ++x)
     {

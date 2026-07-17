@@ -1,8 +1,10 @@
 #include "decoration.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include <glm/ext/quaternion_trigonometric.hpp>
+#include <tracy/Tracy.hpp>
 
 #include "chunk.h"
 #include "random.h"
@@ -10,10 +12,15 @@
 
 namespace
 {
-    constexpr int FlowerPlacementCellSize = 4;
+    constexpr float FlowerPlacementCellSizeWorld = 4.0f;
     constexpr int ForestFlowerChancePercent = 26;
-    constexpr int FlowerClearanceHeight = 2;
+    constexpr float FlowerClearanceHeightWorld = 2.0f;
     constexpr std::string_view FlowerAssetId = "flower";
+
+    [[nodiscard]] int world_units_to_voxels_round(const float worldUnits, const float blockWorldSize)
+    {
+        return std::max(1, static_cast<int>(std::lround(worldUnits / blockWorldSize)));
+    }
 
     int floor_divide(const int value, const int divisor)
     {
@@ -42,10 +49,14 @@ namespace
                 return;
             }
 
-            const int minCellX = floor_divide(context.chunkOrigin.x, FlowerPlacementCellSize);
-            const int maxCellX = floor_divide(context.chunkOrigin.x + static_cast<int>(CHUNK_SIZE) - 1, FlowerPlacementCellSize);
-            const int minCellZ = floor_divide(context.chunkOrigin.y, FlowerPlacementCellSize);
-            const int maxCellZ = floor_divide(context.chunkOrigin.y + static_cast<int>(CHUNK_SIZE) - 1, FlowerPlacementCellSize);
+            const int chunkVoxelWidth = context.chunkData->voxelWidth;
+            const float blockWorldSize = context.terrainGenerator->block_world_size();
+            const int placementCellSize = world_units_to_voxels_round(FlowerPlacementCellSizeWorld, blockWorldSize);
+            const int clearanceHeight = world_units_to_voxels_round(FlowerClearanceHeightWorld, blockWorldSize);
+            const int minCellX = floor_divide(context.chunkOrigin.x, placementCellSize);
+            const int maxCellX = floor_divide(context.chunkOrigin.x + chunkVoxelWidth - 1, placementCellSize);
+            const int minCellZ = floor_divide(context.chunkOrigin.y, placementCellSize);
+            const int maxCellZ = floor_divide(context.chunkOrigin.y + chunkVoxelWidth - 1, placementCellSize);
 
             placements.reserve(placements.size() + static_cast<size_t>((maxCellX - minCellX + 1) * (maxCellZ - minCellZ + 1)));
 
@@ -58,16 +69,16 @@ namespace
                         context.chunkOrigin.y,
                         cellX,
                         cellZ,
-                        FlowerPlacementCellSize,
+                        placementCellSize,
                         0xF10A
                     });
-                    const int worldX = cellX * FlowerPlacementCellSize + Random::generate_from_seed(cellSeed, 0, FlowerPlacementCellSize - 1);
-                    const int worldZ = cellZ * FlowerPlacementCellSize + Random::generate_from_seed(cellSeed, 0, FlowerPlacementCellSize - 1);
+                    const int worldX = cellX * placementCellSize + Random::generate_from_seed(cellSeed, 0, placementCellSize - 1);
+                    const int worldZ = cellZ * placementCellSize + Random::generate_from_seed(cellSeed, 0, placementCellSize - 1);
 
                     if (worldX < context.chunkOrigin.x ||
-                        worldX >= context.chunkOrigin.x + static_cast<int>(CHUNK_SIZE) ||
+                        worldX >= context.chunkOrigin.x + chunkVoxelWidth ||
                         worldZ < context.chunkOrigin.y ||
-                        worldZ >= context.chunkOrigin.y + static_cast<int>(CHUNK_SIZE))
+                        worldZ >= context.chunkOrigin.y + chunkVoxelWidth)
                     {
                         continue;
                     }
@@ -84,7 +95,7 @@ namespace
                     }
 
                     const glm::ivec3 baseWorldPos{ worldX, column.surfaceHeight, worldZ };
-                    if (!decoration::can_place_surface_decoration(*context.chunkData, column, baseWorldPos, FlowerClearanceHeight))
+                    if (!decoration::can_place_surface_decoration(*context.chunkData, column, baseWorldPos, clearanceHeight))
                     {
                         continue;
                     }
@@ -95,9 +106,9 @@ namespace
                     placements.push_back(VoxelDecorationPlacement{
                         .assetId = std::string(FlowerAssetId),
                         .worldPosition = glm::vec3(
-                            static_cast<float>(worldX) + 0.5f,
-                            static_cast<float>(column.surfaceHeight + 1),
-                            static_cast<float>(worldZ) + 0.5f),
+                            (static_cast<float>(worldX) + 0.5f) * blockWorldSize,
+                            static_cast<float>(column.surfaceHeight + 1) * blockWorldSize,
+                            (static_cast<float>(worldZ) + 0.5f) * blockWorldSize),
                         .rotation = glm::angleAxis(glm::radians(yawDegrees), glm::vec3(0.0f, 1.0f, 0.0f)),
                         .scale = scale,
                         .placementPolicy = VoxelPlacementPolicy::BottomCenter
@@ -116,6 +127,7 @@ DecorationRegistry& DecorationRegistry::instance()
 
 std::vector<VoxelDecorationPlacement> DecorationRegistry::generate_for_chunk(const DecorationGenerationContext& context) const
 {
+    ZoneScopedN("DecorationRegistry::GenerateForChunk");
     std::vector<VoxelDecorationPlacement> placements{};
     for (const auto& strategy : _placementStrategies)
     {
@@ -124,7 +136,12 @@ std::vector<VoxelDecorationPlacement> DecorationRegistry::generate_for_chunk(con
             continue;
         }
 
-        strategy->collect_placements(context, placements);
+        {
+            ZoneScopedN("DecorationRegistry::CollectPlacements");
+            const std::string_view strategyName = strategy->name();
+            ZoneText(strategyName.data(), static_cast<uint32_t>(strategyName.size()));
+            strategy->collect_placements(context, placements);
+        }
     }
 
     return placements;

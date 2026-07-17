@@ -12,5 +12,8 @@ struct DirtyChunkMark
 class ChunkDirtyTracker
 {
 public:
-    [[nodiscard]] std::vector<DirtyChunkMark> affected_chunks(const ChunkCoord& ownerCoord, const glm::ivec3& localPos) const;
+    [[nodiscard]] std::vector<DirtyChunkMark> affected_chunks(
+        const ChunkCoord& ownerCoord,
+        const glm::ivec3& localPos,
+        int chunkVoxelWidth = static_cast<int>(CHUNK_SIZE)) const;
 };

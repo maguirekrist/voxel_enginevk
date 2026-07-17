@@ -3,7 +3,12 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
-project ("vulkan_guide")
+project ("voxel_enginevk")
+
+set(VOXEL_ENGINE_OUTPUT_NAME "game" CACHE STRING "Runtime executable output name")
+if (VOXEL_ENGINE_OUTPUT_NAME STREQUAL "")
+    set(VOXEL_ENGINE_OUTPUT_NAME "game" CACHE STRING "Runtime executable output name" FORCE)
+endif()
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED true)

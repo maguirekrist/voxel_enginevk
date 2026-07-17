@@ -109,7 +109,7 @@ Planned JSON shape:
 - Chunk AO and lighting do not need to be copied into the first voxel mesher pass; keep the asset pipeline deterministic first.
 - Keep the mesh output and repository interfaces decoupled so future import/export tooling can reuse them outside the live editor.
 - Current verification status:
-  - `cmake --build build --config Debug --target vulkan_guide` succeeded on March 22, 2026.
+  - `cmake --build build --config Debug --target game` succeeded on March 22, 2026.
   - `cmake --build build --config Debug --target engine_tests` succeeded on March 22, 2026.
   - `engine_tests.exe --gtest_list_tests` includes runtime attachment/cache and decoration coverage on March 22, 2026.
   - `ctest --output-on-failure -C Debug` passed 31/31 on March 22, 2026.

@@ -4,7 +4,8 @@ namespace config
 {
     ConfigService::ConfigService() :
         _gameSettingsRepository(_documentStore),
-        _worldGenRepository(_documentStore)
+        _worldGenRepository(_documentStore),
+        _worldGeometryRepository(_documentStore)
     {
     }
 
@@ -26,5 +27,15 @@ namespace config
     const WorldGenConfigRepository& ConfigService::world_gen() const noexcept
     {
         return _worldGenRepository;
+    }
+
+    WorldGeometryConfigRepository& ConfigService::world_geometry() noexcept
+    {
+        return _worldGeometryRepository;
+    }
+
+    const WorldGeometryConfigRepository& ConfigService::world_geometry() const noexcept
+    {
+        return _worldGeometryRepository;
     }
 }

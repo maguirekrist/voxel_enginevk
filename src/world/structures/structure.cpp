@@ -2,6 +2,24 @@
 
 #include "world/structures/cloud_structure_generator.h"
 #include "world/structures/tree_structure_generator.h"
+#include <string>
+#include <tracy/Tracy.hpp>
+
+namespace
+{
+    [[nodiscard]] const char* structure_type_name(const StructureType type) noexcept
+    {
+        switch (type)
+        {
+        case StructureType::TREE:
+            return "Tree";
+        case StructureType::CLOUD:
+            return "Cloud";
+        default:
+            return "Unknown";
+        }
+    }
+}
 
 StructureRegistry& StructureRegistry::instance()
 {
@@ -22,6 +40,7 @@ std::vector<StructureBlockEdit> StructureRegistry::generate(const StructureAncho
 
 std::vector<StructureBlockEdit> StructureRegistry::generate_overlapping(const StructureGenerationContext& context) const
 {
+    ZoneScopedN("StructureRegistry::GenerateOverlapping");
     std::vector<StructureBlockEdit> edits;
     std::vector<StructureAnchor> anchors;
 
@@ -33,12 +52,22 @@ std::vector<StructureBlockEdit> StructureRegistry::generate_overlapping(const St
         }
 
         anchors.clear();
-        registered.placement->collect_anchors(context, anchors);
-
-        for (const StructureAnchor& anchor : anchors)
         {
-            std::vector<StructureBlockEdit> generated = registered.generator->generate(anchor, context);
-            edits.insert(edits.end(), generated.begin(), generated.end());
+            ZoneScopedN("StructureRegistry::CollectAnchors");
+            const char* typeName = structure_type_name(type);
+            ZoneText(typeName, static_cast<uint32_t>(std::char_traits<char>::length(typeName)));
+            registered.placement->collect_anchors(context, anchors);
+        }
+
+        {
+            ZoneScopedN("StructureRegistry::GenerateStructureEdits");
+            const char* typeName = structure_type_name(type);
+            ZoneText(typeName, static_cast<uint32_t>(std::char_traits<char>::length(typeName)));
+            for (const StructureAnchor& anchor : anchors)
+            {
+                std::vector<StructureBlockEdit> generated = registered.generator->generate(anchor, context);
+                edits.insert(edits.end(), generated.begin(), generated.end());
+            }
         }
     }
 

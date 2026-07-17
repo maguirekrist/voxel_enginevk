@@ -8,12 +8,32 @@
 
 namespace
 {
-    constexpr int TreePlacementCellSize = 12;
+    constexpr float TreePlacementCellSizeWorld = 12.0f;
     constexpr int ForestTreeChancePercent = 52;
     constexpr int PlainsTreeChancePercent = 18;
     constexpr int MountainTreeChancePercent = 10;
     constexpr int ForestGiantTreeChancePercent = 24;
     constexpr int PlainsGiantTreeChancePercent = 8;
+
+    [[nodiscard]] int world_units_to_voxels_round(const float worldUnits, const float blockWorldSize)
+    {
+        return std::max(1, static_cast<int>(std::lround(worldUnits / blockWorldSize)));
+    }
+
+    [[nodiscard]] int world_units_to_voxels_ceil(const float worldUnits, const float blockWorldSize)
+    {
+        return std::max(1, static_cast<int>(std::ceil(worldUnits / blockWorldSize)));
+    }
+
+    [[nodiscard]] int world_offset_to_voxels_round(const float worldUnits, const float blockWorldSize)
+    {
+        return static_cast<int>(std::lround(worldUnits / blockWorldSize));
+    }
+
+    [[nodiscard]] int centered_min_offset(const int width) noexcept
+    {
+        return -((width - 1) / 2);
+    }
 
     [[nodiscard]] Block make_structure_block(const BlockType type, const bool solid)
     {
@@ -141,27 +161,42 @@ namespace
             return TreeVariant::Oak;
         }
 
-        [[nodiscard]] int max_radius() const noexcept override
+        [[nodiscard]] float max_radius_world() const noexcept override
         {
-            return 3;
+            return 3.0f;
         }
 
-        [[nodiscard]] int max_height() const noexcept override
+        [[nodiscard]] float max_height_world() const noexcept override
         {
-            return 8;
+            return 8.0f;
         }
 
-        void append_structure(const StructureAnchor& anchor, std::vector<StructureBlockEdit>& edits) const override
+        void append_structure(
+            const StructureAnchor& anchor,
+            const float blockWorldSize,
+            std::vector<StructureBlockEdit>& edits) const override
         {
             uint64_t seed = anchor.seed;
-            const int trunkHeight = Random::generate_from_seed(seed, 4, 6);
-            const int canopyRadius = Random::generate_from_seed(seed, 2, 3);
-            const int canopyBaseY = anchor.worldOrigin.y + trunkHeight - 2;
-            const int canopyTopY = anchor.worldOrigin.y + trunkHeight + 1;
+            const int trunkWidth = world_units_to_voxels_round(1.0f, blockWorldSize);
+            const int trunkHeight = world_units_to_voxels_round(
+                static_cast<float>(Random::generate_from_seed(seed, 4, 6)),
+                blockWorldSize);
+            const int canopyRadius = world_units_to_voxels_round(
+                static_cast<float>(Random::generate_from_seed(seed, 2, 3)),
+                blockWorldSize);
+            const int canopyBaseOffset = world_units_to_voxels_round(2.0f, blockWorldSize);
+            const int canopyTopOffset = world_units_to_voxels_round(1.0f, blockWorldSize);
+            const int canopyBaseY = anchor.worldOrigin.y + trunkHeight - canopyBaseOffset;
+            const int canopyTopY = anchor.worldOrigin.y + trunkHeight + canopyTopOffset;
+            const int trunkMinOffset = centered_min_offset(trunkWidth);
             const auto is_trunk_position = [&](const glm::ivec3& worldPos)
             {
-                return worldPos.x == anchor.worldOrigin.x &&
-                    worldPos.z == anchor.worldOrigin.z &&
+                const int localX = worldPos.x - (anchor.worldOrigin.x + trunkMinOffset);
+                const int localZ = worldPos.z - (anchor.worldOrigin.z + trunkMinOffset);
+                return localX >= 0 &&
+                    localX < trunkWidth &&
+                    localZ >= 0 &&
+                    localZ < trunkWidth &&
                     worldPos.y >= anchor.worldOrigin.y &&
                     worldPos.y < anchor.worldOrigin.y + trunkHeight;
             };
@@ -170,10 +205,16 @@ namespace
 
             for (int y = 0; y < trunkHeight; ++y)
             {
-                edits.push_back(StructureBlockEdit{
-                    .worldPosition = anchor.worldOrigin + glm::ivec3(0, y, 0),
-                    .block = make_structure_block(BlockType::WOOD, true)
-                });
+                for (int dx = 0; dx < trunkWidth; ++dx)
+                {
+                    for (int dz = 0; dz < trunkWidth; ++dz)
+                    {
+                        edits.push_back(StructureBlockEdit{
+                            .worldPosition = anchor.worldOrigin + glm::ivec3(trunkMinOffset + dx, y, trunkMinOffset + dz),
+                            .block = make_structure_block(BlockType::WOOD, true)
+                        });
+                    }
+                }
             }
 
             for (int y = canopyBaseY; y <= canopyTopY; ++y)
@@ -225,23 +266,37 @@ namespace
             return TreeVariant::Giant;
         }
 
-        [[nodiscard]] int max_radius() const noexcept override
+        [[nodiscard]] float max_radius_world() const noexcept override
         {
-            return 7;
+            return 7.0f;
         }
 
-        [[nodiscard]] int max_height() const noexcept override
+        [[nodiscard]] float max_height_world() const noexcept override
         {
-            return 15;
+            return 15.0f;
         }
 
-        void append_structure(const StructureAnchor& anchor, std::vector<StructureBlockEdit>& edits) const override
+        void append_structure(
+            const StructureAnchor& anchor,
+            const float blockWorldSize,
+            std::vector<StructureBlockEdit>& edits) const override
         {
             uint64_t seed = anchor.seed;
-            const int trunkHeight = Random::generate_from_seed(seed, 10, 15);
-            const int crownRadius = Random::generate_from_seed(seed, 4, 6);
-            const int crownHeight = Random::generate_from_seed(seed, 3, 4);
+            const int trunkWidth = world_units_to_voxels_round(2.0f, blockWorldSize);
+            const int trunkHeight = world_units_to_voxels_round(
+                static_cast<float>(Random::generate_from_seed(seed, 10, 15)),
+                blockWorldSize);
+            const int crownRadius = world_units_to_voxels_round(
+                static_cast<float>(Random::generate_from_seed(seed, 4, 6)),
+                blockWorldSize);
+            const int crownHeight = world_units_to_voxels_round(
+                static_cast<float>(Random::generate_from_seed(seed, 3, 4)),
+                blockWorldSize);
             const glm::ivec3 trunkBase = anchor.worldOrigin;
+            const int trunkMinOffset = centered_min_offset(trunkWidth);
+            const int oneUnit = world_units_to_voxels_round(1.0f, blockWorldSize);
+            const int twoUnits = world_units_to_voxels_round(2.0f, blockWorldSize);
+            const int threeUnits = world_units_to_voxels_round(3.0f, blockWorldSize);
 
             const auto is_trunk_position = [&](const glm::ivec3& worldPos)
             {
@@ -250,34 +305,35 @@ namespace
                     return false;
                 }
 
-                const int localX = worldPos.x - trunkBase.x;
-                const int localZ = worldPos.z - trunkBase.z;
-                return localX >= 0 && localX <= 1 && localZ >= 0 && localZ <= 1;
+                const int localX = worldPos.x - (trunkBase.x + trunkMinOffset);
+                const int localZ = worldPos.z - (trunkBase.z + trunkMinOffset);
+                return localX >= 0 && localX < trunkWidth && localZ >= 0 && localZ < trunkWidth;
             };
 
             edits.reserve(edits.size() + 640);
 
             for (int y = 0; y < trunkHeight; ++y)
             {
-                for (int dx = 0; dx < 2; ++dx)
+                for (int dx = 0; dx < trunkWidth; ++dx)
                 {
-                    for (int dz = 0; dz < 2; ++dz)
+                    for (int dz = 0; dz < trunkWidth; ++dz)
                     {
                         edits.push_back(StructureBlockEdit{
-                            .worldPosition = trunkBase + glm::ivec3(dx, y, dz),
+                            .worldPosition = trunkBase + glm::ivec3(trunkMinOffset + dx, y, trunkMinOffset + dz),
                             .block = make_structure_block(BlockType::WOOD, true)
                         });
                     }
                 }
             }
 
-            const glm::ivec3 crownCenter = trunkBase + glm::ivec3(1, trunkHeight - 1, 1);
+            const int crownCenterOffset = trunkMinOffset + (trunkWidth / 2);
+            const glm::ivec3 crownCenter = trunkBase + glm::ivec3(crownCenterOffset, trunkHeight - 1, crownCenterOffset);
             const auto add_seeded_puff = [&](const glm::ivec3 baseOffset, const int minRadiusXZ, const int maxRadiusXZ, const int minRadiusY, const int maxRadiusY)
             {
                 const glm::ivec3 jitter{
-                    Random::generate_from_seed(seed, -1, 1),
-                    Random::generate_from_seed(seed, -1, 1),
-                    Random::generate_from_seed(seed, -1, 1)
+                    world_offset_to_voxels_round(static_cast<float>(Random::generate_from_seed(seed, -1, 1)), blockWorldSize),
+                    world_offset_to_voxels_round(static_cast<float>(Random::generate_from_seed(seed, -1, 1)), blockWorldSize),
+                    world_offset_to_voxels_round(static_cast<float>(Random::generate_from_seed(seed, -1, 1)), blockWorldSize)
                 };
                 const int puffRadiusXZ = Random::generate_from_seed(seed, minRadiusXZ, maxRadiusXZ);
                 const int puffRadiusY = Random::generate_from_seed(seed, minRadiusY, maxRadiusY);
@@ -286,21 +342,21 @@ namespace
                 add_leaf_puff(edits, crownCenter + baseOffset + jitter, puffRadiusXZ, puffRadiusY, puffSeed, is_trunk_position);
             };
 
-            add_seeded_puff(glm::ivec3(0, 0, 0), std::max(3, crownRadius - 1), crownRadius, crownHeight, crownHeight + 1);
-            add_seeded_puff(glm::ivec3(0, crownHeight - 1, 0), std::max(3, crownRadius - 2), std::max(3, crownRadius - 1), 1, 2);
-            add_seeded_puff(glm::ivec3(0, -2, 0), std::max(3, crownRadius - 2), std::max(3, crownRadius - 1), 1, 2);
+            add_seeded_puff(glm::ivec3(0, 0, 0), std::max(threeUnits, crownRadius - oneUnit), crownRadius, crownHeight, crownHeight + oneUnit);
+            add_seeded_puff(glm::ivec3(0, crownHeight - oneUnit, 0), std::max(threeUnits, crownRadius - twoUnits), std::max(threeUnits, crownRadius - oneUnit), oneUnit, twoUnits);
+            add_seeded_puff(glm::ivec3(0, -twoUnits, 0), std::max(threeUnits, crownRadius - twoUnits), std::max(threeUnits, crownRadius - oneUnit), oneUnit, twoUnits);
 
-            const int sideReach = std::max(3, crownRadius - 1);
-            add_seeded_puff(glm::ivec3(sideReach, 0, 0), std::max(3, crownRadius - 2), sideReach, std::max(2, crownHeight - 1), crownHeight);
-            add_seeded_puff(glm::ivec3(-sideReach, 0, 0), std::max(3, crownRadius - 2), sideReach, std::max(2, crownHeight - 1), crownHeight);
-            add_seeded_puff(glm::ivec3(0, 0, sideReach), std::max(3, crownRadius - 2), sideReach, std::max(2, crownHeight - 1), crownHeight);
-            add_seeded_puff(glm::ivec3(0, 0, -sideReach), std::max(3, crownRadius - 2), sideReach, std::max(2, crownHeight - 1), crownHeight);
+            const int sideReach = std::max(threeUnits, crownRadius - oneUnit);
+            add_seeded_puff(glm::ivec3(sideReach, 0, 0), std::max(threeUnits, crownRadius - twoUnits), sideReach, std::max(twoUnits, crownHeight - oneUnit), crownHeight);
+            add_seeded_puff(glm::ivec3(-sideReach, 0, 0), std::max(threeUnits, crownRadius - twoUnits), sideReach, std::max(twoUnits, crownHeight - oneUnit), crownHeight);
+            add_seeded_puff(glm::ivec3(0, 0, sideReach), std::max(threeUnits, crownRadius - twoUnits), sideReach, std::max(twoUnits, crownHeight - oneUnit), crownHeight);
+            add_seeded_puff(glm::ivec3(0, 0, -sideReach), std::max(threeUnits, crownRadius - twoUnits), sideReach, std::max(twoUnits, crownHeight - oneUnit), crownHeight);
 
-            const int diagonalReach = std::max(2, crownRadius - 2);
-            add_seeded_puff(glm::ivec3(diagonalReach, 1, diagonalReach), std::max(2, crownRadius - 3), std::max(3, crownRadius - 1), 1, std::max(2, crownHeight - 1));
-            add_seeded_puff(glm::ivec3(diagonalReach, 0, -diagonalReach), std::max(2, crownRadius - 3), std::max(3, crownRadius - 1), 1, std::max(2, crownHeight - 1));
-            add_seeded_puff(glm::ivec3(-diagonalReach, 1, diagonalReach), std::max(2, crownRadius - 3), std::max(3, crownRadius - 1), 1, std::max(2, crownHeight - 1));
-            add_seeded_puff(glm::ivec3(-diagonalReach, 0, -diagonalReach), std::max(2, crownRadius - 3), std::max(3, crownRadius - 1), 1, std::max(2, crownHeight - 1));
+            const int diagonalReach = std::max(twoUnits, crownRadius - twoUnits);
+            add_seeded_puff(glm::ivec3(diagonalReach, oneUnit, diagonalReach), std::max(twoUnits, crownRadius - threeUnits), std::max(threeUnits, crownRadius - oneUnit), oneUnit, std::max(twoUnits, crownHeight - oneUnit));
+            add_seeded_puff(glm::ivec3(diagonalReach, 0, -diagonalReach), std::max(twoUnits, crownRadius - threeUnits), std::max(threeUnits, crownRadius - oneUnit), oneUnit, std::max(twoUnits, crownHeight - oneUnit));
+            add_seeded_puff(glm::ivec3(-diagonalReach, oneUnit, diagonalReach), std::max(twoUnits, crownRadius - threeUnits), std::max(threeUnits, crownRadius - oneUnit), oneUnit, std::max(twoUnits, crownHeight - oneUnit));
+            add_seeded_puff(glm::ivec3(-diagonalReach, 0, -diagonalReach), std::max(twoUnits, crownRadius - threeUnits), std::max(threeUnits, crownRadius - oneUnit), oneUnit, std::max(twoUnits, crownHeight - oneUnit));
         }
     };
 
@@ -345,7 +401,7 @@ StructureType TreeStructureGenerator::type() const noexcept
     return StructureType::TREE;
 }
 
-std::vector<StructureBlockEdit> TreeStructureGenerator::generate(const StructureAnchor& anchor, const StructureGenerationContext&) const
+std::vector<StructureBlockEdit> TreeStructureGenerator::generate(const StructureAnchor& anchor, const StructureGenerationContext& context) const
 {
     const auto it = _variantGenerators.find(anchor.treeVariant);
     if (it == _variantGenerators.end())
@@ -354,27 +410,28 @@ std::vector<StructureBlockEdit> TreeStructureGenerator::generate(const Structure
     }
 
     std::vector<StructureBlockEdit> edits;
-    it->second->append_structure(anchor, edits);
+    const float blockWorldSize = context.terrainGenerator != nullptr ? context.terrainGenerator->block_world_size() : 1.0f;
+    it->second->append_structure(anchor, blockWorldSize, edits);
     return edits;
 }
 
-int TreeStructureGenerator::max_variant_radius() const noexcept
+int TreeStructureGenerator::max_variant_radius(const float blockWorldSize) const noexcept
 {
     int radius = 0;
     for (const auto& [_, generator] : _variantGenerators)
     {
-        radius = std::max(radius, generator->max_radius());
+        radius = std::max(radius, world_units_to_voxels_ceil(generator->max_radius_world(), blockWorldSize));
     }
 
     return radius;
 }
 
-int TreeStructureGenerator::max_variant_height() const noexcept
+int TreeStructureGenerator::max_variant_height(const float blockWorldSize) const noexcept
 {
     int height = 0;
     for (const auto& [_, generator] : _variantGenerators)
     {
-        height = std::max(height, generator->max_height());
+        height = std::max(height, world_units_to_voxels_ceil(generator->max_height_world(), blockWorldSize));
     }
 
     return height;
@@ -397,17 +454,24 @@ void TreePlacementStrategy::collect_anchors(const StructureGenerationContext& co
         return;
     }
 
-    const int maxRadius = _generator.max_variant_radius();
-    const int maxHeight = _generator.max_variant_height();
+    const float blockWorldSize = context.terrainGenerator->block_world_size();
+    const int chunkVoxelWidth =
+        context.terrainScaffold != nullptr ?
+        context.terrainScaffold->chunkVoxelWidth :
+        context.terrainGenerator->chunk_voxel_width();
+    const int chunkVoxelHeight = context.terrainGenerator->chunk_voxel_height();
+    const int maxRadius = _generator.max_variant_radius(blockWorldSize);
+    const int maxHeight = _generator.max_variant_height(blockWorldSize);
+    const int placementCellSize = world_units_to_voxels_round(TreePlacementCellSizeWorld, blockWorldSize);
     const int minWorldX = context.chunkOrigin.x - maxRadius;
-    const int maxWorldX = context.chunkOrigin.x + static_cast<int>(CHUNK_SIZE) - 1 + maxRadius;
+    const int maxWorldX = context.chunkOrigin.x + chunkVoxelWidth - 1 + maxRadius;
     const int minWorldZ = context.chunkOrigin.y - maxRadius;
-    const int maxWorldZ = context.chunkOrigin.y + static_cast<int>(CHUNK_SIZE) - 1 + maxRadius;
+    const int maxWorldZ = context.chunkOrigin.y + chunkVoxelWidth - 1 + maxRadius;
 
-    const int minCellX = floor_divide(minWorldX, TreePlacementCellSize);
-    const int maxCellX = floor_divide(maxWorldX, TreePlacementCellSize);
-    const int minCellZ = floor_divide(minWorldZ, TreePlacementCellSize);
-    const int maxCellZ = floor_divide(maxWorldZ, TreePlacementCellSize);
+    const int minCellX = floor_divide(minWorldX, placementCellSize);
+    const int maxCellX = floor_divide(maxWorldX, placementCellSize);
+    const int minCellZ = floor_divide(minWorldZ, placementCellSize);
+    const int maxCellZ = floor_divide(maxWorldZ, placementCellSize);
 
     anchors.reserve(anchors.size() + static_cast<size_t>((maxCellX - minCellX + 1) * (maxCellZ - minCellZ + 1)));
 
@@ -415,9 +479,9 @@ void TreePlacementStrategy::collect_anchors(const StructureGenerationContext& co
     {
         for (int cellZ = minCellZ; cellZ <= maxCellZ; ++cellZ)
         {
-            uint64_t cellSeed = Random::seed_from_ints({cellX, cellZ, TreePlacementCellSize});
-            const int worldX = cellX * TreePlacementCellSize + Random::generate_from_seed(cellSeed, 0, TreePlacementCellSize - 1);
-            const int worldZ = cellZ * TreePlacementCellSize + Random::generate_from_seed(cellSeed, 0, TreePlacementCellSize - 1);
+            uint64_t cellSeed = Random::seed_from_ints({cellX, cellZ, placementCellSize});
+            const int worldX = cellX * placementCellSize + Random::generate_from_seed(cellSeed, 0, placementCellSize - 1);
+            const int worldZ = cellZ * placementCellSize + Random::generate_from_seed(cellSeed, 0, placementCellSize - 1);
 
             const TerrainColumnSample column = context.terrainGenerator->SampleColumn(worldX, worldZ);
             const int treeSpawnChance = tree_spawn_chance_for_biome(column.biome);
@@ -430,12 +494,12 @@ void TreePlacementStrategy::collect_anchors(const StructureGenerationContext& co
                 ? TreeVariant::Giant
                 : TreeVariant::Oak;
 
-            const int topPadding = variant == TreeVariant::Giant ? 6 : 2;
+            const int topPadding = world_units_to_voxels_ceil(variant == TreeVariant::Giant ? 6.0f : 2.0f, blockWorldSize);
             const bool canSpawnTree =
                 column.surfaceHeight > TerrainGenerator::sea_level() &&
                 !column.isBeach &&
                 column.biome != BiomeType::Ocean &&
-                column.surfaceHeight + maxHeight + topPadding < static_cast<int>(CHUNK_HEIGHT);
+                column.surfaceHeight + maxHeight + topPadding < chunkVoxelHeight;
 
             if (!canSpawnTree)
             {

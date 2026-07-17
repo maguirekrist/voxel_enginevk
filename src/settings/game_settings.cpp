@@ -1,6 +1,7 @@
 #include "game_settings.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace settings
 {
@@ -38,7 +39,15 @@ namespace settings
                 lhs.skylightStrength == rhs.skylightStrength &&
                 lhs.shadowStrength == rhs.shadowStrength &&
                 lhs.localLightStrength == rhs.localLightStrength &&
+                lhs.fogDistanceOffset == rhs.fogDistanceOffset &&
+                lhs.fogDistanceRange == rhs.fogDistanceRange &&
+                lhs.fogHeightMin == rhs.fogHeightMin &&
+                lhs.fogHeightMax == rhs.fogHeightMax &&
                 lhs.waterFogStrength == rhs.waterFogStrength &&
+                lhs.waterFogDistanceClear == rhs.waterFogDistanceClear &&
+                lhs.waterFogDistanceDense == rhs.waterFogDistanceDense &&
+                lhs.waterFogFactorClear == rhs.waterFogFactorClear &&
+                lhs.waterFogFactorDense == rhs.waterFogFactorDense &&
                 lhs.cycleDurationSeconds == rhs.cycleDurationSeconds;
         }
 
@@ -87,6 +96,19 @@ namespace settings
         return make_player_runtime(_persistence);
     }
 
+    void SettingsManager::set_chunk_world_width(const float chunkWorldWidth, const bool replayCurrent)
+    {
+        _chunkWorldWidth = std::max(0.001f, chunkWorldWidth);
+        if (replayCurrent)
+        {
+            const ViewDistanceRuntimeSettings runtime = make_view_distance_runtime(_persistence);
+            for (const ViewDistanceHandler& handler : _viewDistanceHandlers)
+            {
+                handler(runtime);
+            }
+        }
+    }
+
     bool SettingsManager::equal_persistence(const GameSettingsPersistence& lhs, const GameSettingsPersistence& rhs) noexcept
     {
         return compare_persistence(lhs, rhs);
@@ -124,6 +146,12 @@ namespace settings
         persistence.world.viewDistance = std::max(1, persistence.world.viewDistance);
         persistence.dayNight.timeOfDay = std::clamp(persistence.dayNight.timeOfDay, 0.0f, 1.0f);
         persistence.dayNight.tuning.cycleDurationSeconds = std::max(1.0f, persistence.dayNight.tuning.cycleDurationSeconds);
+        persistence.dayNight.tuning.fogDistanceRange = std::max(1.0f, persistence.dayNight.tuning.fogDistanceRange);
+        persistence.dayNight.tuning.fogHeightMax = std::max(persistence.dayNight.tuning.fogHeightMin + 0.001f, persistence.dayNight.tuning.fogHeightMax);
+        persistence.dayNight.tuning.waterFogDistanceClear = std::max(1.0f, persistence.dayNight.tuning.waterFogDistanceClear);
+        persistence.dayNight.tuning.waterFogDistanceDense = std::max(1.0f, persistence.dayNight.tuning.waterFogDistanceDense);
+        persistence.dayNight.tuning.waterFogFactorClear = std::max(0.0f, persistence.dayNight.tuning.waterFogFactorClear);
+        persistence.dayNight.tuning.waterFogFactorDense = std::max(0.0f, persistence.dayNight.tuning.waterFogFactorDense);
         persistence.player.moveSpeed = std::max(0.0f, persistence.player.moveSpeed);
         persistence.player.airControl = std::clamp(persistence.player.airControl, 0.0f, 1.0f);
         persistence.player.gravity = std::max(0.0f, persistence.player.gravity);
@@ -132,13 +160,15 @@ namespace settings
         persistence.player.cameraTargetOffset.y = std::max(0.0f, persistence.player.cameraTargetOffset.y);
     }
 
-    ViewDistanceRuntimeSettings SettingsManager::make_view_distance_runtime(const GameSettingsPersistence& persistence) noexcept
+    ViewDistanceRuntimeSettings SettingsManager::make_view_distance_runtime(const GameSettingsPersistence& persistence) const noexcept
     {
         const int viewDistance = std::max(1, persistence.world.viewDistance);
         return ViewDistanceRuntimeSettings{
             .viewDistance = viewDistance,
             .maximumResidentChunks = maximum_chunks_for_view_distance(viewDistance),
-            .fogRadius = (CHUNK_SIZE * static_cast<float>(viewDistance)) - 60.0f
+            .fogRadius = std::max(
+                0.0f,
+                (_chunkWorldWidth * static_cast<float>(viewDistance)) + persistence.dayNight.tuning.fogDistanceOffset)
         };
     }
 

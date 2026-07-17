@@ -1,7 +1,5 @@
 #include "chunk_neighborhood.h"
 
-#include "game/world.h"
-
 const ChunkData* ChunkNeighborhood::get_by_offset(const int deltaX, const int deltaZ) const noexcept
 {
     if (deltaX == 0 && deltaZ == 1)
@@ -42,12 +40,19 @@ const ChunkData* ChunkNeighborhood::get_by_offset(const int deltaX, const int de
 
 std::optional<BlockSample> sample_block(const ChunkNeighborhood& neighborhood, const int localX, const int y, const int localZ)
 {
-    if (y < 0 || y >= CHUNK_HEIGHT || neighborhood.center == nullptr)
+    if (neighborhood.center == nullptr || !neighborhood.center->has_block_storage())
     {
         return std::nullopt;
     }
 
-    if (localX >= 0 && localX < CHUNK_SIZE && localZ >= 0 && localZ < CHUNK_SIZE)
+    const int chunkVoxelWidth = neighborhood.center->voxelWidth;
+    const int chunkVoxelHeight = neighborhood.center->voxelHeight;
+    if (y < 0 || y >= chunkVoxelHeight)
+    {
+        return std::nullopt;
+    }
+
+    if (localX >= 0 && localX < chunkVoxelWidth && localZ >= 0 && localZ < chunkVoxelWidth)
     {
         return BlockSample{
             .block = neighborhood.center->blocks[localX][y][localZ],
@@ -55,20 +60,29 @@ std::optional<BlockSample> sample_block(const ChunkNeighborhood& neighborhood, c
         };
     }
 
-    const int deltaX = localX < 0 ? -1 : (localX >= CHUNK_SIZE ? 1 : 0);
-    const int deltaZ = localZ < 0 ? -1 : (localZ >= CHUNK_SIZE ? 1 : 0);
+    const int deltaX = localX < 0 ? -1 : (localX >= chunkVoxelWidth ? 1 : 0);
+    const int deltaZ = localZ < 0 ? -1 : (localZ >= chunkVoxelWidth ? 1 : 0);
     if (deltaX == 0 && deltaZ == 0)
     {
         return std::nullopt;
     }
 
     const ChunkData* const neighbor = neighborhood.get_by_offset(deltaX, deltaZ);
-    if (neighbor == nullptr)
+    if (neighbor == nullptr || !neighbor->has_block_storage())
     {
         return std::nullopt;
     }
 
-    const glm::ivec3 wrappedPos = World::get_local_coordinates(glm::ivec3{ localX, y, localZ });
+    const auto wrap_axis = [chunkVoxelWidth](const int value)
+    {
+        const int mod = value % chunkVoxelWidth;
+        return mod < 0 ? mod + chunkVoxelWidth : mod;
+    };
+    const glm::ivec3 wrappedPos{
+        wrap_axis(localX),
+        y,
+        wrap_axis(localZ)
+    };
     return BlockSample{
         .block = neighbor->blocks[wrappedPos.x][wrappedPos.y][wrappedPos.z],
         .owner = neighbor->coord

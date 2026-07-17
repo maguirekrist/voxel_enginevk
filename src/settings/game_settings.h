@@ -38,7 +38,15 @@ namespace settings
         float skylightStrength{1.0f};
         float shadowStrength{1.0f};
         float localLightStrength{1.1f};
+        float fogDistanceOffset{-60.0f};
+        float fogDistanceRange{60.0f};
+        float fogHeightMin{0.0f};
+        float fogHeightMax{15000.0f};
         float waterFogStrength{0.35f};
+        float waterFogDistanceClear{180.0f};
+        float waterFogDistanceDense{28.0f};
+        float waterFogFactorClear{0.4f};
+        float waterFogFactorDense{1.8f};
         float cycleDurationSeconds{180.0f};
     };
 
@@ -118,6 +126,7 @@ namespace settings
         [[nodiscard]] ViewDistanceRuntimeSettings view_distance_runtime_settings() const noexcept;
         [[nodiscard]] AmbientOcclusionRuntimeSettings ambient_occlusion_runtime_settings() const noexcept;
         [[nodiscard]] PlayerRuntimeSettings player_runtime_settings() const noexcept;
+        void set_chunk_world_width(float chunkWorldWidth, bool replayCurrent = true);
 
         template <typename Mutator>
         bool mutate(Mutator&& mutator)
@@ -143,13 +152,14 @@ namespace settings
     private:
         static bool equal_persistence(const GameSettingsPersistence& lhs, const GameSettingsPersistence& rhs) noexcept;
         static void normalize(GameSettingsPersistence& persistence);
-        static ViewDistanceRuntimeSettings make_view_distance_runtime(const GameSettingsPersistence& persistence) noexcept;
+        [[nodiscard]] ViewDistanceRuntimeSettings make_view_distance_runtime(const GameSettingsPersistence& persistence) const noexcept;
         static AmbientOcclusionRuntimeSettings make_ambient_occlusion_runtime(const GameSettingsPersistence& persistence) noexcept;
         static PlayerRuntimeSettings make_player_runtime(const GameSettingsPersistence& persistence) noexcept;
 
         void dispatch_changes(const GameSettingsPersistence& previous, const GameSettingsPersistence& current);
 
         GameSettingsPersistence _persistence{};
+        float _chunkWorldWidth{static_cast<float>(CHUNK_SIZE)};
         std::vector<ViewDistanceHandler> _viewDistanceHandlers{};
         std::vector<AmbientOcclusionHandler> _ambientOcclusionHandlers{};
         std::vector<PlayerSettingsHandler> _playerSettingsHandlers{};

@@ -1,6 +1,7 @@
 #include "staging_buffer.h"
 
 #include "vk_util.h"
+#include <tracy/Tracy.hpp>
 
 StagingBuffer::StagingBuffer(VmaAllocator vmaAllocator, StagingBufferConfig config) :
     m_write_head(nullptr),
@@ -20,12 +21,14 @@ StagingBuffer::~StagingBuffer()
 
 void StagingBuffer::begin_recording()
 {
+    ZoneScopedN("StagingBuffer::BeginRecording");
     vmaMapMemory(m_allocator, m_stagingBuffer._allocation, &m_write_head);
     m_recording = true;
 }
 
 void StagingBuffer::upload_mesh(std::shared_ptr<Mesh>&& mesh)
 {
+    ZoneScopedN("StagingBuffer::UploadMesh");
     if (!m_recording) { throw std::runtime_error("StagingBuffer::upload_mesh: Not recording"); }
     auto v_size = mesh->_vertices.size() * sizeof(Vertex);
     auto i_size = mesh->_indices.size() * sizeof(uint32_t);
@@ -52,6 +55,8 @@ void StagingBuffer::upload_mesh(std::shared_ptr<Mesh>&& mesh)
     m_write_head = static_cast<char*>(m_write_head) + i_size;
 
     auto allocation = m_meshAllocator->acquire(v_size, i_size);
+    TracyPlot("StagingBuffer WriteOffset", static_cast<int64_t>(m_write_offset));
+    TracyPlot("StagingBuffer UploadHandles", static_cast<int64_t>(m_uploadHandles.size() + 1));
 
     m_v_total_count += 1;
     m_v_total_size += v_size;
@@ -81,6 +86,7 @@ std::function<void(VkCommandBuffer cmd)> StagingBuffer::build_submission() const
 {
     return [this](VkCommandBuffer cmd)
     {
+        ZoneScopedN("StagingBuffer::BuildSubmission");
         for (const auto& handle : m_uploadHandles)
         {
             //USE Mesh Allocator
@@ -111,15 +117,19 @@ std::function<void(VkCommandBuffer cmd)> StagingBuffer::build_submission() const
 
 void StagingBuffer::end_recording()
 {
+    ZoneScopedN("StagingBuffer::EndRecording");
     m_recording = false;
     vmaUnmapMemory(m_allocator, m_stagingBuffer._allocation);
     m_uploadHandles.clear();
     m_write_head = nullptr;
     m_write_offset = 0;
+    TracyPlot("StagingBuffer WriteOffset", static_cast<int64_t>(m_write_offset));
+    TracyPlot("StagingBuffer UploadHandles", static_cast<int64_t>(m_uploadHandles.size()));
 }
 
 void StagingBuffer::reconfigure(StagingBufferConfig config)
 {
+    ZoneScopedN("StagingBuffer::Reconfigure");
     if (!can_reconfigure())
     {
         throw std::runtime_error("StagingBuffer::reconfigure: staging buffer still has live allocations");
@@ -154,6 +164,7 @@ const IMeshAllocator& StagingBuffer::mesh_allocator() const
 
 void StagingBuffer::destroy_buffer()
 {
+    ZoneScopedN("StagingBuffer::DestroyBuffer");
     if (m_stagingBuffer._buffer != VK_NULL_HANDLE)
     {
         vmaDestroyBuffer(m_allocator, m_stagingBuffer._buffer, m_stagingBuffer._allocation);
@@ -163,6 +174,7 @@ void StagingBuffer::destroy_buffer()
 
 void StagingBuffer::create_buffer()
 {
+    ZoneScopedN("StagingBuffer::CreateBuffer");
     m_stagingBuffer = vkutil::create_buffer(
         m_allocator,
         m_capacity,

@@ -114,14 +114,13 @@ void ChunkRenderRegistry::finalize_pending_renders(
 
         remove_chunk(chunk, renderState);
 
+        const glm::vec3 chunkWorldOrigin = chunkManager.geometry().chunk_world_origin(pending.data->coord);
+
         ChunkRenderHandles handles{};
         handles.opaque = renderState.opaqueObjects.insert(RenderObject{
             .mesh = pending.meshData->mesh,
             .material = materialManager.get_material(materialScope, "defaultmesh"),
-            .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
-                static_cast<float>(pending.data->position.x),
-                0.0f,
-                static_cast<float>(pending.data->position.y))),
+            .transform = glm::translate(glm::mat4(1.0f), chunkWorldOrigin),
             .layer = RenderLayer::Opaque,
             .lightingMode = LightingMode::BakedPlusDynamic
         });
@@ -132,10 +131,7 @@ void ChunkRenderRegistry::finalize_pending_renders(
             handles.waterTransparent = renderState.transparentObjects.insert(RenderObject{
                 .mesh = pending.meshData->waterMesh,
                 .material = materialManager.get_material(materialScope, "watermesh"),
-                .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
-                    static_cast<float>(pending.data->position.x),
-                    0.0f,
-                    static_cast<float>(pending.data->position.y))),
+                .transform = glm::translate(glm::mat4(1.0f), chunkWorldOrigin),
                 .layer = RenderLayer::Transparent,
                 .lightingMode = LightingMode::BakedChunk
             });
@@ -147,10 +143,7 @@ void ChunkRenderRegistry::finalize_pending_renders(
             handles.glowTransparent = renderState.transparentObjects.insert(RenderObject{
                 .mesh = pending.meshData->glowMesh,
                 .material = materialManager.get_material(materialScope, "glowmesh"),
-                .transform = glm::translate(glm::mat4(1.0f), glm::vec3(
-                    static_cast<float>(pending.data->position.x),
-                    0.0f,
-                    static_cast<float>(pending.data->position.y))),
+                .transform = glm::translate(glm::mat4(1.0f), chunkWorldOrigin),
                 .layer = RenderLayer::Transparent,
                 .lightingMode = LightingMode::Unlit
             });

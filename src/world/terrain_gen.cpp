@@ -1,7 +1,10 @@
 #include "terrain_gen.h"
 
 #include <algorithm>
+#include <cmath>
 #include <ranges>
+
+#include <tracy/Tracy.hpp>
 
 #include "game/chunk.h"
 #include "generation/terrain_generation_helpers.h"
@@ -27,7 +30,8 @@ namespace
     constexpr float MinTerraceSmoothness = 0.0f;
     constexpr float MaxTerraceSmoothness = 1.0f;
     constexpr int MinDensityBandHalfSpanBlocks = 0;
-    constexpr int MaxDensityBandHalfSpanBlocks = static_cast<int>(CHUNK_HEIGHT);
+    constexpr float MinDensitySampleCellBlocks = 1.0f;
+    constexpr float MaxDensitySampleCellBlocks = 64.0f;
 
     [[nodiscard]] FastNoise::SmartNode<> build_noise_source(const TerrainNoiseBasis basis)
     {
@@ -115,7 +119,7 @@ namespace
         settings.strength = std::clamp(settings.strength, MinShapeStrength, MaxShapeStrength);
     }
 
-    void normalize_density_settings(TerrainDensitySettings& settings)
+    void normalize_density_settings(TerrainDensitySettings& settings, const int maxBandHalfSpanBlocks)
     {
         settings.frequency = std::clamp(settings.frequency, MinShapeFrequency, MaxShapeFrequency);
         settings.octaves = std::clamp(settings.octaves, MinNoiseOctaves, MaxNoiseOctaves);
@@ -126,7 +130,11 @@ namespace
         settings.maxBandHalfSpanBlocks = std::clamp(
             settings.maxBandHalfSpanBlocks,
             MinDensityBandHalfSpanBlocks,
-            MaxDensityBandHalfSpanBlocks);
+            std::max(MinDensityBandHalfSpanBlocks, maxBandHalfSpanBlocks));
+        settings.sampleCellSizeBlocks = std::clamp(
+            settings.sampleCellSizeBlocks,
+            MinDensitySampleCellBlocks,
+            MaxDensitySampleCellBlocks);
     }
 
     constexpr std::array<SplinePoint, 4> DefaultErosionSplines{
@@ -152,6 +160,16 @@ namespace
         SplinePoint{ 0.45f, 92.0f },
         SplinePoint{ 1.0f, 116.0f }
     };
+
+    [[nodiscard]] int world_units_to_voxels(const float value, const float blockWorldSize) noexcept
+    {
+        return std::max(0, static_cast<int>(std::lround(value / blockWorldSize)));
+    }
+
+    [[nodiscard]] float max_world_height(const int chunkVoxelHeight, const float blockWorldSize) noexcept
+    {
+        return static_cast<float>(std::max(0, chunkVoxelHeight - 1)) * blockWorldSize;
+    }
 }
 
 size_t TerrainGenerator::ChunkCacheKeyHash::operator()(const ChunkCacheKey& key) const noexcept
@@ -172,36 +190,51 @@ TerrainGenerator::TerrainGenerator() :
     rebuild_noise();
 }
 
-WorldRegionScaffold2D TerrainGenerator::generate_region_scaffold(const int chunkX, const int chunkZ) const
+WorldRegionScaffold2D TerrainGenerator::build_region_scaffold(const int chunkX, const int chunkZ) const
 {
+    ZoneScopedN("TerrainGenerator::BuildRegionScaffold");
+    WorldRegionScaffold2D scaffold{
+        .chunkOrigin = {chunkX, chunkZ},
+        .chunkVoxelWidth = _chunkVoxelWidth,
+        .chunkVoxelHeight = _chunkVoxelHeight,
+        .cells = std::vector<WorldRegionSample>(static_cast<size_t>(_chunkVoxelWidth * _chunkVoxelWidth))
+    };
+    terrain_generation::fill_region_scaffold(_continental, _settings, scaffold.chunkOrigin, _blockWorldSize, scaffold);
+
+    return scaffold;
+}
+
+const WorldRegionScaffold2D& TerrainGenerator::region_scaffold_for(const int chunkX, const int chunkZ) const
+{
+    ZoneScopedN("TerrainGenerator::RegionScaffoldCache");
     const ChunkCacheKey key{chunkX, chunkZ};
     {
         std::scoped_lock lock(_stateMutex);
         const auto it = _regionCache.find(key);
         if (it != _regionCache.end())
         {
+            ZoneText("hit", 3);
             return it->second;
         }
     }
 
-    WorldRegionScaffold2D scaffold{
-        .chunkOrigin = {chunkX, chunkZ},
-        .cells = std::vector<WorldRegionSample>(static_cast<size_t>(CHUNK_SIZE * CHUNK_SIZE))
-    };
-    terrain_generation::fill_region_scaffold(_continental, _settings, scaffold.chunkOrigin, scaffold);
-
+    ZoneText("miss", 4);
+    WorldRegionScaffold2D scaffold = build_region_scaffold(chunkX, chunkZ);
     std::scoped_lock lock(_stateMutex);
-    auto [it, inserted] = _regionCache.emplace(key, scaffold);
+    auto [it, inserted] = _regionCache.emplace(key, std::move(scaffold));
     return it->second;
 }
 
 ChunkTerrainData TerrainGenerator::build_chunk_data(const int chunkX, const int chunkZ) const
 {
-    const WorldRegionScaffold2D regionScaffold = generate_region_scaffold(chunkX, chunkZ);
+    ZoneScopedN("TerrainGenerator::BuildChunkData");
+    const WorldRegionScaffold2D& regionScaffold = region_scaffold_for(chunkX, chunkZ);
 
     ChunkTerrainData chunkData{
         .chunkOrigin = {chunkX, chunkZ},
-        .columns = std::vector<TerrainColumnSample>(static_cast<size_t>(CHUNK_SIZE * CHUNK_SIZE))
+        .chunkVoxelWidth = _chunkVoxelWidth,
+        .chunkVoxelHeight = _chunkVoxelHeight,
+        .columns = std::vector<TerrainColumnSample>(static_cast<size_t>(_chunkVoxelWidth * _chunkVoxelWidth))
     };
 
     terrain_generation::fill_column_scaffold(
@@ -211,70 +244,94 @@ ChunkTerrainData TerrainGenerator::build_chunk_data(const int chunkX, const int 
         _settings,
         regionScaffold,
         chunkData.chunkOrigin,
+        _blockWorldSize,
         chunkData);
 
     return chunkData;
 }
 
-ChunkTerrainData TerrainGenerator::GenerateChunkData(const int chunkX, const int chunkZ) const
+const ChunkTerrainData& TerrainGenerator::chunk_data_for(const int chunkX, const int chunkZ) const
 {
+    ZoneScopedN("TerrainGenerator::ChunkDataCache");
     const ChunkCacheKey key{chunkX, chunkZ};
     {
         std::scoped_lock lock(_stateMutex);
         const auto it = _columnCache.find(key);
         if (it != _columnCache.end())
         {
+            ZoneText("hit", 3);
             return it->second;
         }
     }
 
+    ZoneText("miss", 4);
     ChunkTerrainData built = build_chunk_data(chunkX, chunkZ);
     std::scoped_lock lock(_stateMutex);
-    auto [it, inserted] = _columnCache.emplace(key, built);
+    auto [it, inserted] = _columnCache.emplace(key, std::move(built));
     return it->second;
+}
+
+ChunkTerrainData TerrainGenerator::GenerateChunkData(const int chunkX, const int chunkZ) const
+{
+    return chunk_data_for(chunkX, chunkZ);
 }
 
 WorldGenerationChunkResult TerrainGenerator::GenerateChunkPipeline(const int chunkX, const int chunkZ) const
 {
+    ZoneScopedN("TerrainGenerator::GenerateChunkPipeline");
     WorldGenerationChunkResult result{};
-    result.regionScaffold = generate_region_scaffold(chunkX, chunkZ);
-    result.columnScaffold = GenerateChunkData(chunkX, chunkZ);
+    {
+        ZoneScopedN("TerrainGenerator::CopyRegionScaffold");
+        result.regionScaffold = region_scaffold_for(chunkX, chunkZ);
+    }
+    {
+        ZoneScopedN("TerrainGenerator::CopyColumnScaffold");
+        result.columnScaffold = chunk_data_for(chunkX, chunkZ);
+    }
     result.featureInstances = TerrainFeatureInstanceSet{
         .chunkOrigin = {chunkX, chunkZ}
     };
-    result.volumeBuffer = TerrainVolumeBuffer{
-        .chunkOrigin = {chunkX, chunkZ},
-        .cells = std::vector<TerrainVolumeCell>(static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE))
-    };
-    terrain_generation::fill_density_volume(
-        result.columnScaffold,
-        _density,
-        _settings,
-        result.volumeBuffer.chunkOrigin,
-        result.volumeBuffer);
+    {
+        ZoneScopedN("TerrainGenerator::BuildDensityVolume");
+        result.volumeBuffer = TerrainVolumeBuffer{
+            .chunkOrigin = {chunkX, chunkZ},
+            .chunkVoxelWidth = _chunkVoxelWidth,
+            .chunkVoxelHeight = _chunkVoxelHeight,
+            .cells = std::vector<TerrainVolumeCell>(static_cast<size_t>(_chunkVoxelWidth * _chunkVoxelHeight * _chunkVoxelWidth))
+        };
+        terrain_generation::fill_density_volume(
+            result.columnScaffold,
+            _density,
+            _settings,
+            result.volumeBuffer.chunkOrigin,
+            _blockWorldSize,
+            result.volumeBuffer);
+    }
 
     result.surfaceClassification = SurfaceClassificationBuffer{
-        .chunkOrigin = {chunkX, chunkZ}
+        .chunkOrigin = {chunkX, chunkZ},
+        .chunkVoxelWidth = _chunkVoxelWidth,
+        .chunkVoxelHeight = _chunkVoxelHeight
     };
-    terrain_generation::clear_surface_classification(result.surfaceClassification);
 
     result.appearanceBuffer = AppearanceBuffer{
-        .chunkOrigin = {chunkX, chunkZ}
+        .chunkOrigin = {chunkX, chunkZ},
+        .chunkVoxelWidth = _chunkVoxelWidth,
+        .chunkVoxelHeight = _chunkVoxelHeight
     };
-    terrain_generation::clear_appearance(result.appearanceBuffer);
     return result;
 }
 
 std::vector<float> TerrainGenerator::GenerateHeightMap(const int chunkX, const int chunkZ) const
 {
-    const ChunkTerrainData chunkData = GenerateChunkData(chunkX, chunkZ);
-    std::vector<float> heightMap(CHUNK_SIZE * CHUNK_SIZE);
+    const ChunkTerrainData& chunkData = chunk_data_for(chunkX, chunkZ);
+    std::vector<float> heightMap(static_cast<size_t>(_chunkVoxelWidth * _chunkVoxelWidth));
 
-    for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
+    for (int z = 0; z < _chunkVoxelWidth; ++z)
     {
-        for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
+        for (int x = 0; x < _chunkVoxelWidth; ++x)
         {
-            heightMap[(z * static_cast<int>(CHUNK_SIZE)) + x] = static_cast<float>(chunkData.at(x, z).surfaceHeight);
+            heightMap[(z * _chunkVoxelWidth) + x] = static_cast<float>(chunkData.at(x, z).surfaceHeight);
         }
     }
 
@@ -283,11 +340,11 @@ std::vector<float> TerrainGenerator::GenerateHeightMap(const int chunkX, const i
 
 TerrainColumnSample TerrainGenerator::SampleColumn(const int worldX, const int worldZ) const
 {
-    const int chunkOriginX = terrain_generation::floor_to_int(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE)) * static_cast<int>(CHUNK_SIZE);
-    const int chunkOriginZ = terrain_generation::floor_to_int(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)) * static_cast<int>(CHUNK_SIZE);
-    const ChunkTerrainData chunkData = GenerateChunkData(chunkOriginX, chunkOriginZ);
-    const int localX = terrain_generation::wrap_to_chunk_axis(worldX, CHUNK_SIZE);
-    const int localZ = terrain_generation::wrap_to_chunk_axis(worldZ, CHUNK_SIZE);
+    const int chunkOriginX = terrain_generation::floor_to_int(static_cast<float>(worldX) / static_cast<float>(_chunkVoxelWidth)) * _chunkVoxelWidth;
+    const int chunkOriginZ = terrain_generation::floor_to_int(static_cast<float>(worldZ) / static_cast<float>(_chunkVoxelWidth)) * _chunkVoxelWidth;
+    const ChunkTerrainData& chunkData = chunk_data_for(chunkOriginX, chunkOriginZ);
+    const int localX = terrain_generation::wrap_to_chunk_axis(worldX, _chunkVoxelWidth);
+    const int localZ = terrain_generation::wrap_to_chunk_axis(worldZ, _chunkVoxelWidth);
     return chunkData.at(localX, localZ);
 }
 
@@ -315,33 +372,105 @@ TerrainGeneratorSettings TerrainGenerator::default_settings()
     settings.erosionSplines.assign(DefaultErosionSplines.begin(), DefaultErosionSplines.end());
     settings.peakSplines.assign(DefaultPeakSplines.begin(), DefaultPeakSplines.end());
     settings.continentalSplines.assign(DefaultContinentalSplines.begin(), DefaultContinentalSplines.end());
-    normalize_settings(settings);
+    normalize_settings(settings, static_cast<int>(CHUNK_HEIGHT), 1.0f);
     return settings;
 }
 
 int TerrainGenerator::sea_level() noexcept
 {
-    return instance().settings().shape.seaLevel;
+    TerrainGenerator& generator = instance();
+    return std::clamp(
+        world_units_to_voxels(static_cast<float>(generator.settings().shape.seaLevel), generator.block_world_size()),
+        0,
+        std::max(0, generator.chunk_voxel_height() - 1));
+}
+
+int TerrainGenerator::chunk_voxel_width() const noexcept
+{
+    return _chunkVoxelWidth;
+}
+
+int TerrainGenerator::chunk_voxel_height() const noexcept
+{
+    return _chunkVoxelHeight;
+}
+
+float TerrainGenerator::block_world_size() const noexcept
+{
+    return _blockWorldSize;
 }
 
 void TerrainGenerator::apply_settings(const TerrainGeneratorSettings& settings)
 {
     std::scoped_lock lock(_stateMutex);
     _settings = settings;
-    normalize_settings(_settings);
+    normalize_settings(_settings, _chunkVoxelHeight, _blockWorldSize);
+    const float maxWorldHeight = max_world_height(_chunkVoxelHeight, _blockWorldSize);
+    _settings.shape.seaLevel = std::clamp(
+        _settings.shape.seaLevel,
+        0,
+        static_cast<int>(std::floor(maxWorldHeight)));
+    _settings.density.maxBandHalfSpanBlocks = std::clamp(
+        _settings.density.maxBandHalfSpanBlocks,
+        0,
+        static_cast<int>(std::floor(maxWorldHeight)));
+    for (SplinePoint& point : _settings.erosionSplines)
+    {
+        point.heightValue = std::clamp(point.heightValue, 0.0f, maxWorldHeight);
+    }
+    for (SplinePoint& point : _settings.peakSplines)
+    {
+        point.heightValue = std::clamp(point.heightValue, 0.0f, maxWorldHeight);
+    }
+    for (SplinePoint& point : _settings.continentalSplines)
+    {
+        point.heightValue = std::clamp(point.heightValue, 0.0f, maxWorldHeight);
+    }
     rebuild_noise();
+    _regionCache.clear();
+    _columnCache.clear();
+}
+
+void TerrainGenerator::set_world_geometry(const int chunkVoxelWidth, const int chunkVoxelHeight, const float blockWorldSize)
+{
+    std::scoped_lock lock(_stateMutex);
+    _chunkVoxelWidth = std::max(1, chunkVoxelWidth);
+    _chunkVoxelHeight = std::max(1, chunkVoxelHeight);
+    _blockWorldSize = std::max(0.001f, blockWorldSize);
+    const float maxWorldHeight = max_world_height(_chunkVoxelHeight, _blockWorldSize);
+    _settings.shape.seaLevel = std::clamp(
+        _settings.shape.seaLevel,
+        0,
+        static_cast<int>(std::floor(maxWorldHeight)));
+    _settings.density.maxBandHalfSpanBlocks = std::clamp(
+        _settings.density.maxBandHalfSpanBlocks,
+        0,
+        static_cast<int>(std::floor(maxWorldHeight)));
+    for (SplinePoint& point : _settings.erosionSplines)
+    {
+        point.heightValue = std::clamp(point.heightValue, 0.0f, maxWorldHeight);
+    }
+    for (SplinePoint& point : _settings.peakSplines)
+    {
+        point.heightValue = std::clamp(point.heightValue, 0.0f, maxWorldHeight);
+    }
+    for (SplinePoint& point : _settings.continentalSplines)
+    {
+        point.heightValue = std::clamp(point.heightValue, 0.0f, maxWorldHeight);
+    }
     _regionCache.clear();
     _columnCache.clear();
 }
 
 void TerrainGenerator::RasterizeChunkTerrain(const WorldGenerationChunkResult& generation, ChunkData& chunkData) const
 {
+    ZoneScopedN("TerrainGenerator::RasterizeChunkTerrain");
     const int seaLevel = _settings.shape.seaLevel;
-    for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
+    for (int x = 0; x < chunkData.voxelWidth; ++x)
     {
-        for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
+        for (int z = 0; z < chunkData.voxelWidth; ++z)
         {
-            for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
+            for (int y = 0; y < chunkData.voxelHeight; ++y)
             {
                 Block& block = chunkData.blocks[x][y][z];
                 const TerrainVolumeCell& cell = generation.volumeBuffer.at(x, y, z);
@@ -360,13 +489,14 @@ void TerrainGenerator::RasterizeChunkTerrain(const WorldGenerationChunkResult& g
 
 void TerrainGenerator::PopulateBaseTerrainBlocks(const ChunkTerrainData& terrainData, ChunkData& chunkData) const
 {
+    ZoneScopedN("TerrainGenerator::PopulateBaseTerrainBlocks");
     const int seaLevel = _settings.shape.seaLevel;
-    for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
+    for (int x = 0; x < chunkData.voxelWidth; ++x)
     {
-        for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
+        for (int z = 0; z < chunkData.voxelWidth; ++z)
         {
             const TerrainColumnSample& column = terrainData.at(x, z);
-            for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
+            for (int y = 0; y < chunkData.voxelHeight; ++y)
             {
                 Block& block = chunkData.blocks[x][y][z];
                 if (y > column.surfaceHeight)
@@ -383,16 +513,18 @@ void TerrainGenerator::PopulateBaseTerrainBlocks(const ChunkTerrainData& terrain
 
 void TerrainGenerator::ApplyVoxelTerrainFeatures(const ChunkTerrainData& terrainData, ChunkData& chunkData) const
 {
+    ZoneScopedN("TerrainGenerator::ApplyVoxelTerrainFeatures");
     PopulateBaseTerrainBlocks(terrainData, chunkData);
 }
 
 void TerrainGenerator::RefreshSurfaceMaterials(const ChunkTerrainData&, ChunkData& chunkData) const
 {
-    for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
+    ZoneScopedN("TerrainGenerator::RefreshSurfaceMaterials");
+    for (int x = 0; x < chunkData.voxelWidth; ++x)
     {
-        for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
+        for (int z = 0; z < chunkData.voxelWidth; ++z)
         {
-            for (int y = 0; y < static_cast<int>(CHUNK_HEIGHT); ++y)
+            for (int y = 0; y < chunkData.voxelHeight; ++y)
             {
                 Block& block = chunkData.blocks[x][y][z];
                 if (block._solid)
@@ -404,9 +536,14 @@ void TerrainGenerator::RefreshSurfaceMaterials(const ChunkTerrainData&, ChunkDat
     }
 }
 
-void TerrainGenerator::normalize_settings(TerrainGeneratorSettings& settings)
+void TerrainGenerator::normalize_settings(
+    TerrainGeneratorSettings& settings,
+    const int chunkVoxelHeight,
+    const float blockWorldSize)
 {
-    auto normalize_spline = [](std::vector<SplinePoint>& spline, const auto& fallback)
+    const float maxWorldHeight = max_world_height(chunkVoxelHeight, blockWorldSize);
+    const int maxWorldHeightInt = static_cast<int>(std::floor(maxWorldHeight));
+    auto normalize_spline = [maxWorldHeight](std::vector<SplinePoint>& spline, const auto& fallback)
     {
         if (spline.size() < 2)
         {
@@ -421,16 +558,16 @@ void TerrainGenerator::normalize_settings(TerrainGeneratorSettings& settings)
         for (SplinePoint& point : spline)
         {
             point.noiseValue = std::clamp(point.noiseValue, -1.0f, 1.0f);
-            point.heightValue = std::clamp(point.heightValue, 0.0f, static_cast<float>(CHUNK_HEIGHT - 1));
+            point.heightValue = std::clamp(point.heightValue, 0.0f, maxWorldHeight);
         }
     };
 
-    settings.shape.seaLevel = std::clamp(settings.shape.seaLevel, 0, static_cast<int>(CHUNK_HEIGHT - 1));
+    settings.shape.seaLevel = std::clamp(settings.shape.seaLevel, 0, maxWorldHeightInt);
     normalize_noise_layer(settings.shape.continental);
     normalize_noise_layer(settings.shape.erosion);
     normalize_noise_layer(settings.shape.peaks);
     normalize_noise_layer(settings.shape.weirdness);
-    normalize_density_settings(settings.density);
+    normalize_density_settings(settings.density, maxWorldHeightInt);
     normalize_spline(settings.erosionSplines, DefaultErosionSplines);
     normalize_spline(settings.peakSplines, DefaultPeakSplines);
     normalize_spline(settings.continentalSplines, DefaultContinentalSplines);

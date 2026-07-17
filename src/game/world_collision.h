@@ -5,6 +5,7 @@
 #include <glm/vec3.hpp>
 
 #include "physics/aabb.h"
+#include "world/world_geometry.h"
 
 class World;
 
@@ -17,6 +18,10 @@ public:
 
     [[nodiscard]] static bool intersects_solid_blocks(
         const AABB& bounds,
+        const std::function<bool(const glm::ivec3&)>& isSolidBlock);
+    [[nodiscard]] static bool intersects_solid_blocks(
+        const AABB& bounds,
+        const WorldGeometry& geometry,
         const std::function<bool(const glm::ivec3&)>& isSolidBlock);
 
 private:

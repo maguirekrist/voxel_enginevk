@@ -2,15 +2,18 @@
 
 #include <unordered_set>
 
-std::vector<DirtyChunkMark> ChunkDirtyTracker::affected_chunks(const ChunkCoord& ownerCoord, const glm::ivec3& localPos) const
+std::vector<DirtyChunkMark> ChunkDirtyTracker::affected_chunks(
+    const ChunkCoord& ownerCoord,
+    const glm::ivec3& localPos,
+    const int chunkVoxelWidth) const
 {
     std::unordered_set<ChunkCoord> affected{};
     affected.insert(ownerCoord);
 
     const bool westEdge = localPos.x == 0;
-    const bool eastEdge = localPos.x == CHUNK_SIZE - 1;
+    const bool eastEdge = localPos.x == chunkVoxelWidth - 1;
     const bool southEdge = localPos.z == 0;
-    const bool northEdge = localPos.z == CHUNK_SIZE - 1;
+    const bool northEdge = localPos.z == chunkVoxelWidth - 1;
 
     if (westEdge)
     {

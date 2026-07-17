@@ -6,7 +6,7 @@ namespace config
 {
     namespace
     {
-        constexpr int WorldGenConfigVersion = 14;
+        constexpr int WorldGenConfigVersion = 15;
 
         nlohmann::json serialize_noise_layer(const TerrainNoiseLayerSettings& settings)
         {
@@ -37,7 +37,8 @@ namespace config
                 { "gain", settings.gain },
                 { "weightedStrength", settings.weightedStrength },
                 { "strength", settings.strength },
-                { "maxBandHalfSpanBlocks", settings.maxBandHalfSpanBlocks }
+                { "maxBandHalfSpanBlocks", settings.maxBandHalfSpanBlocks },
+                { "sampleCellSizeBlocks", settings.sampleCellSizeBlocks }
             };
         }
 
@@ -80,6 +81,7 @@ namespace config
             settings.weightedStrength = density.value("weightedStrength", settings.weightedStrength);
             settings.strength = density.value("strength", settings.strength);
             settings.maxBandHalfSpanBlocks = density.value("maxBandHalfSpanBlocks", settings.maxBandHalfSpanBlocks);
+            settings.sampleCellSizeBlocks = density.value("sampleCellSizeBlocks", settings.sampleCellSizeBlocks);
         }
 
         nlohmann::json spline_to_json(const std::vector<SplinePoint>& spline)

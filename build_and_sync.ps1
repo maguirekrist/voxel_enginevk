@@ -2,7 +2,8 @@ param(
     [ValidateSet("Debug", "Release")]
     [string]$Config = "Debug",
     [switch]$Release,
-    [string]$Target = "vulkan_guide",
+    [string]$Target = "game",
+    [string]$ExeName = "game",
     [int]$Parallel = 0,
     [switch]$AllTargets
 )
@@ -22,6 +23,19 @@ $buildDir = Join-Path $repoRoot "build"
 $shaderSourceDir = Join-Path $repoRoot "shaders"
 $runtimeDir = Join-Path $repoRoot ("bin\" + $Config)
 $runtimeShaderDir = Join-Path $runtimeDir "shaders"
+$runtimeExePath = Join-Path $runtimeDir ($ExeName + ".exe")
+
+Write-Host "Configuring build directory with executable name '$ExeName'..."
+$configureArgs = @(
+    "-S", $repoRoot,
+    "-B", $buildDir,
+    "-DVOXEL_ENGINE_OUTPUT_NAME=$ExeName"
+)
+& cmake @configureArgs
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Configure failed."
+}
 
 if ($AllTargets) {
     Write-Host "Building configuration '$Config' (ALL_BUILD) with $Parallel workers..."
@@ -54,3 +68,6 @@ New-Item -ItemType Directory -Path $runtimeShaderDir | Out-Null
 Copy-Item -Path (Join-Path $shaderSourceDir "*") -Destination $runtimeShaderDir -Recurse -Force
 
 Write-Host "Build and shader sync complete."
+if (Test-Path $runtimeExePath) {
+    Write-Host "Executable path: $runtimeExePath"
+}

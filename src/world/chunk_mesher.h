@@ -2,17 +2,23 @@
 
 #include <vk_types.h>
 #include "chunk_neighborhood.h"
+#include "world_geometry.h"
 
 class ChunkMesher {
 public:
-    explicit ChunkMesher(ChunkNeighborhood neighborhood, const bool ambientOcclusionEnabled = true) :
+    explicit ChunkMesher(
+        ChunkNeighborhood neighborhood,
+        WorldGeometry geometry = WorldGeometry{},
+        const bool ambientOcclusionEnabled = true) :
         _neighborhood(std::move(neighborhood)),
+        _geometry(std::move(geometry)),
         _ambientOcclusionEnabled(ambientOcclusionEnabled) {}
 
     std::shared_ptr<ChunkMeshData> generate_mesh();
 
 private:
     ChunkNeighborhood _neighborhood;
+    WorldGeometry _geometry{};
     bool _ambientOcclusionEnabled{true};
     int _seaLevel{0};
 

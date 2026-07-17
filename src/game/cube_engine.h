@@ -18,6 +18,7 @@
 #include <components/game_object.h>
 #include <components/player_input_component.h>
 #include <world/chunk_manager.h>
+#include <world/world_geometry.h>
 
 struct PlayerSnapshot
 {
@@ -74,8 +75,10 @@ public:
     [[nodiscard]] std::vector<DebugSpatialColliderSnapshot> debug_spatial_colliders() const;
     void apply_block_edit(const BlockEdit& edit);
     void regenerate_world();
+    void set_world_geometry(const WorldGeometrySettings& settings);
     [[nodiscard]] ChunkManager& chunk_manager();
     [[nodiscard]] const ChunkManager& chunk_manager() const;
+    [[nodiscard]] const WorldGeometry& world_geometry() const noexcept;
     [[nodiscard]] const PlayerEntity* player() const noexcept;
     [[nodiscard]] VoxelModelRepository& voxel_repository() noexcept;
     [[nodiscard]] const VoxelModelRepository& voxel_repository() const noexcept;

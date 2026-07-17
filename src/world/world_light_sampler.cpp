@@ -7,23 +7,21 @@
 #include "game/world.h"
 #include "world/chunk_manager.h"
 
-namespace
-{
-    [[nodiscard]] glm::ivec3 floor_world_position(const glm::vec3& worldPosition) noexcept
-    {
-        return glm::ivec3(
-            static_cast<int>(std::floor(worldPosition.x)),
-            static_cast<int>(std::floor(worldPosition.y)),
-            static_cast<int>(std::floor(worldPosition.z)));
-    }
-}
-
 namespace world_lighting
 {
     SampledWorldLight sample_baked_world_light(const ChunkData& chunkData, const glm::vec3& worldPosition) noexcept
     {
+        static const WorldGeometry defaultGeometry{};
+        return sample_baked_world_light(chunkData, defaultGeometry, worldPosition);
+    }
+
+    SampledWorldLight sample_baked_world_light(
+        const ChunkData& chunkData,
+        const WorldGeometry& geometry,
+        const glm::vec3& worldPosition) noexcept
+    {
         SampledWorldLight sampled{};
-        const glm::ivec3 blockWorldPosition = floor_world_position(worldPosition);
+        const glm::ivec3 blockWorldPosition = geometry.world_to_voxel_cell(worldPosition);
         if (!chunkData.contains_world_position(blockWorldPosition))
         {
             return sampled;
@@ -91,13 +89,13 @@ namespace world_lighting
             return sampled;
         }
 
-        Chunk* const chunk = _chunkManager->get_chunk(World::get_chunk_coordinates(worldPosition));
+        Chunk* const chunk = _chunkManager->get_chunk(World::get_chunk_coordinates(worldPosition, _chunkManager->geometry()));
         if (chunk == nullptr || chunk->_data == nullptr)
         {
             return sampled;
         }
 
-        sampled = sample_baked_world_light(*chunk->_data, worldPosition);
+        sampled = sample_baked_world_light(*chunk->_data, _chunkManager->geometry(), worldPosition);
         if (_dynamicLights != nullptr)
         {
             sampled.dynamicLight = sample_dynamic_point_lights(_dynamicLights->snapshot(), worldPosition, affectMask);

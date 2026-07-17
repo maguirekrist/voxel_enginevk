@@ -55,6 +55,10 @@
         "y": 0.6914027333259583,
         "z": 0.5441176891326904
       },
+      "fogDistanceOffset": -60.0,
+      "fogDistanceRange": 60.0,
+      "fogHeightMax": 15000.0,
+      "fogHeightMin": 0.0,
       "hemiStrength": 0.7649999856948853,
       "localLightStrength": 1.2309999465942383,
       "nightFog": {
@@ -105,13 +109,30 @@
       "shadowFloor": 0.6129999756813049,
       "shadowStrength": 2.319000005722046,
       "skylightStrength": 1.1399999856948853,
+      "waterFogDistanceClear": 180.0,
+      "waterFogDistanceDense": 28.0,
+      "waterFogFactorClear": 0.4000000059604645,
+      "waterFogFactorDense": 1.7999999523162842,
       "waterFogStrength": 0.8550000190734863
     }
   },
   "debug": {
     "showChunkBoundaries": false
   },
-  "version": 1,
+  "player": {
+    "airControl": 0.3499999940395355,
+    "cameraTargetOffset": {
+      "x": 0.0,
+      "y": 1.399999976158142,
+      "z": 0.0
+    },
+    "flyModeEnabled": true,
+    "gravity": 24.0,
+    "jumpVelocity": 8.5,
+    "maxFallSpeed": 30.0,
+    "moveSpeed": 4.5
+  },
+  "version": 4,
   "world": {
     "ambientOcclusionEnabled": false,
     "viewDistance": 20

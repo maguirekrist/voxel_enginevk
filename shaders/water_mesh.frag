@@ -30,6 +30,8 @@ layout(set = 2, binding = 0) uniform FogUBO {
     vec3 fogCenter;
     float fogRadius;
     ivec2 screenSize;
+    vec4 fogParams1;
+    vec4 waterFogParams;
     mat4 inverseViewProject;
 } fogUbo;
 
@@ -74,9 +76,9 @@ void main()
 
     //float delta = distanceToCenter - fogUbo.fogRadius;
 
-    float fogDistance = mix(180.0f, 28.0f, clamp(waterFogStrength, 0.0, 1.0));
+    float fogDistance = mix(fogUbo.waterFogParams.x, fogUbo.waterFogParams.y, clamp(waterFogStrength, 0.0, 1.0));
     float fogFactor = computeFogFactor(distanceToCenter, fogUbo.fogRadius, fogUbo.fogRadius + fogDistance);
-    fogFactor = clamp(fogFactor * mix(0.4f, 1.8f, clamp(waterFogStrength, 0.0, 1.0)), 0.0, 1.0);
+    fogFactor = clamp(fogFactor * mix(fogUbo.waterFogParams.z, fogUbo.waterFogParams.w, clamp(waterFogStrength, 0.0, 1.0)), 0.0, 1.0);
 
 
 

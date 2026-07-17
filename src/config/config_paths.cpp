@@ -16,4 +16,9 @@ namespace config
     {
         return root() / "world_gen.json";
     }
+
+    std::filesystem::path ConfigPaths::world_geometry()
+    {
+        return root() / "world_geometry.json";
+    }
 }

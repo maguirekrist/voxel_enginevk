@@ -16,6 +16,7 @@
 #include "world/dynamic_light_registry.h"
 #include "world/terrain_gen.h"
 #include "world/world_light_sampler.h"
+#include "world/world_geometry.h"
 
 using test_support::TestJsonDocumentStore;
 using test_support::make_empty_chunk;
@@ -64,6 +65,11 @@ namespace
 
     bool appearance_buffer_is_empty(const AppearanceBuffer& appearanceBuffer)
     {
+        if (appearanceBuffer.voxels.empty())
+        {
+            return true;
+        }
+
         for (int z = 0; z < static_cast<int>(CHUNK_SIZE); ++z)
         {
             for (int x = 0; x < static_cast<int>(CHUNK_SIZE); ++x)
@@ -123,6 +129,32 @@ TEST(WorldCoordinatesTest, WrapsPositiveAndNegativeCoordinatesCorrectly)
     EXPECT_EQ(negativeY.y, -1);
 }
 
+TEST(WorldCoordinatesTest, PlaceholderChunkWithoutStorageDoesNotExposeVoxelContents)
+{
+    ChunkData placeholder{
+        ChunkCoord{0, 0},
+        glm::ivec2(0, 0),
+        static_cast<int>(CHUNK_SIZE),
+        static_cast<int>(CHUNK_HEIGHT),
+        false
+    };
+
+    EXPECT_FALSE(placeholder.has_block_storage());
+    EXPECT_FALSE(placeholder.contains_world_position(glm::ivec3(0, 0, 0)));
+    EXPECT_FALSE(placeholder.has_emissive_blocks());
+
+    ChunkNeighborhood placeholderNeighborhood{};
+    placeholderNeighborhood.center = std::make_shared<ChunkData>(placeholder);
+    EXPECT_EQ(ChunkLighting::solve_skylight(placeholderNeighborhood), nullptr);
+    EXPECT_FALSE(sample_block(placeholderNeighborhood, 0, 0, 0).has_value());
+
+    const world_lighting::SampledWorldLight sampled = world_lighting::sample_baked_world_light(
+        placeholder,
+        glm::vec3(0.2f, 0.3f, 0.4f));
+    EXPECT_FLOAT_EQ(sampled.bakedSunlight, 1.0f);
+    EXPECT_EQ(sampled.bakedLocalLight, glm::vec3(0.0f));
+}
+
 TEST(WorldCollisionTest, IntersectsSolidBlocksEnumeratesOverlappingVoxelRange)
 {
     const AABB bounds{
@@ -138,6 +170,26 @@ TEST(WorldCollisionTest, IntersectsSolidBlocksEnumeratesOverlappingVoxelRange)
     EXPECT_FALSE(WorldCollision::intersects_solid_blocks(bounds, [](const glm::ivec3& blockPos) -> bool
     {
         return blockPos == glm::ivec3(2, 3, 4);
+    }));
+}
+
+TEST(WorldCollisionTest, IntersectsSolidBlocksRespectsCustomBlockWorldSize)
+{
+    WorldGeometrySettings settings{};
+    settings.chunkVoxelWidth = 16;
+    settings.chunkWorldWidth = 8.0f;
+    settings.chunkWorldHeight = 128.0f;
+    normalize_world_geometry_settings(settings);
+    const WorldGeometry geometry(settings);
+
+    const AABB bounds{
+        .min = glm::vec3(0.6f, 1.5f, 2.1f),
+        .max = glm::vec3(0.9f, 2.2f, 2.4f)
+    };
+
+    EXPECT_TRUE(WorldCollision::intersects_solid_blocks(bounds, geometry, [](const glm::ivec3& blockPos) -> bool
+    {
+        return blockPos == glm::ivec3(1, 3, 4);
     }));
 }
 
@@ -169,6 +221,7 @@ TEST(ChunkLightingTest, SkylightDistinguishesOpenSkyFromRoofedCells)
     const auto litRoofed = ChunkLighting::solve_skylight(neighborhood);
     ASSERT_NE(litRoofed, nullptr);
     EXPECT_LT(litRoofed->blocks[testX][roofY - 1][testZ]._sunlight, MAX_LIGHT_LEVEL);
+    EXPECT_GT(litRoofed->blocks[testX][roofY - 1][testZ]._sunlight, 0);
 }
 
 TEST(ChunkLightingTest, LampLocalLightPropagatesAndIsBlockedBySolidWall)
@@ -217,10 +270,7 @@ TEST(ChunkLightingTest, LampLocalLightPropagatesAndIsBlockedBySolidWall)
 
 TEST(WorldLightSamplerTest, SamplesBakedLightFromLitChunkData)
 {
-    ChunkData chunk{
-        .coord = ChunkCoord{0, 0},
-        .position = glm::ivec2(0, 0)
-    };
+    ChunkData chunk{ ChunkCoord{0, 0}, glm::ivec2(0, 0) };
 
     chunk.blocks[3][9][4] = Block{
         ._solid = false,
@@ -237,6 +287,34 @@ TEST(WorldLightSamplerTest, SamplesBakedLightFromLitChunkData)
     EXPECT_NEAR(sampled.bakedLocalLight.r, 6.0f / static_cast<float>(MAX_LIGHT_LEVEL), 0.0001f);
     EXPECT_NEAR(sampled.bakedLocalLight.g, 3.0f / static_cast<float>(MAX_LIGHT_LEVEL), 0.0001f);
     EXPECT_NEAR(sampled.bakedLocalLight.b, 0.0f, 0.0001f);
+}
+
+TEST(WorldLightSamplerTest, SamplesBakedLightUsingGeometryAwareWorldCoordinates)
+{
+    ChunkData chunk{ ChunkCoord{0, 0}, glm::ivec2(0, 0) };
+    chunk.blocks[3][9][4] = Block{
+        ._solid = false,
+        ._sunlight = 10,
+        ._type = BlockType::AIR,
+        ._localLight = LocalLight{ .r = 2, .g = 4, .b = 6 }
+    };
+
+    WorldGeometrySettings settings{};
+    settings.chunkVoxelWidth = 16;
+    settings.chunkWorldWidth = 8.0f;
+    settings.chunkWorldHeight = 128.0f;
+    normalize_world_geometry_settings(settings);
+    const WorldGeometry geometry(settings);
+
+    const world_lighting::SampledWorldLight sampled = world_lighting::sample_baked_world_light(
+        chunk,
+        geometry,
+        glm::vec3(1.6f, 4.6f, 2.2f));
+
+    EXPECT_NEAR(sampled.bakedSunlight, 10.0f / static_cast<float>(MAX_LIGHT_LEVEL), 0.0001f);
+    EXPECT_NEAR(sampled.bakedLocalLight.r, 2.0f / static_cast<float>(MAX_LIGHT_LEVEL), 0.0001f);
+    EXPECT_NEAR(sampled.bakedLocalLight.g, 4.0f / static_cast<float>(MAX_LIGHT_LEVEL), 0.0001f);
+    EXPECT_NEAR(sampled.bakedLocalLight.b, 6.0f / static_cast<float>(MAX_LIGHT_LEVEL), 0.0001f);
 }
 
 TEST(WorldLightSamplerTest, SamplesDynamicLightsWithAffectMaskFiltering)
@@ -332,6 +410,35 @@ TEST(TerrainGeneratorTest, ApplyingSettingsChangesGeneratedTerrain)
     EXPECT_TRUE(anyChanged);
 }
 
+TEST(TerrainGeneratorTest, HigherFidelityPreservesPhysicalTerrainShapeAtMatchingWorldPosition)
+{
+    TerrainGenerator& generator = TerrainGenerator::instance();
+    const TerrainGeneratorSettings originalSettings = generator.settings();
+    const int originalVoxelWidth = generator.chunk_voxel_width();
+    const int originalVoxelHeight = generator.chunk_voxel_height();
+    const float originalBlockWorldSize = generator.block_world_size();
+
+    generator.set_world_geometry(16, 256, 1.0f);
+    generator.apply_settings(originalSettings);
+    const TerrainColumnSample baseline = generator.SampleColumn(96, -64);
+
+    generator.set_world_geometry(24, 384, 2.0f / 3.0f);
+    generator.apply_settings(originalSettings);
+    const TerrainColumnSample dense = generator.SampleColumn(144, -96);
+
+    generator.set_world_geometry(originalVoxelWidth, originalVoxelHeight, originalBlockWorldSize);
+    generator.apply_settings(originalSettings);
+
+    EXPECT_NEAR(baseline.noise.continentalness, dense.noise.continentalness, 0.0001f);
+    EXPECT_NEAR(baseline.noise.erosion, dense.noise.erosion, 0.0001f);
+    EXPECT_NEAR(baseline.noise.peaksValleys, dense.noise.peaksValleys, 0.0001f);
+    EXPECT_NEAR(baseline.noise.weirdness, dense.noise.weirdness, 0.0001f);
+    EXPECT_NEAR(
+        static_cast<float>(baseline.surfaceHeight),
+        static_cast<float>(dense.surfaceHeight) * (2.0f / 3.0f),
+        1.0f);
+}
+
 TEST(TerrainGeneratorTest, ChunkPipelineBuildsConsistentHeightfieldProducts)
 {
     TerrainGenerator& generator = TerrainGenerator::instance();
@@ -364,12 +471,8 @@ TEST(TerrainGeneratorTest, ChunkPipelineBuildsConsistentHeightfieldProducts)
     EXPECT_EQ(
         generation.volumeBuffer.cells.size(),
         static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE));
-    EXPECT_EQ(
-        generation.surfaceClassification.faces.size(),
-        static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE));
-    EXPECT_EQ(
-        generation.appearanceBuffer.voxels.size(),
-        static_cast<size_t>(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE));
+    EXPECT_TRUE(generation.surfaceClassification.faces.empty());
+    EXPECT_TRUE(generation.appearanceBuffer.voxels.empty());
     EXPECT_TRUE(generation.featureInstances.features.empty());
 
     EXPECT_EQ(sampled.surfaceHeight, pipelineColumn.surfaceHeight);
@@ -424,8 +527,8 @@ TEST(TerrainGeneratorTest, HighWeirdnessCanCreateMultiSpanColumns)
         for (int chunkX = -2; chunkX <= 2 && !foundMultiSpanColumn; ++chunkX)
         {
             ChunkData chunkData{
-                .coord = ChunkCoord{chunkX, chunkZ},
-                .position = glm::ivec2(chunkX * static_cast<int>(CHUNK_SIZE), chunkZ * static_cast<int>(CHUNK_SIZE))
+                ChunkCoord{chunkX, chunkZ},
+                glm::ivec2(chunkX * static_cast<int>(CHUNK_SIZE), chunkZ * static_cast<int>(CHUNK_SIZE))
             };
             const WorldGenerationChunkResult generation = generator.GenerateChunkPipeline(chunkData.position.x, chunkData.position.y);
             generator.RasterizeChunkTerrain(generation, chunkData);
@@ -489,8 +592,8 @@ TEST(TerrainGeneratorTest, VolumetricTerrainRasterizesStoneSolids)
         for (int chunkX = -6; chunkX <= 6 && !foundSolidStoneVoxel; ++chunkX)
         {
             ChunkData chunkData{
-                .coord = ChunkCoord{chunkX, chunkZ},
-                .position = glm::ivec2(chunkX * static_cast<int>(CHUNK_SIZE), chunkZ * static_cast<int>(CHUNK_SIZE))
+                ChunkCoord{chunkX, chunkZ},
+                glm::ivec2(chunkX * static_cast<int>(CHUNK_SIZE), chunkZ * static_cast<int>(CHUNK_SIZE))
             };
             const WorldGenerationChunkResult generation = generator.GenerateChunkPipeline(chunkData.position.x, chunkData.position.y);
             generator.RasterizeChunkTerrain(generation, chunkData);
@@ -524,15 +627,11 @@ TEST(TerrainGeneratorTest, VolumetricTerrainRasterizesStoneSolids)
 
 TEST(TerrainGeneratorTest, ChunkGenerationKeepsDefaultTerrainAppearance)
 {
-    ChunkData chunkData{
-        .coord = ChunkCoord{8, -4},
-        .position = glm::ivec2(128, -64)
-    };
+    ChunkData chunkData{ ChunkCoord{8, -4}, glm::ivec2(128, -64) };
 
     chunkData.generate();
 
-    ASSERT_NE(chunkData.terrainAppearance, nullptr);
-    EXPECT_TRUE(appearance_buffer_is_empty(*chunkData.terrainAppearance));
+    EXPECT_EQ(chunkData.terrainAppearance, nullptr);
 }
 
 TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
@@ -569,6 +668,7 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     settings.density.weightedStrength = 0.2f;
     settings.density.strength = 0.9f;
     settings.density.maxBandHalfSpanBlocks = 44;
+    settings.density.sampleCellSizeBlocks = 2.0f;
     settings.peakSplines[1].heightValue = 17.0f;
 
     const std::filesystem::path tempRoot = std::filesystem::temp_directory_path() / "voxel_enginevk_config_repo_test";
@@ -611,6 +711,7 @@ TEST(WorldGenConfigRepositoryTest, SavesAndLoadsSettingsRoundTrip)
     EXPECT_FLOAT_EQ(loaded.density.weightedStrength, settings.density.weightedStrength);
     EXPECT_FLOAT_EQ(loaded.density.strength, settings.density.strength);
     EXPECT_EQ(loaded.density.maxBandHalfSpanBlocks, settings.density.maxBandHalfSpanBlocks);
+    EXPECT_FLOAT_EQ(loaded.density.sampleCellSizeBlocks, settings.density.sampleCellSizeBlocks);
     ASSERT_GT(loaded.peakSplines.size(), 1);
     EXPECT_FLOAT_EQ(loaded.peakSplines[1].heightValue, settings.peakSplines[1].heightValue);
 }

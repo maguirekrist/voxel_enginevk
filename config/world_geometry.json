@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "chunkVoxelWidth": 24,
+  "chunkVoxelHeight": 384,
+  "chunkWorldWidth": 16.0,
+  "chunkWorldHeight": 256.0
+}
